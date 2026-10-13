@@ -1,7 +1,8 @@
 ---
 phase: "01"
 slug: acceso-protegido-y-carga-de-facturas
-status: draft
+status: approved
+reviewed_at: "2026-10-13"
 shadcn_initialized: false
 preset: "base-nova (shadcn@4.21.4 init defaults, Base UI)"
 created: "2026-10-13"
@@ -120,8 +121,8 @@ Tokens are the shadcn neutral palette with overrides noted below (hex shown; the
 
 | Role | Light value | Dark value | Usage |
 |------|-------------|------------|-------|
-| Dominant (60%) `background` | `#FFFFFF` | `#0A0A0A` | Page background, table body, dialog surface |
-| Secondary (30%) `secondary` / `card` | `#F5F5F5` | `#171717` | Login page backdrop, top bar background, cards, summary cards, table header row, row hover, accordion trigger hover, muted wells (file lists) |
+| Dominant (60%) `background` | `#FFFFFF` | `#0A0A0A` | Page background, table body, dialog surface, login Card surface [user-confirmed] |
+| Secondary (30%) `secondary` / `card` | `#F5F5F5` | `#171717` | Login page backdrop, top bar background, cards (except the login Card), summary cards, table header row, row hover, accordion trigger hover, muted wells (file lists) |
 | Border | `#E5E5E5` | `#262626` | Card, table, accordion and top bar 1px borders, dropzone dashed border |
 | Foreground | `#0A0A0A` | `#FAFAFA` | Body text and headings |
 | Muted foreground | `#525252` | `#A3A3A3` | Helper text, captions, card sub-labels. Light is an **override** of shadcn's `#737373` (4.3:1 on `#F5F5F5`, below AA); dark `#A3A3A3` is shadcn's value, verified below. |
@@ -140,10 +141,10 @@ Contrast checks (WCAG AA: 4.5:1 text, 3:1 large text/UI):
 | Text on accent button | 17.2:1 | 14.2:1 |
 | Accent (focus ring, progress fill, drag-over border) on background | 17.9:1 | 15.7:1 |
 | Destructive text on background | 4.8:1 | 6.9:1 |
-| Destructive text on secondary | 4.4:1 (use only at 14px/600 or larger; see rule below) | 6.2:1 |
+| Destructive text on secondary | 4.4:1 (large text only: 20px+ or 28px numerals; see rule below) | 6.2:1 |
 | White text on destructive button fill | 4.8:1 | 4.8:1 |
 
-Rule for light destructive text on `secondary` (4.4:1, just under AA for small text): destructive text and icons must be placed on `background`, or be 20px+ / 28px numerals (large text, 3:1 required) when on `secondary`. The "Rechazados" summary card value is Display size (28px), so it passes; its sub-label stays in muted foreground, not destructive. Rejected-file row reasons are in foreground color, only the icon is destructive.
+Rule for light destructive text on `secondary` (4.4:1, just under AA for small text): destructive text and icons must be placed on `background`, or be 20px+ / 28px numerals (large text, 3:1 required) when on `secondary`. The "Rechazados" summary card value is Display size (28px), so it passes; its sub-label stays in muted foreground, not destructive. Rejected-file row reasons are in foreground color, only the icon is destructive. The login Card uses the `background` token (not `card`/`secondary`) with a 1px border, so the 14px login error text sits on `background` (4.8:1 light, 6.9:1 dark) and meets AA [user-confirmed].
 
 Accent reserved for (and nothing else):
 
@@ -294,7 +295,7 @@ Each screen has exactly one dominant element, which gets the largest size and th
 
 ### Routes and shell
 
-- `/login`: full-height page on the `secondary` surface, one Card (384px) centered both axes, no top bar, no logo [D-04]. The theme toggle is positioned fixed at the top-right of the viewport (16px from the top and right edges), outside the card, so the card keeps exactly the D-04 content. [user-confirmed] Content: app name (Heading), subtitle (Body, muted), Field "Contraseña" with InputGroup (password input + trailing icon button Eye/EyeOff), error message area, full-width primary Button "Entrar".
+- `/login`: full-height page on the `secondary` surface, one Card (384px) centered both axes, Card surface is the `background` token with a 1px `border` so it stands out from the `secondary` backdrop and the error text keeps AA contrast [user-confirmed], no top bar, no logo [D-04]. The theme toggle is positioned fixed at the top-right of the viewport (16px from the top and right edges), outside the card, so the card keeps exactly the D-04 content. [user-confirmed] Content: app name (Heading), subtitle (Body, muted), Field "Contraseña" with InputGroup (password input + trailing icon button Eye/EyeOff), error message area, full-width primary Button "Entrar".
 - `/` (everything else redirects to login through the proxy): top bar + `main` (max-w 1152px, horizontal padding 24px, top padding 32px, bottom 64px, sections separated by 32px).
 - Top bar [D-06]: sticky, 56px, `secondary` surface, 1px bottom border. Left: app name. Center: an empty `flex-1` slot reserved for the future IVA selector and export button (render nothing now, keep the slot so later phases do not reflow the bar). Right cluster, in this order with 8px gaps: "Agregar facturas" (primary, Upload icon; rendered only when invoices are loaded [D-10]), the theme toggle, "Cerrar sesión" (ghost, LogOut icon). The center slot stays reserved for the IVA selector and export; the toggle lives in the right cluster so it does not take that space.
 - Theme toggle [user-confirmed]: ghost icon-only button, 36x36px (44x44px under 640px), `Moon` icon in light theme (action: go dark) and `Sun` icon in dark theme (action: go light), 20px, decorative (`aria-hidden`), accessible name and Tooltip from the Copywriting Contract. Same component, placement and behavior on every screen where it appears (`/login` and the app shell). Always enabled, including while a batch is processing. Keyboard: Tab-focusable, Enter/Space activates, 2px accent focus ring. Switching has no animation beyond the 150 ms color transition (removed with `prefers-reduced-motion`).
@@ -367,7 +368,7 @@ Each screen has exactly one dominant element, which gets the largest size and th
 
 ## UI Considerations
 
-Applicable state considerations resolved: 15 covered, 4 backstop, 0 unresolved.
+Probe run after checker approval (2026-10-13) on 10 surfaces (login, top bar, dropzone, progress, summary cards, report accordions, invoice table, dialogs, toast, theme toggle); element kinds confirmed by the user. 57 candidate considerations: the rows below resolve every applicable one (16 explicit, 4 backstop, 0 unresolved); the rest are dismissed at the end of this section.
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
@@ -390,6 +391,9 @@ Applicable state considerations resolved: 15 covered, 4 backstop, 0 unresolved.
 | overflow | interactive-control (window-wide drop overlay) | 🧪 backstop | Overlay covers the full viewport even when the page is scrolled and while a dialog is closed; verify by dragging over a scrolled page. |
 | loading | interactive-control (drops while processing) | ✅ covered | [user-confirmed] While a batch is processing, "Agregar facturas", "Seleccionar archivos/carpeta" and "Quitar todas" are disabled and window drops are ignored (no overlay). |
 | partial | interactive-control ("Quitar todas") | ✅ covered | [user-confirmed] A confirmation AlertDialog ("¿Quitar todas las facturas?") precedes clearing the session; see Destructive confirmations. |
+| error | interactive-control (logout request) | ✅ covered | [user-confirmed] If the logout endpoint request fails (network), the app still clears the in-memory store and navigates to `/login`; no error toast. The cookie may survive, so the next visit can enter directly; accepted. |
+
+Dismissed (not applicable, with reason): loading/error on summary cards, accordions, table, toast and dropzone beyond the rows above (all data is computed in-browser from the session store; the only async work is the import, covered by the processing and whole-import-failure rows); empty/partial/long-text on the login form beyond the rows above (single password field, fixed copy); long-text on dialogs, theme toggle and progress text (fixed short copy, no user data); populated/empty on the top bar (fixed set of controls; "Agregar facturas" visibility is defined in Layout); overflow on the toast (Sonner wraps; copy is bounded by the D-20 format).
 
 ---
 
@@ -421,6 +425,8 @@ Confirmed by the user on 2026-10-13 (do not re-ask):
 12. Dialog dismiss buttons: logout dialog "Seguir en la sesión"; "Quitar todas" dialog "Conservar facturas".
 13. Login error copy: "Contraseña incorrecta. Revísala e inténtalo de nuevo."
 14. Login CTA stays "Entrar".
+15. Login Card surface uses the `background` token (white / `#0A0A0A`) with a 1px border, on the `secondary` backdrop, so the destructive login error meets AA.
+16. Destructive top-bar button text stays "Quitar todas" (the dialog title names the invoices).
 
 Open questions (not assumed; to ask the user): none.
 
@@ -428,12 +434,12 @@ Open questions (not assumed; to ask the user): none.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-10-13 (re-check after revision 1; the Dimension 3 FLAG on login error contrast was fixed afterwards by putting the login Card on the `background` token, user-confirmed).
