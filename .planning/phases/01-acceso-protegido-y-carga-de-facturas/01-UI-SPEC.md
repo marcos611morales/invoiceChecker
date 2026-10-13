@@ -156,7 +156,7 @@ Accent reserved for (and nothing else):
 Destructive reserved for:
 
 1. The confirm buttons in the "Cerrar sesión" and "Quitar todas" dialogs.
-2. The "Contraseña incorrecta" / login error message text.
+2. The login error message text ("Contraseña incorrecta. Revísala e inténtalo de nuevo.").
 3. The numeric value and the row icon of the "Rechazados" group.
 
 Everything else (warnings such as "Receptor distinto", duplicates, ignored files) uses neutral foreground/muted text plus an icon and a text label. No third semantic color is introduced in this phase; color is never the only carrier of meaning (every status also has text).
@@ -194,7 +194,7 @@ Verification checks (for the verifier):
 |---------|------|
 | App name (top bar, login title, `<title>` base) | InvoiceChecker |
 | Login subtitle | Análisis de gastos del Coworking Café |
-| Primary CTA, login | Entrar (pending: "Entrando…") |
+| Primary CTA, login | Entrar (pending: "Entrando…"). Kept as an accepted login convention. [user-confirmed] |
 | Primary CTA, loaded screen | Agregar facturas |
 | Primary CTA, empty screen | Seleccionar archivos |
 | Secondary CTA, empty screen | Seleccionar carpeta |
@@ -212,7 +212,7 @@ Verification checks (for the verifier):
 |---------|------|
 | Field label | Contraseña |
 | Show / hide icon button `aria-label` | Mostrar contraseña / Ocultar contraseña |
-| Wrong password [D-03] | Contraseña incorrecta (shown after the ~1 s artificial delay) |
+| Wrong password [D-03] | Contraseña incorrecta. Revísala e inténtalo de nuevo. (shown after the ~1 s artificial delay) [user-confirmed] |
 | Empty submit | Escribe la contraseña. |
 | Network / server failure | No se pudo iniciar sesión. Revisa tu conexión e inténtalo de nuevo. |
 | Server not configured (missing env vars) | El servidor no está configurado. Avisa a quien administra la app. |
@@ -274,13 +274,23 @@ Format: `Se agregaron {n}` followed by `, {d} duplicadas`, `, {r} rechazadas`, `
 
 | Action | Dialog copy |
 |--------|-------------|
-| Cerrar sesión (only when invoices are loaded) [D-07] | Title: "¿Cerrar sesión?" Body: "Se borrarán las facturas cargadas. Tendrás que volver a soltar los archivos." Buttons: "Cancelar" (default focus) · "Cerrar sesión" (destructive). With no invoices loaded, no dialog: logs out immediately. |
-| Quitar todas | Title: "¿Quitar todas las facturas?" Body: "Se borrarán las facturas cargadas y el reporte de esta sesión." Buttons: "Cancelar" (default focus) · "Quitar todas" (destructive). |
+| Cerrar sesión (only when invoices are loaded) [D-07] | Title: "¿Cerrar sesión?" Body: "Se borrarán las facturas cargadas. Tendrás que volver a soltar los archivos." Buttons: "Seguir en la sesión" (dismiss, default focus) · "Cerrar sesión" (destructive). [user-confirmed] With no invoices loaded, no dialog: logs out immediately. |
+| Quitar todas | Title: "¿Quitar todas las facturas?" Body: "Se borrarán las facturas cargadas y el reporte de esta sesión." Buttons: "Conservar facturas" (dismiss, default focus) · "Quitar todas" (destructive). [user-confirmed] |
 | Reload / close tab with invoices loaded [D-07] | Native browser `beforeunload` prompt (text is browser-controlled; no custom copy). Not registered when no invoices are loaded. |
 
 ---
 
 ## Layout & Interaction Contract
+
+### Primary focal point per screen
+
+Each screen has exactly one dominant element, which gets the largest size and the strongest contrast (accent fill or Display type); everything else is secondary.
+
+| Screen | Primary focal point | How it is established |
+|--------|---------------------|-----------------------|
+| `/login` | The login Card, and inside it the "Entrar" button | Card centered on the page and the only element on the `secondary` backdrop; "Entrar" is the only accent-filled element, with the password field above it autofocused. The theme toggle is a ghost icon and stays secondary. |
+| Empty screen | The dropzone Card with its Display heading "Arrastra tus XML o la carpeta aquí" | Largest element on the page (min height 256px), dashed border, 28/600 heading; "Seleccionar archivos" is the single accent-filled button, "Seleccionar carpeta" is outline. The privacy line and reload note are muted Label text below. |
+| Loaded screen | The summary cards grid of the import report | First content below the top bar (the processing indicator, when present, is transient), with 28/600 numerals on `secondary` cards; the accordions and the table follow in lower visual weight (14px text, no fill). "Agregar facturas" in the top bar is the only accent-filled button. |
 
 ### Routes and shell
 
@@ -341,7 +351,7 @@ Format: `Se agregaron {n}` followed by `, {d} duplicadas`, `, {r} rechazadas`, `
 
 ### Dialogs
 
-- AlertDialog from shadcn. Focus lands on "Cancelar"; Esc and click on the overlay cancel; the destructive button is last. Confirming "Cerrar sesión" clears the in-memory store, calls the logout endpoint, then navigates to `/login`. Confirming "Quitar todas" clears the store and returns to the empty screen without navigation.
+- AlertDialog from shadcn. Focus lands on the dismiss button ("Seguir en la sesión" in the logout dialog, "Conservar facturas" in the "Quitar todas" dialog); Esc and click on the overlay dismiss; the destructive button is last. Confirming "Cerrar sesión" clears the in-memory store, calls the logout endpoint, then navigates to `/login`. Confirming "Quitar todas" clears the store and returns to the empty screen without navigation.
 
 ### Accessibility floor
 
@@ -400,17 +410,19 @@ Confirmed by the user on 2026-10-13 (do not re-ask):
 1. Font: Geist Sans + Geist Mono.
 2. Accent: neutral `#171717` (dark: `#E5E5E5`), with the muted-text override `#525252`. No brand color.
 3. Theme: CHANGED by the user to light and dark. Initial theme follows the OS; a manual two-state toggle (Claro / Oscuro) in the top bar and on the login page overrides it, persisted per browser in `localStorage` (with `try/catch` fallback to the OS). Class-based `.dark`, pre-hydration script, `suppressHydrationWarning`; details in Color > Theme implementation.
-9. Manual theme toggle: yes, single two-state button, Sun/Moon icons, copy "Cambiar a tema oscuro" / "Cambiar a tema claro", also on `/login`.
-10. 44px touch targets under 640px for icon-only and pagination buttons: keep.
 4. Drops and buttons are disabled while a batch is processing.
 5. "Quitar todas" shows a confirmation dialog.
 6. Default table sort: Fecha descending.
 7. Privacy line repeated as a footer caption on the loaded screen; reload note (D-24) shown on every empty screen.
 8. "Receptor distinto" has its own accordion section and no summary card.
+9. Manual theme toggle: yes, single two-state button, Sun/Moon icons, copy "Cambiar a tema oscuro" / "Cambiar a tema claro", also on `/login`.
+10. 44px touch targets under 640px for icon-only and pagination buttons: keep.
+11. Theme toggle placement: right-hand cluster of the top bar, before "Cerrar sesión"; the center slot stays reserved for the IVA selector and export.
+12. Dialog dismiss buttons: logout dialog "Seguir en la sesión"; "Quitar todas" dialog "Conservar facturas".
+13. Login error copy: "Contraseña incorrecta. Revísala e inténtalo de nuevo."
+14. Login CTA stays "Entrar".
 
-Open questions (not assumed; to ask the user):
-
-1. Theme toggle placement: you said "in the top-bar slot". The spec puts it in the right-hand cluster (before "Cerrar sesión") and keeps the center slot reserved for the future IVA selector and export (D-06). Is that what you meant, or should it occupy the center slot?
+Open questions (not assumed; to ask the user): none.
 
 ---
 
