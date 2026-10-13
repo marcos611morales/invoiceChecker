@@ -70,6 +70,18 @@ Ver con claridad, a partir de las facturas XML, **en qué gastamos más y dónde
 | Categoría por proveedor, ajustable por concepto | Equilibrio entre esfuerzo y precisión (en Walmart se compran cosas de varias categorías) | — Pending |
 | Notas de crédito restan, complementos de Pago se excluyen | Evita duplicar el gasto y refleja las devoluciones | — Pending |
 | Next.js + TS strict + pnpm + ESLint | Elección del usuario; Next.js es nativo de Vercel | — Pending |
+| "Sin IVA" = Subtotal − Descuento + IEPS (solo se quita IVA) | 68/143 facturas con descuento; IEPS es costo real | — Pending |
+| Notas de crédito restan en el mes de la factura relacionada | Son aplicaciones de anticipo (TipoRelación 07) | — Pending |
+| Facturas $0 fuera de conteos/promedios | 12 facturas bancarias en $0 distorsionan el ticket promedio | — Pending |
+| Promedio mensual sobre meses del calendario del rango | Elección del usuario | — Pending |
+| Facturas solo en memoria (recargar = volver a cargar) | Elección del usuario; ajustes sí persisten | — Pending |
+| Canceladas: botón manual "Excluir", sin consulta al SAT | Mantiene procesamiento local | — Pending |
+| Precedencia categoría: concepto > producto > proveedor | Elección del usuario | — Pending |
+| Se envía nombre de proveedor (no RFC) a DeepSeek | Mejora sugerencias de categoría | — Pending |
+| Servicios/combustible excluidos de comparación de precios | No son productos comparables | — Pending |
+| Solo CFDI 4.0; otras monedas se convierten con TipoCambio | Elección del usuario | — Pending |
+| write-excel-file, DOMParser nativo, big.js | Elegidos tras research (estilos, robustez de namespaces, exactitud decimal) | — Pending |
+| Facturas/ fuera de git; pruebas con XML anonimizados | Contienen RFCs y datos personales | — Pending |
 
 ## Evolution
 
