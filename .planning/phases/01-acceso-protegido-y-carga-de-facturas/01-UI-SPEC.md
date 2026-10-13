@@ -26,7 +26,7 @@ created: "2026-10-13"
 | Icon library | lucide-react [CLAUDE.md]. Import by the names that exist in the installed version (e.g. `CloudUpload`, `CircleAlert`); verify after install. |
 | Font | Geist Sans for UI text, Geist Mono for file names, UUIDs and RFCs; both through `next/font` (scaffold default). [user-confirmed] |
 | Styling | Tailwind CSS 4, CSS-first config (no `tailwind.config.*`), design tokens as CSS variables in `globals.css`. [CLAUDE.md] |
-| Theme | Light and dark, following the OS preference (`prefers-color-scheme`). No manual toggle in this phase. [user-confirmed: both modes, OS-driven] Implementation: see "Theme implementation" under Color. |
+| Theme | Light and dark. Initial theme follows the OS (`prefers-color-scheme`) until the user clicks the theme toggle; from then on the choice is persisted per browser. Single two-state toggle (Claro / Oscuro) in the top bar and on the login page. [user-confirmed] Implementation: class-based `.dark`, see "Theme implementation" under Color. |
 | `<html lang>` | `es-MX` |
 | Layout approach | Desktop-first, responsive down to 360px. |
 
@@ -89,7 +89,7 @@ Exceptions (all multiples of 4, outside the 7-step scale on purpose):
 - Page content max width: 1152px (`max-w-6xl`).
 - Dropzone card min height: 256px.
 - Table row height: 40px; header row 40px.
-- Interactive controls: shadcn default heights (button 36px, icon button 36x36px). Desktop tool, so the 44px touch target is not enforced; on viewports under 640px the icon-only password toggle and pagination buttons grow to 44px. [default]
+- Interactive controls: shadcn default heights (button 36px, icon button 36x36px). Desktop tool, so the 44px touch target is not enforced on desktop; on viewports under 640px the icon-only buttons (password show/hide, theme toggle) and the pagination buttons grow to 44px. [user-confirmed]
 - Long file lists scroll inside a 320px max-height region.
 
 ---
@@ -161,14 +161,28 @@ Destructive reserved for:
 
 Everything else (warnings such as "Receptor distinto", duplicates, ignored files) uses neutral foreground/muted text plus an icon and a text label. No third semantic color is introduced in this phase; color is never the only carrier of meaning (every status also has text).
 
-### Theme implementation
+### Theme implementation [user-confirmed]
 
-- Driven only by the OS preference, with no JavaScript and no class on `<html>`, so there is no flash of the wrong theme and no hydration mismatch.
-- In `globals.css`: set the light tokens on `:root`; put the dark tokens inside `@media (prefers-color-scheme: dark) { :root { ... } }`; declare `@custom-variant dark (@media (prefers-color-scheme: dark));` so Tailwind `dark:` utilities follow the media query. This replaces the `.dark { ... }` block and the `@custom-variant dark (&:is(.dark *))` line that `shadcn init` generates; the executor must edit them after init.
-- Set `color-scheme: light dark` on `:root` so native scrollbars, the file picker and form controls match.
-- Components must use semantic tokens (`bg-background`, `bg-secondary`, `text-muted-foreground`, `border-border`, ...) and never literal hex or `bg-white` / `text-black`, so both themes work without per-component `dark:` classes. The window drop overlay uses the `background` token at 90% opacity.
-- Sonner `<Toaster theme="system" />`.
-- Dark-mode checks for the verifier: login, empty dropzone, loaded report, table and both dialogs rendered with `prefers-color-scheme: dark` emulated; focus ring and drag-over border visible on `#0A0A0A`.
+Behavior:
+
+- Two states only, Claro and Oscuro, switched by one toggle button (no 3-option menu, no "Sistema" entry). Until the user clicks it, the theme is the OS preference and updates live if the OS preference changes (`matchMedia("(prefers-color-scheme: dark)")` change listener). On the first click the toggle flips to the opposite of the currently displayed theme and stores that choice; the listener then stops affecting the theme. There is no way back to "follow the OS" other than clearing site data (accepted consequence of the two-state design).
+- Persistence: `localStorage` key `invoicechecker:theme`, value `"light"` or `"dark"`. Every `localStorage` read and write is wrapped in `try/catch`; if storage is unavailable, blocked or holds an invalid value, fall back to the OS preference and keep working (the choice just does not persist). It is a UI preference, not invoice data, so it is not cleared on logout, on "Quitar todas" or on reload.
+- No dependency is added for this (CLAUDE.md lists none): a small hand-written hook reads the `dark` class on `<html>` (for example through `useSyncExternalStore` with a `MutationObserver`) and exposes the active theme to the toggle and to the Toaster.
+
+Implementation in the code:
+
+- `globals.css`: light tokens on `:root`; dark tokens in a `.dark { ... }` block; `@custom-variant dark (&:where(.dark, .dark *));`. This replaces the shadcn-generated `@custom-variant dark (&:is(.dark *))` line; the executor edits it after `shadcn init`. Add `color-scheme: light` on `:root` and `color-scheme: dark` on `.dark` so native scrollbars, the file picker and form controls match.
+- Pre-hydration script: a tiny inline `<script>` as the first child of `<head>` in the root layout. It reads `invoicechecker:theme` (inside `try/catch`), falls back to `matchMedia("(prefers-color-scheme: dark)").matches`, and adds the `dark` class to `document.documentElement` before first paint, so there is no flash of the wrong theme.
+- `<html lang="es-MX" suppressHydrationWarning>`: required because the script changes the `class` attribute before React hydrates.
+- Components use semantic tokens (`bg-background`, `bg-secondary`, `text-muted-foreground`, `border-border`, ...) and never literal hex or `bg-white` / `text-black`, so both themes work without per-component `dark:` classes. The window drop overlay uses the `background` token at 90% opacity.
+- Sonner: `<Toaster theme={activeTheme} />` where `activeTheme` is `"light"` or `"dark"` from the hook above (not `"system"`), so toasts follow the toggle as well as the OS.
+- The toggle button must not cause a hydration mismatch: render both icons and show one with CSS (`dark:hidden` on Moon, `hidden dark:block` on Sun) instead of choosing the icon in JavaScript; the accessible name and tooltip text are set after mount from the hook, and before mount the `aria-label` is the neutral "Cambiar tema".
+
+Verification checks (for the verifier):
+
+- Login, empty dropzone, loaded report, table and both dialogs rendered in dark; focus ring and drag-over border visible on `#0A0A0A`.
+- First load with the OS in dark and storage cleared: page paints dark immediately, no flash of light.
+- Click the toggle, reload: the chosen theme is kept even when it differs from the OS. Block `localStorage`: the app still loads and follows the OS.
 
 ---
 
@@ -185,6 +199,9 @@ Everything else (warnings such as "Receptor distinto", duplicates, ignored files
 | Primary CTA, empty screen | Seleccionar archivos |
 | Secondary CTA, empty screen | Seleccionar carpeta |
 | Logout button (top bar) | Cerrar sesión |
+| Theme toggle, accessible name and tooltip, current theme light [user-confirmed] | Cambiar a tema oscuro |
+| Theme toggle, accessible name and tooltip, current theme dark [user-confirmed] | Cambiar a tema claro |
+| Theme toggle, `aria-label` before mount (fallback) | Cambiar tema |
 | Reset button (report header) | Quitar todas |
 | Privacy line (always visible in the upload zone) [D-25] | Tus facturas se procesan en este navegador y no se suben a ningún servidor |
 | Reload note (empty screen) [D-24] | Por privacidad, las facturas no se guardan; vuelve a soltarlas para analizarlas |
@@ -267,9 +284,10 @@ Format: `Se agregaron {n}` followed by `, {d} duplicadas`, `, {r} rechazadas`, `
 
 ### Routes and shell
 
-- `/login`: full-height page on the `secondary` surface, one Card (384px) centered both axes, no top bar, no logo [D-04]. Content: app name (Heading), subtitle (Body, muted), Field "Contraseña" with InputGroup (password input + trailing icon button Eye/EyeOff), error message area, full-width primary Button "Entrar".
+- `/login`: full-height page on the `secondary` surface, one Card (384px) centered both axes, no top bar, no logo [D-04]. The theme toggle is positioned fixed at the top-right of the viewport (16px from the top and right edges), outside the card, so the card keeps exactly the D-04 content. [user-confirmed] Content: app name (Heading), subtitle (Body, muted), Field "Contraseña" with InputGroup (password input + trailing icon button Eye/EyeOff), error message area, full-width primary Button "Entrar".
 - `/` (everything else redirects to login through the proxy): top bar + `main` (max-w 1152px, horizontal padding 24px, top padding 32px, bottom 64px, sections separated by 32px).
-- Top bar [D-06]: sticky, 56px, `secondary` surface, 1px bottom border. Left: app name. Center: an empty `flex-1` slot reserved for the future IVA selector and export button (render nothing now, keep the slot so later phases do not reflow the bar). Right: "Agregar facturas" (primary, Upload icon; rendered only when invoices are loaded [D-10]) then "Cerrar sesión" (ghost, LogOut icon).
+- Top bar [D-06]: sticky, 56px, `secondary` surface, 1px bottom border. Left: app name. Center: an empty `flex-1` slot reserved for the future IVA selector and export button (render nothing now, keep the slot so later phases do not reflow the bar). Right cluster, in this order with 8px gaps: "Agregar facturas" (primary, Upload icon; rendered only when invoices are loaded [D-10]), the theme toggle, "Cerrar sesión" (ghost, LogOut icon). The center slot stays reserved for the IVA selector and export; the toggle lives in the right cluster so it does not take that space.
+- Theme toggle [user-confirmed]: ghost icon-only button, 36x36px (44x44px under 640px), `Moon` icon in light theme (action: go dark) and `Sun` icon in dark theme (action: go light), 20px, decorative (`aria-hidden`), accessible name and Tooltip from the Copywriting Contract. Same component, placement and behavior on every screen where it appears (`/login` and the app shell). Always enabled, including while a batch is processing. Keyboard: Tab-focusable, Enter/Space activates, 2px accent focus ring. Switching has no animation beyond the 150 ms color transition (removed with `prefers-reduced-motion`).
 
 ### Login behavior
 
@@ -328,6 +346,7 @@ Format: `Se agregaron {n}` followed by `, {d} duplicadas`, `, {r} rechazadas`, `
 ### Accessibility floor
 
 - All controls reachable and operable by keyboard; visible 2px accent focus ring.
+- The theme toggle's accessible name always names the action it performs, not the current state.
 - Contrast: AA in both themes per the Color contrast tables (muted text verified on the dark `secondary` surface at 7.1:1).
 - Drag-and-drop is never the only path: the buttons always work.
 - Results announced: toast (Sonner is `aria-live`), progress text (`aria-live`), login error (`role="alert"`).
@@ -338,7 +357,7 @@ Format: `Se agregaron {n}` followed by `, {d} duplicadas`, `, {r} rechazadas`, `
 
 ## UI Considerations
 
-Applicable state considerations resolved: 14 covered, 3 backstop, 0 unresolved.
+Applicable state considerations resolved: 15 covered, 4 backstop, 0 unresolved.
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
@@ -352,7 +371,9 @@ Applicable state considerations resolved: 14 covered, 3 backstop, 0 unresolved.
 | populated | list-collection (143 files / 143 PDFs real dataset) | ✅ covered | Long groups scroll inside a 320px ScrollArea; the table paginates at 50 rows. |
 | partial | list-collection (invoice rows with missing data) | ✅ covered | Missing Folio renders "—"; Pago with currency `XXX` renders Total "—"; rows are never dropped for missing optional fields. |
 | zero-one-many | list-collection (toast, pagination, group labels) | ✅ covered | Toast and sub-labels use singular forms for 1 and omit zero parts; pagination footer shows "Mostrando 1 de 1" for a single row and is hidden when there is one page. |
-| overflow | nav (top bar) | ✅ covered | At narrow widths the buttons collapse to icon-only with `aria-label`; the app name never wraps. |
+| overflow | nav (top bar) | ✅ covered | At narrow widths the buttons collapse to icon-only with `aria-label`; the theme toggle is already icon-only; the app name never wraps. |
+| error | interactive-control (theme toggle, storage) | ✅ covered | [user-confirmed] `localStorage` read/write wrapped in `try/catch`; unavailable or invalid storage falls back to the OS preference and the toggle keeps working for the session. |
+| loading | interactive-control (theme at first paint) | 🧪 backstop | Pre-hydration script applies the `dark` class before paint and `<html>` has `suppressHydrationWarning`; verify with a held-out browser test (OS dark, empty storage) that there is no light flash and no hydration warning. |
 | overflow | list-collection (table on small screens) | ✅ covered | Horizontal scroll inside the table container; page does not scroll horizontally. |
 | long-text | static-content (file names, provider names, folios) | 🧪 backstop | File names and provider names truncate with ellipsis plus full-text Tooltip; verify with a visual test using a 120-character file name and a 90-character provider name. |
 | long-text | static-content (duplicate / rejection reasons) | 🧪 backstop | Reasons wrap (never truncate) and contain a full file name in mono that may break at any character (`overflow-wrap: anywhere`); needs a visual test with two long names. |
@@ -378,7 +399,9 @@ Confirmed by the user on 2026-10-13 (do not re-ask):
 
 1. Font: Geist Sans + Geist Mono.
 2. Accent: neutral `#171717` (dark: `#E5E5E5`), with the muted-text override `#525252`. No brand color.
-3. Theme: CHANGED by the user to light and dark, following the OS preference (`prefers-color-scheme`); dark values and implementation in the Color section.
+3. Theme: CHANGED by the user to light and dark. Initial theme follows the OS; a manual two-state toggle (Claro / Oscuro) in the top bar and on the login page overrides it, persisted per browser in `localStorage` (with `try/catch` fallback to the OS). Class-based `.dark`, pre-hydration script, `suppressHydrationWarning`; details in Color > Theme implementation.
+9. Manual theme toggle: yes, single two-state button, Sun/Moon icons, copy "Cambiar a tema oscuro" / "Cambiar a tema claro", also on `/login`.
+10. 44px touch targets under 640px for icon-only and pagination buttons: keep.
 4. Drops and buttons are disabled while a batch is processing.
 5. "Quitar todas" shows a confirmation dialog.
 6. Default table sort: Fecha descending.
@@ -387,8 +410,7 @@ Confirmed by the user on 2026-10-13 (do not re-ask):
 
 Open questions (not assumed; to ask the user):
 
-1. Should there be a manual light/dark toggle (for example in the top bar slot) so the choice can override the OS? This spec ships OS-driven only, with no toggle. A toggle would need a persisted preference, a class-based dark variant and a pre-hydration script, so it is deliberately left out until the user asks for it.
-2. Minor default still unconfirmed: the 44px touch-target growth for the password toggle and pagination buttons under 640px (see Spacing exceptions). Keep or drop?
+1. Theme toggle placement: you said "in the top-bar slot". The spec puts it in the right-hand cluster (before "Cerrar sesión") and keeps the center slot reserved for the future IVA selector and export (D-06). Is that what you meant, or should it occupy the center slot?
 
 ---
 
