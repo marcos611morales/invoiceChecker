@@ -1,0 +1,1 @@
+{"content":"First-party doc page read directly via WebFetch (vercel.com / api-docs.deepseek.com / nextjs.org); see ARCHITECTURE.md Sources. Seam tier for webfetch provider: LOW.","source":"web","provider":"webfetch","confidence":"LOW","fetched_at":"2026-10-13T20:00:31.347Z","ttl":86400000,"kind":"web"}
