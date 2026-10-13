@@ -127,12 +127,73 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| ACC-01 | Phase 1 | Pending |
+| ACC-02 | Phase 1 | Pending |
+| ACC-03 | Phase 4 | Pending |
+| ACC-04 | Phase 4 | Pending |
+| CARGA-01 | Phase 1 | Pending |
+| CARGA-02 | Phase 1 | Pending |
+| CARGA-03 | Phase 1 | Pending |
+| CARGA-04 | Phase 1 | Pending |
+| CARGA-05 | Phase 1 | Pending |
+| CARGA-06 | Phase 1 | Pending |
+| REGLA-01 | Phase 2 | Pending |
+| REGLA-02 | Phase 2 | Pending |
+| REGLA-03 | Phase 2 | Pending |
+| REGLA-04 | Phase 2 | Pending |
+| REGLA-05 | Phase 2 | Pending |
+| REGLA-06 | Phase 2 | Pending |
+| REGLA-07 | Phase 2 | Pending |
+| REGLA-08 | Phase 2 | Pending |
+| REGLA-09 | Phase 2 | Pending |
+| DASH-01 | Phase 2 | Pending |
+| DASH-02 | Phase 2 | Pending |
+| DASH-03 | Phase 3 | Pending |
+| DASH-04 | Phase 2 | Pending |
+| DASH-05 | Phase 3 | Pending |
+| DASH-06 | Phase 2 | Pending |
+| DASH-07 | Phase 3 | Pending |
+| DASH-08 | Phase 3 | Pending |
+| DASH-09 | Phase 2 | Pending |
+| DASH-10 | Phase 2 | Pending |
+| FILT-01 | Phase 2 | Pending |
+| FILT-02 | Phase 2 | Pending |
+| FILT-03 | Phase 3 | Pending |
+| FILT-04 | Phase 2 | Pending |
+| FILT-05 | Phase 2 | Pending |
+| CAT-01 | Phase 3 | Pending |
+| CAT-02 | Phase 3 | Pending |
+| CAT-03 | Phase 3 | Pending |
+| CAT-04 | Phase 4 | Pending |
+| CAT-05 | Phase 3 | Pending |
+| AJUS-01 | Phase 3 | Pending |
+| AJUS-02 | Phase 3 | Pending |
+| LLM-01 | Phase 4 | Pending |
+| LLM-02 | Phase 4 | Pending |
+| LLM-03 | Phase 4 | Pending |
+| LLM-04 | Phase 4 | Pending |
+| LLM-05 | Phase 4 | Pending |
+| LLM-06 | Phase 4 | Pending |
+| PREC-01 | Phase 5 | Pending |
+| PREC-02 | Phase 5 | Pending |
+| PREC-03 | Phase 5 | Pending |
+| PREC-04 | Phase 5 | Pending |
+| PREC-05 | Phase 5 | Pending |
+| PREC-06 | Phase 5 | Pending |
+| CAL-01 | Phase 2 | Pending |
+| XLS-01 | Phase 3 | Pending |
+| XLS-02 | Phase 3 | Pending |
+| XLS-03 | Phase 3 | Pending |
+| DEV-01 | Phase 1 | Pending |
+| DEV-02 | Phase 1 | Pending |
+| DEV-03 | Phase 2 | Pending |
+| DEV-04 | Phase 1 | Pending |
 
 **Coverage:**
 - v1 requirements: 61 total
-- Mapped to phases: 0
-- Unmapped: 61 ⚠️
+- Mapped to phases: 61
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-10-13*
-*Last updated: 2026-10-13 after initial definition*
+*Last updated: 2026-10-13 after roadmap creation (traceability mapped to 5 phases)*
