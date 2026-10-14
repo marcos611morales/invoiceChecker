@@ -14,7 +14,7 @@ created: "2026-10-14"
 >
 > This phase **extends** `01-UI-SPEC.md` (approved 2026-10-13). Everything defined there (tokens, 4 type sizes, 2 weights, spacing scale, theme behavior, top bar, accessibility floor) stays in force and is **not repeated** here unless this phase adds to it. Where this document says "as Phase 1", follow the Phase 1 contract exactly.
 >
-> Source key: **[D-nn]** = locked decision in 02-CONTEXT.md. **[P1]** = rule inherited from 01-UI-SPEC.md. **[CLAUDE.md]** = stack decision locked by the user. **[default]** = value chosen by the researcher because no upstream artifact answers it; each one that is a real design choice is listed in "Open questions" at the end (project rule: ask before inferring). The researcher could not ask the user directly in this run, so every `[default]` is **pending user confirmation**.
+> Source key: **[D-nn]** = locked decision in 02-CONTEXT.md. **[P1]** = rule inherited from 01-UI-SPEC.md. **[CLAUDE.md]** = stack decision locked by the user. **[user-confirmed]** = researcher proposal explicitly confirmed by the user on 2026-10-14 (see "User decisions" at the end). **[default]** = low-risk value chosen by the researcher because no upstream artifact answers it; the list is under "User decisions" (project rule: ask before inferring).
 
 ---
 
@@ -93,7 +93,7 @@ Same scale as Phase 1 (multiples of 4; Tailwind 1 unit = 4px):
 Exceptions (all multiples of 4, outside the 7-step scale on purpose):
 
 - Everything listed as an exception in Phase 1 stays (top bar 56px, `max-w-6xl` 1152px, table rows 40px, 44px touch targets under 640px, 320px max list height).
-- Mobile IVA sub-bar (under 640px only): height 52px, sticky directly under the 56px top bar (`top-14`). [default, see Open question 4]
+- Mobile IVA sub-bar (under 640px only): height 52px, sticky directly under the 56px top bar (`top-14`). [user-confirmed, decision 4]
 - Tabs list height: 40px.
 - Trend chart plot height: 288px (`h-72`), overriding the `aspect-video` default of `ChartContainer` (use `aspect-auto h-72`).
 - Supplier ranking row: min height 68px (name/amount line, 4px bar, caption line, 8px vertical padding).
@@ -156,7 +156,7 @@ Contrast checks (WCAG AA: 4.5:1 text, 3:1 non-text graphics). New pairs only; Ph
 Rules:
 
 - 60/30/10: the dashboard surface is `background`; KPI cards, the top/sub-bars, the table header and the expanded panel are `secondary`; accent stays small. Chart cards use `background` with a 1px border so bars sit on the dominant surface (4.7:1).
-- **Decrease is green, increase is neutral** [D-20 + default]: a KPI delta that went up is rendered in `foreground` (neutral) with an ArrowUp; one that went down in `--positive` with an ArrowDown. Red is **not** used for increases (the destructive token is reserved, and a rise in spend is not an error). See Open question 2.
+- **Decrease is green, increase is neutral** [D-20 + user-confirmed]: a KPI delta that went up is rendered in `foreground` (neutral) with an ArrowUp; one that went down in `--positive` with an ArrowDown. Red is **not** used for increases (the destructive token is reserved, and a rise in spend is not an error). [user-confirmed, decision 2]
 - Color is never the only carrier of meaning: every delta has an arrow icon, a sign and a sentence ("subió" / "bajó" in `sr-only` text); every attenuated row has a text label; the active IVA mode has a check icon, border and the mode caption.
 
 Accent reserved for (Phase 1 list stays, item 6 is new; and nothing else):
@@ -167,7 +167,7 @@ Accent reserved for (Phase 1 list stays, item 6 is new; and nothing else):
 4. The active sort icon (ArrowUp/ArrowDown) in any table header.
 5. The 2px keyboard focus ring on all focusable elements.
 6. **New:** the 2px underline of the active tab, and the single bar under the pointer or keyboard focus in the monthly chart (hover/focus highlight; all other bars stay `--chart-1`).
-Explicitly **not** accent: KPI numerals, filter chips, badges, links, the IVA toggle and the ranking bars. "Agregar facturas" remains the only accent-filled button on screen. [see Open question 7]
+Explicitly **not** accent: KPI numerals, filter chips, badges, links, the IVA toggle and the ranking bars. "Agregar facturas" remains the only accent-filled button on screen. [user-confirmed, decision 7]
 
 Positive reserved for: the arrow, sign and percentage of a KPI delta that decreased. Nothing else.
 
@@ -327,7 +327,7 @@ No new error surfaces: all computation is synchronous and in the browser. If per
 - After a batch finishes the Dashboard tab becomes active [D-01]. If the batch produced no valid invoice at all, the Importación tab becomes active instead [default].
 - The user's manual tab choice is respected while a batch runs; only a **finished** batch switches the tab.
 - Top bar [D-05]: the `data-slot="topbar-center"` slot holds the IVA `ToggleGroup`, rendered **only when the tabs are shown** (not on the empty screen or login). Items: 36px tall, min width 72px, 14/600; active item = `background` surface + 1px `border` + `foreground` text + a Check icon (16px) before the label; inactive item = transparent + muted-foreground text. Group has a 1px border and `secondary`-on-`secondary` track so the pair reads as one control. Selecting an item changes mode immediately (no confirmation); cannot be left with none selected. Mode persists (see "Persistence" below).
-- Top-bar responsive behavior (extends the Phase 1 collapse rule) [default, Open question 4]:
+- Top-bar responsive behavior (extends the Phase 1 collapse rule) [user-confirmed, decision 4]:
   - ≥768px: all labels visible ("Agregar facturas", "Cerrar sesión"); IVA control centered.
   - 640–767px: "Agregar facturas" and "Cerrar sesión" collapse to icon-only (36px, `aria-label` kept) so the IVA control still fits in the bar. Replace the Phase 1 `max-sm:` collapse classes in `AddInvoicesButton` and `LogoutButton` with `max-md:`.
   - <640px: the top bar holds only the app name and the three 44px icon buttons; the IVA control moves to a **sticky 52px sub-bar** under the top bar (`secondary` surface, 1px bottom border, centered, items 44px tall, labels "c/IVA | s/IVA"). Both bars stay sticky, so the mode is always visible.
@@ -343,7 +343,7 @@ Vertical order, 32px gaps: (1) amount-changing-incidents Alert when present [D-0
 
 - Row of three popover triggers (Button outline, 36px, with ChevronDown, 14/600 label, value summary in 14/400 muted after the label, truncated at 200px with Tooltip) + "Quitar filtros" (ghost, right-aligned, shown only if any filter differs from default). 8px gap. Wraps to a second line when needed.
 - Under 640px the row collapses into one "Filtros" button (outline, full width, 44px) that toggles a `Collapsible` region stacking the three triggers full width; chips and the mode caption stay visible below the button.
-- **Fechas popover (320px):** two `Select`s "Desde" and "Hasta" listing the months from the first to the last month with loaded invoices (option text "ene 2025", oldest first), plus three shortcut buttons (outline, 36px): Todo, Este año, Últimos 3 meses; then the helper line. Choosing a Desde later than Hasta moves Hasta to equal Desde; choosing a Hasta earlier than Desde moves Desde to equal Hasta (the range is never invalid). Options outside the loaded span do not exist [default]. Shortcuts anchor on the **last month with loaded invoices**, not on today's date: "Este año" = January of the last loaded month's year through the last loaded month (clipped to the loaded span); "Últimos 3 meses" = that last month and the two before it [default, Open question 1].
+- **Fechas popover (320px):** two `Select`s "Desde" and "Hasta" listing the months from the first to the last month with loaded invoices (option text "ene 2025", oldest first), plus three shortcut buttons (outline, 36px): Todo, Este año, Últimos 3 meses; then the helper line. Choosing a Desde later than Hasta moves Hasta to equal Desde; choosing a Hasta earlier than Desde moves Desde to equal Hasta (the range is never invalid). Options outside the loaded span do not exist [default]. Shortcuts anchor on the **last month with loaded invoices**, not on today's date: "Este año" = January of the last loaded month's year through the last loaded month (clipped to the loaded span); "Últimos 3 meses" = that last month and the two before it [user-confirmed, decision 1].
 - **Default range** [D-12]: first to last loaded month. Adding invoices recalculates the range **only while the user has not touched the date filter** [CONTEXT discretion, inferred; confirm in planning]. "Quitar filtros" and the "Todo" shortcut restore it.
 - **Proveedor and Forma de pago popovers (360px / 320px):** `Command` with a search input, then a `ScrollArea` list (max 288px) of rows: `Checkbox` + label + invoice count in muted 12px, sorted by count descending then name (es collation); the checked rows do not jump to the top. Footer: "Limpiar". Multiple selection; no selection = no filter. Counts are over all loaded invoices of that supplier / payment form, independent of the other filters [default]. A row's whole area toggles the checkbox; Space/Enter toggle, arrows move, Esc closes the popover and returns focus to the trigger.
 - **Chips:** one chip per active filter dimension (Badge-like, 12px, `secondary` surface, 1px border, trailing X icon button 20px hit area inside, 44px under 640px) in a wrapping row under the triggers; removing a chip clears only that dimension. Chips are `aria-live="polite"` as a group.
@@ -360,7 +360,7 @@ Vertical order, 32px gaps: (1) amount-changing-incidents Alert when present [D-0
 
 - Layout: from 1024px two columns `grid-cols-[minmax(0,3fr)_minmax(0,2fr)]` with 24px gap, `items-start`; under 1024px stacked (trend first). Each block is a bordered `background` card with 24px padding, Heading, mode-independent caption, content.
 - **Trend (Recharts `BarChart` in `ChartContainer`, `aspect-auto h-72`):** one bar per calendar month of the range, **zero-spend months drawn as a zero-height bar with their tick still present** [DASH-02]; bar radius 4px top; `--chart-1` fill; the bar under pointer/focus uses `primary`. X axis: 12/400 muted ticks, "ene" when the range lies within one calendar year, "ene 25" when it spans years; `interval="preserveStartEnd"` with `minTickGap={8}` when there are more than 12 months. Y axis: 4 ticks, compact money notation, no axis line; horizontal gridlines only, `border` color at 50% opacity; a zero baseline `ReferenceLine` at y=0 so negative months read correctly. Average: dashed `ReferenceLine` at the monthly average (`strokeDasharray="4 4"`, `foreground`, 1.5px) [D-21]. Legend is an HTML row under the chart (not the Recharts legend): bar swatch + "Gasto mensual", dashed swatch + "Promedio mensual: {monto}". Tooltip via `ChartTooltipContent` showing the month title and the amount in the active IVA mode. Animations off (`isAnimationActive={false}`) so filter and mode changes redraw instantly. Keyboard: Recharts `accessibilityLayer` on, bars are reachable with arrow keys and announce "{mes}: {monto}".
-- **Ranking (HTML list, not Recharts)** [default, Open question 3]: `<ol>` of up to 10 rows, ordered by net spend descending, each row 68px min: line 1 = supplier name (Body 600, truncated with Tooltip) left + net amount (Body 600, `tabular-nums`) right; line 2 = 4px-tall track (`border` color) with a fill whose width is `abs(net) / max(abs(net) of the list)` in `--chart-1` (radius 2px); line 3 = caption (Label muted). A supplier with negative net is placed last, shows **no fill** (a 2px `--chart-1` tick at the track start), its amount with `−`, and the negative-net caption [D-23]. The list has `aria-label` "Top 10 de proveedores por gasto neto". Rows are not interactive in this phase (drill-down is Phase 3, DASH-08).
+- **Ranking (HTML list, not Recharts)** [user-confirmed, decision 3]: `<ol>` of up to 10 rows, ordered by net spend descending, each row 68px min: line 1 = supplier name (Body 600, truncated with Tooltip) left + net amount (Body 600, `tabular-nums`) right; line 2 = 4px-tall track (`border` color) with a fill whose width is `abs(net) / max(abs(net) of the list)` in `--chart-1` (radius 2px); line 3 = caption (Label muted). A supplier with negative net is placed last, shows **no fill** (a 2px `--chart-1` tick at the track start), its amount with `−`, and the negative-net caption [D-23]. The list has `aria-label` "Top 10 de proveedores por gasto neto". Rows are not interactive in this phase (drill-down is Phase 3, DASH-08).
 - **"Ver todos"** (outline button, header right, hidden when the top list is complete) opens a `Dialog` (max 720px, full screen <640px) with a TanStack Table v9 (sorting only, no pagination, inside a `ScrollArea` max 480px) with the columns of the copy contract; default sort = Gasto neto descending; sort headers behave exactly like the Facturas table; numeric columns right-aligned; negative nets last when sorting by net descending. Focus moves to the dialog title on open, returns to "Ver todos" on close; Esc and overlay click close it.
 
 **Facturas table [D-24..D-30]:**
@@ -379,7 +379,7 @@ Vertical order, 32px gaps: (1) amount-changing-incidents Alert when present [D-0
 - Cards: the 8 incident types plus the 2 link-only cards (Duplicados, Archivos con error); `secondary`, 1px border, 16px padding; label Body 600, value Display, 0 renders muted. Link-only cards show "Ver en Importación" as a link-style button that switches tab to Importación (and opens the matching accordion). No card uses the destructive color in this tab.
 - Accordions render only for types with count > 0, in this order: Notas de crédito sin factura relacionada, Sustituciones, Moneda sin tipo de cambio, Facturas en $0, Diferencias de redondeo, PPD sin complemento de pago, Excluidas, Sustituidas. **Open by default** the amount-changing ones: Notas de crédito sin factura relacionada, Sustituciones, Moneda sin tipo de cambio [D-04, D-31]; the rest closed. A later batch re-opens an accordion that gained rows.
 - Panel: `ScrollArea` max 320px; each row: identity line (Body, with the proveedor truncated + Tooltip), explanation sentence (Body, wraps), then actions (outline small buttons "Ver factura" and, where applicable, "Volver a incluir"). Row padding 8px 16px, 1px separators. Excluidas and Sustituidas lists have "Volver a incluir"; the other lists only "Ver factura" [D-33].
-- **"Ver factura"** switches to the Dashboard tab, goes to the page where the invoice sits under the current sort, opens its row (expanded), scrolls it to the center (`scrollIntoView({ block: "center" })`, no smooth scrolling when `prefers-reduced-motion`), and moves focus to that row's chevron button. If the active filters hide the invoice, nothing is changed silently: the Dashboard shows the "La factura {folio} no se ve porque los filtros la ocultan." Alert with "Quitar filtros" [default, Open question 6].
+- **"Ver factura"** switches to the Dashboard tab, goes to the page where the invoice sits under the current sort, opens its row (expanded), scrolls it to the center (`scrollIntoView({ block: "center" })`, no smooth scrolling when `prefers-reduced-motion`), and moves focus to that row's chevron button. If the active filters hide the invoice, nothing is changed silently: the Dashboard shows the "La factura {folio} no se ve porque los filtros la ocultan." Alert with "Quitar filtros" [user-confirmed, decision 6].
 - Counter in the tab name = number of incident rows across the 8 types (the two link-only cards are not counted) [default].
 
 ### Importación tab [D-02]
@@ -448,21 +448,23 @@ No third-party registries declared. Do not add the `dashboard-01` block or any s
 
 ---
 
-## Open questions
+## User decisions
 
-The project rule is to ask, never infer. The researcher had no way to ask the user in this run, so the items below were written with the recommended value and **must be confirmed or changed by the user** (the orchestrator should ask them with `AskUserQuestion` and then send the answers back for a revision pass). Locked decisions in 02-CONTEXT.md and Phase 1 are not reopened.
+Confirmed by the user on 2026-10-14 (all seven matched the researcher's recommendation; do not re-ask):
 
-1. **Anchor of the date shortcuts.** "Este año" and "Últimos 3 meses" can mean today's clock (2026, which would show an empty 2025 sample) or the latest month with loaded invoices. Recommended and written: anchor on the **last loaded month** (so the 2025 sample behaves sensibly). Alternative: use today's date.
-2. **KPI delta colors.** Written: decrease in a new green token (`--positive`), increase neutral (foreground + up arrow). Alternatives: increase in `--destructive` red; or all neutral with arrows only (no new color).
-3. **Supplier ranking implementation.** Written: an HTML list with proportional bars (each row carries amount, %, ticket promedio, negative case and tooltips; far easier to make accessible). Alternative: a Recharts horizontal `BarChart` like the stack notes suggest for charts.
-4. **IVA control on phones.** Written: under 640px the control moves to a sticky 52px sub-bar below the top bar (the 360px top bar cannot hold name + control + three 44px buttons), and labels collapse to icons under 768px. Alternative: hide the app name on phones and keep the control in the top bar (still overflows by roughly 30px with 44px targets).
-5. **"Ver todos" container.** Written: a centered `Dialog` (full screen on phones). Alternatives: a side `Sheet`, or expanding the list inline under the top 10.
-6. **"Ver factura" when filters hide the invoice.** Written: do not touch the filters; show an Alert on the Dashboard with a "Quitar filtros" button. Alternative: clear the filters automatically.
-7. **Look of the active IVA mode.** Written: surface segment with border, bold text and check icon (keeps "Agregar facturas" as the only accent-filled button, per Phase 1). Alternative: accent-filled active segment (stronger, but two accent fills in the top bar).
+1. Date shortcuts ("Este año", "Últimos 3 meses") anchor on the last month with loaded invoices, not on today's date.
+2. KPI deltas: a decrease uses the new green `--positive` token; an increase is neutral (foreground) with an up arrow.
+3. The supplier ranking is an HTML list with proportional bars, not a Recharts chart.
+4. IVA control on phones: a sticky 52px sub-bar under 640px, plus icon-only "Agregar facturas" and "Cerrar sesión" under 768px.
+5. "Ver todos" opens a centered Dialog, full screen on phones.
+6. "Ver factura" when filters hide the invoice: the filters stay untouched and an Alert with a "Quitar filtros" button appears.
+7. Active IVA mode: a surface segment with border, bold text and a check icon (not accent-filled).
 
-Other `[default]` values taken without a question (low risk, listed so the checker and planner can see them): the Calidad counter counts incident rows; the date range is limited to the loaded span; filter option counts ignore the other filters; chips are one per filter dimension; concept prices are shown converted to MXN; the toast "Factura incluida de nuevo"; the "Sin incidencias" and "Hay incidencias que cambian los montos." texts; rows that never count have no "⋯" menu; when a batch has no valid invoice the Importación tab opens.
+Low-risk `[default]` values taken without a question (listed so the checker and planner can see them): the Calidad counter counts incident rows; the date range is limited to the loaded span; filter option counts ignore the other filters; chips are one per filter dimension; concept prices are shown converted to MXN; the toast "Factura incluida de nuevo"; the "Sin incidencias" and "Hay incidencias que cambian los montos." texts; rows that never count have no "⋯" menu; when a batch has no valid invoice the Importación tab opens.
 
 Confirmed upstream (do not re-ask): everything in 02-CONTEXT.md D-01..D-33; Phase 1 user-confirmed decisions 1-16 in 01-UI-SPEC.md (Geist fonts, neutral accent, light/dark with OS default and manual toggle, 44px touch targets, drops disabled while processing, confirmation dialogs).
+
+Open questions: none.
 
 ---
 
