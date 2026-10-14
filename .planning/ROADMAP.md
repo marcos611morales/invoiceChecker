@@ -21,6 +21,7 @@ Las fases decimales aparecen entre sus enteros vecinos en orden numérico.
 ## Phase Details
 
 ### Phase 1: Acceso protegido y carga de facturas
+
 **Goal:** El dueño, sus socios y su contador entran con la contraseña compartida a la app desplegada en Vercel, sueltan sus XML y obtienen un reporte de importación confiable, sin que las facturas salgan del navegador.
 **Mode:** mvp
 **Depends on**: Ninguna (primera fase)
@@ -31,28 +32,52 @@ Las fases decimales aparecen entre sus enteros vecinos en orden numérico.
   3. Un CFDI 3.3 o un XML que no es CFDI aparece rechazado con un mensaje claro por archivo, y volver a soltar una factura ya cargada (mismo UUID) la reporta como duplicada sin contarla dos veces.
   4. Al recargar la página las facturas ya no están y la app pide volver a cargarlas.
   5. `pnpm lint` y `pnpm typecheck` pasan sin errores en el proyecto Next.js + TypeScript strict administrado con pnpm, y `.env.example` documenta las variables necesarias para desplegar en Vercel.
+
 **Plans:** 16 plans
 
 Plans:
+**Wave 1**
 - [ ] 01-01-PLAN.md — Walking skeleton: aprobación de paquetes, scaffold, candado con contraseña (proxy + jose), elegir carpeta → parseo en el navegador → conteos, cerrar sesión
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 01-02-PLAN.md — Parser completo: conceptos con sus impuestos, CfdiRelacionados y Pagos; variantes de BOM y prefijos
 - [ ] 01-03-PLAN.md — Kit shadcn base-nova, tokens del UI-SPEC, tema que sigue al sistema y textos es-MX
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 01-04-PLAN.md — Cada motivo de rechazo probado y mostrado en español por archivo
 - [ ] 01-05-PLAN.md — Regresión con la muestra real, fixtures anonimizados y guardia contra fugas
 - [ ] 01-06-PLAN.md — Tarjeta de login del UI-SPEC con mostrar/ocultar contraseña
 - [ ] 01-07-PLAN.md — Botón de tema y barra superior fija con "Cerrar sesión"
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 01-08-PLAN.md — Duplicados por UUID, archivos ignorados y store en memoria con generación
 - [ ] 01-09-PLAN.md — Pruebas unitarias del candado y estados del login (pendiente, errores, regreso seguro)
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 01-10-PLAN.md — Parseo por lotes con progreso, resumen por lote y listas del reporte
+
+**Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 01-11-PLAN.md — Tarjetas y acordeones del reporte, y "Quitar todas"
+
+**Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 01-12-PLAN.md — Barra de progreso y avisos (toasts) por lote
+
+**Wave 8** *(blocked on Wave 7 completion)*
 - [ ] 01-13-PLAN.md — Soltar en cualquier parte, zona vacía, confirmación al cerrar sesión y aviso al recargar
+
+**Wave 9** *(blocked on Wave 8 completion)*
 - [ ] 01-14-PLAN.md — Tabla "Facturas cargadas" con formato y orden
+
+**Wave 10** *(blocked on Wave 9 completion)*
 - [ ] 01-15-PLAN.md — Paginación, insignia de tipo, nota y estado vacío de la tabla
+
+**Wave 11** *(blocked on Wave 10 completion)*
 - [ ] 01-16-PLAN.md — Cabeceras de seguridad, docs de despliegue, smoke de Playwright y despliegue confirmado en Vercel (D-28)
+
 **UI hint**: yes
 
 ### Phase 2: Dashboard de gasto confiable
+
 **Goal:** El usuario ve en qué se gasta y cuánto en promedio (KPIs, tendencia mensual, ranking de proveedores y tabla de facturas) con montos que respetan las reglas acordadas (I/E/P, con/sin IVA, facturas en $0 y excluidas), filtros consistentes y un panel de calidad de datos.
 **Mode:** mvp
 **Depends on**: Phase 1
@@ -63,11 +88,13 @@ Plans:
   3. El usuario filtra por rango de fechas o mes, por uno o varios proveedores y por forma de pago con nombres del catálogo SAT (las facturas PPD "99 Por definir" muestran la forma de pago real de su complemento), y KPIs, gráficas y tablas reflejan siempre el mismo filtro; el promedio mensual indica en pantalla que divide entre los meses del calendario del rango.
   4. El usuario marca una factura como "Excluida" y esta deja de contar en todo el análisis; en el panel de calidad de datos ve duplicados, archivos con error, facturas en $0, diferencias de redondeo, sustituciones (TipoRelación 04) y notas de crédito sin factura relacionada.
   5. `pnpm test` pasa las pruebas Vitest del parser y de las reglas de montos sobre XML anonimizados (descuentos, IEPS, facturas a pocas horas de un cambio de mes asignadas al mes de su fecha literal, conversión con TipoCambio y aritmética exacta con big.js), y `Facturas/` está fuera de git.
+
 **Plans**: TBD
 **UI hint**: yes
 **Research flag**: ligero — verificar las etiquetas de c_FormaPago contra el catCFDI oficial y la semántica de TipoRelación 04/07 en la guía de llenado del Anexo 20.
 
 ### Phase 3: Categorías propias y exportación a Excel
+
 **Goal:** El usuario organiza el gasto en sus propias categorías (por proveedor y por concepto), que persisten en el navegador y se pueden respaldar, ve "en qué gastamos más" por categoría y se lleva el análisis filtrado a un Excel de varias hojas.
 **Mode:** mvp
 **Depends on**: Phase 2
@@ -78,11 +105,13 @@ Plans:
   3. El usuario ve el ranking de gasto por categoría, el promedio mensual por categoría y la variación % mes contra mes por categoría, filtra por una o varias categorías, y al hacer clic en una categoría o un proveedor ve sus facturas y conceptos.
   4. El usuario descarga un Excel con las hojas Facturas, Conceptos, Resumen por categoría, Resumen por proveedor, Resumen por mes y Parámetros (filtros y modo IVA usados), que respeta los filtros activos y el modo con/sin IVA.
   5. En el Excel los montos son números con formato MXN, las fechas son fechas y RFC, UUID y folio son texto, y los totales coinciden con los del dashboard para el mismo filtro y modo.
+
 **Plans**: TBD
 **UI hint**: yes
 **Research flag**: ligero — confirmar en ejecución real write-excel-file (`/universal`) y la API de la versión elegida de TanStack Table (solo se verificaron en compilación).
 
 ### Phase 4: Agrupación de productos con DeepSeek
+
 **Goal:** El usuario pide a DeepSeek que agrupe como "mismo producto" los conceptos con descripciones distintas entre tiendas y que sugiera categorías, revisa cada sugerencia antes de aplicarla, y al LLM solo llegan descripciones y nombres de proveedor por una ruta protegida.
 **Mode:** mvp
 **Depends on**: Phase 3
@@ -93,11 +122,13 @@ Plans:
   3. El usuario ve el progreso por lotes y puede cancelar; si un lote falla, lo ya procesado se conserva y el proceso se puede reanudar.
   4. Al aceptar un producto agrupado con categoría, sus conceptos toman esa categoría salvo los que el usuario ajustó a mano; los conceptos sin grupo usan la categoría de su proveedor o quedan en "Sin categoría".
   5. Una llamada a las rutas del LLM sin sesión válida recibe 401, y la API key de DeepSeek no aparece en ningún archivo del bundle del cliente ni en ninguna respuesta al navegador.
+
 **Plans**: TBD
 **UI hint**: yes
 **Research flag**: sí — spike de DeepSeek antes de planear (calidad de agrupación en español, tasa de JSON vacío, modo JSON con thinking deshabilitado, latencia, tamaño de lote y `maxDuration` en Vercel Hobby). Candidata a `/gsd-ai-integration-phase`.
 
 ### Phase 5: Comparación de precios entre tiendas
+
 **Goal:** El usuario ve, para cada producto agrupado, en qué tienda le sale más barato, cuánto podría ahorrar y cómo ha cambiado su precio en el tiempo, comparando solo cantidades comparables.
 **Mode:** mvp
 **Depends on**: Phase 4
@@ -107,6 +138,7 @@ Plans:
   2. Solo se comparan precios dentro de la misma familia de unidad (kg, litro, pieza); los productos cuya unidad no se puede normalizar aparecen marcados como "no normalizado" en lugar de compararse mal.
   3. Servicios, gasolina, comisiones y similares no aparecen por defecto en la comparación, y el usuario puede cambiar la marca "no comparable" de un producto.
   4. El usuario ve un ahorro estimado, etiquetado como estimado, de haber comprado en la tienda más barata, y el historial del precio de un producto en el tiempo.
+
 **Plans**: TBD
 **UI hint**: yes
 **Research flag**: sí — normalización de unidades (ClaveUnidad SAT, presentaciones dentro de la descripción como "1 kg" o "pza") y qué familias de ClaveProdServ son "no comparables" por defecto.

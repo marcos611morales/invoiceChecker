@@ -754,6 +754,12 @@ Rotating `APP_PASSWORD` or `SESSION_SECRET` logs everyone out (D-02 verified for
 
 Per the project rule (ask before inferring), each item lists a recommended option; items 1, 8 and 10 are the ones worth asking the user.
 
+**RESOLVED by the user on 2026-10-13 (during /gsd-plan-phase 01). These are binding for planning:**
+- Q1: pnpm 11.5.2 + document `ENABLE_EXPERIMENTAL_COREPACK=1` for Vercel; the D-28 deploy checkpoint proves it, and the fallback to pnpm 10 applies only if that fails.
+- Q8: The Phase 1 parser keeps money amounts as **exact XML strings**. There are no sums and no numeric-type decision in Phase 1. Phase 2 follows REGLA-04 (big.js).
+- Q10: Include **one Playwright smoke spec** in the last plan. It runs locally against `build && start` and is not part of the automated `verify` script.
+- Q2–Q7, Q9, Q11, Q12: **accept every recommendation as written below.**
+
 1. **pnpm version and Vercel compatibility** (STATE.md already lists "versión de pnpm" as pending)
    - What we know: pnpm 11.5.2 is what `create-next-app` pins and what CLAUDE.md exercised; Vercel docs list pnpm 6-10; pnpm 11 reportedly works only with `ENABLE_EXPERIMENTAL_COREPACK=1`; D-28 makes a real Vercel deploy the phase gate.
    - What's unclear: whether the user prefers one extra Vercel env var (pnpm 11) or zero-config (pnpm 10).
