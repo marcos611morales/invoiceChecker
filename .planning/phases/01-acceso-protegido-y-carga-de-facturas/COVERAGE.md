@@ -1,1 +1,1 @@
-No external API integration: Phase 1 only adds the app's own route handlers (`POST /api/auth/login`, `POST /api/auth/logout`) behind its own Proxy, calls them from its own pages with the browser Fetch API, and parses CFDI XML locally with the native DOMParser; no third-party API, SDK, webhook or OAuth provider is called (Vercel is the hosting target configured by the user, and the DeepSeek integration belongs to Phase 4).
+No external API integration: Phase 1 only calls its own /api/auth/* routes and parses CFDI locally with DOMParser; DeepSeek arrives in Phase 4.
