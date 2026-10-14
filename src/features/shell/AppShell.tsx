@@ -3,6 +3,7 @@
 import { ShieldCheck, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { hasReport } from "@/domain/import/report";
+import { InvoiceTable } from "@/features/invoices/InvoiceTable";
 import { ImportReport } from "@/features/report/ImportReport";
 import { EmptyDropzone } from "@/features/upload/EmptyDropzone";
 import { ProcessingIndicator } from "@/features/upload/ProcessingIndicator";
@@ -41,6 +42,7 @@ export function AppShell() {
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 pt-8 pb-16">
         <ProcessingIndicator />
         {reportVisible ? <ImportReport /> : <EmptyDropzone />}
+        {reportVisible && <InvoiceTable />}
         {reportVisible && (
           <footer className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="size-3" aria-hidden="true" />
