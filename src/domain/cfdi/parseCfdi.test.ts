@@ -97,7 +97,7 @@ describe("parseCfdi conceptos", () => {
         importe: "5.00",
       },
     ]);
-    // Required-but-absent Unidad stays null (optional), never undefined.
+    // Unidad is optional: absent means null, never undefined.
     expect(withRetention?.unidad).toBeNull();
 
     // Exento traslado: optional attributes are null.
