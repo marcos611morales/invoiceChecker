@@ -3,6 +3,7 @@
 import type { ChangeEvent } from "react";
 import { parseCfdi } from "@/domain/cfdi/parseCfdi";
 import type { ParseResult } from "@/domain/cfdi/types";
+import { rejectReasonText } from "@/lib/copy/messages";
 import { useSessionStore } from "@/stores/sessionStore";
 import type { IgnoredFile, ParsedFile } from "@/stores/sessionStore";
 
@@ -46,16 +47,28 @@ export function ImportCountsPanel() {
   let ingreso = 0;
   let egreso = 0;
   let pago = 0;
-  let rechazados = 0;
-  for (const { result } of parsed) {
+  let traslado = 0;
+  let nomina = 0;
+  const rejected: { name: string; reason: string }[] = [];
+  for (const { name, result } of parsed) {
     if (!result.ok) {
-      rechazados += 1;
+      rejected.push({
+        name,
+        reason:
+          result.reason === "malformed" && result.detail === "unreadable"
+            ? rejectReasonText("unreadable")
+            : rejectReasonText(result.reason, result.detail),
+      });
     } else if (result.invoice.tipo === "I") {
       ingreso += 1;
     } else if (result.invoice.tipo === "E") {
       egreso += 1;
     } else if (result.invoice.tipo === "P") {
       pago += 1;
+    } else if (result.invoice.tipo === "T") {
+      traslado += 1;
+    } else {
+      nomina += 1;
     }
   }
 
@@ -72,9 +85,22 @@ export function ImportCountsPanel() {
         </label>
       </div>
       <p aria-live="polite">
-        {parsed.length} XML: Ingreso {ingreso}, Egreso {egreso}, Pago {pago} ·
-        Rechazados {rechazados} · Ignorados {ignored.length}
+        {parsed.length} XML: Ingreso {ingreso}, Egreso {egreso}, Pago {pago},
+        Traslado {traslado}, Nómina {nomina} · Rechazados {rejected.length} ·
+        Ignorados {ignored.length}
       </p>
+      {rejected.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-sm font-medium">Rechazados</h2>
+          <ul className="flex flex-col gap-1 text-sm">
+            {rejected.map((item, index) => (
+              <li key={`${item.name}-${index}`}>
+                <span className="font-mono">{item.name}</span>: {item.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Tus facturas se procesan en este navegador y no se suben a ningún
         servidor
