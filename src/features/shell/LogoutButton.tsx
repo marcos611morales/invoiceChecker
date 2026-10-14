@@ -1,17 +1,23 @@
 "use client";
 
+import { LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { es } from "@/lib/copy/es";
 import { logout } from "@/lib/client/logout";
 
 export function LogoutButton() {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      aria-label={es.global.logout}
       onClick={() => {
         void logout();
       }}
-      className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+      className="h-9 max-sm:size-11 max-sm:px-0"
     >
-      Cerrar sesión
-    </button>
+      <LogOut className="size-4" aria-hidden="true" />
+      <span className="max-sm:sr-only">{es.global.logout}</span>
+    </Button>
   );
 }
