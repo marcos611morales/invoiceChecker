@@ -50,3 +50,21 @@ El proyecto de Vercel lo crea quien administra la cuenta (D-26) y se usa el domi
    ```
 
 8. **Confirma en la URL real** (ventana privada): cualquier ruta, por ejemplo `/` o `/cualquier-cosa`, lleva a `/login`; la contraseña correcta entra; recargar y volver a visitar más tarde sigue dentro; "Cerrar sesión" regresa a `/login`. La fase solo se cierra cuando esto queda confirmado en la URL real (D-28).
+
+## Pruebas de punta a punta (local)
+
+Requiere Google Chrome instalado (Playwright usa el canal `chrome`).
+
+```bash
+pnpm test:e2e
+```
+
+Levanta un build de producción en el puerto 3210 con una contraseña de prueba, arma una carpeta sintética de facturas en el directorio temporal del sistema y comprueba: la puerta de acceso, la carga de la carpeta, que ninguna petición de red lleve contenido XML, el aviso al recargar y el cierre de sesión.
+
+Para correr además la muestra real, solo en esta máquina (nunca se sube a ningún lado):
+
+```bash
+E2E_FACTURAS_DIR=Facturas/2025 pnpm test:e2e
+```
+
+Estas pruebas no forman parte de `pnpm verify`. Variables opcionales: `E2E_APP_PASSWORD`, `E2E_SESSION_SECRET` y `E2E_FACTURAS_DIR`.
