@@ -2,8 +2,13 @@
 
 import { useId, useMemo, useState } from "react";
 import { useTable } from "@tanstack/react-table";
-import type { Header, SortingState } from "@tanstack/react-table";
+import type {
+  Header,
+  PaginationState,
+  SortingState,
+} from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -19,7 +24,11 @@ import {
 } from "@/components/ui/tooltip";
 import { hasReport } from "@/domain/import/report";
 import { es } from "@/lib/copy/es";
-import { facturasCargadasHeading } from "@/lib/copy/messages";
+import {
+  facturasCargadasHeading,
+  paginationPageText,
+  paginationRangeText,
+} from "@/lib/copy/messages";
 import { formatFechaIso, formatFolio, formatTotal } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -31,6 +40,10 @@ const RIGHT_ALIGNED = new Set(["total", "conceptos"]);
 
 /** Fecha descending is the default order (D-23, user-confirmed). */
 const DEFAULT_SORTING: SortingState = [{ id: "fecha", desc: true }];
+
+/** First page, 50 rows per page (D-23). */
+const INITIAL_PAGINATION: PaginationState = { pageIndex: 0, pageSize: 50 };
+const PAGE_SIZE = INITIAL_PAGINATION.pageSize;
 
 type InvoiceHeader = Header<typeof features, InvoiceRow>;
 
@@ -93,15 +106,29 @@ export function InvoiceTable() {
   const invoices = useSessionStore((s) => s.invoices);
   const rows = useMemo(() => toInvoiceRows(invoices), [invoices]);
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
+  const [pagination, setPagination] =
+    useState<PaginationState>(INITIAL_PAGINATION);
   const headingId = useId();
+
+  // autoResetPageIndex is off so sorting or a new batch keeps the page (D-23).
+  // When the page no longer exists, fall back to the first one. The reset is a
+  // conditional state update during render (React's derived-state pattern),
+  // not an effect, and the clamped index is what the table receives.
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageIndex = pagination.pageIndex < pageCount ? pagination.pageIndex : 0;
+  if (pageIndex !== pagination.pageIndex) {
+    setPagination({ pageIndex, pageSize: PAGE_SIZE });
+  }
 
   const table = useTable({
     features,
     columns,
     data: rows,
     getRowId: (row) => row.id,
-    state: { sorting },
+    state: { sorting, pagination: { pageIndex, pageSize: PAGE_SIZE } },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    autoResetPageIndex: false,
     // Numeric columns would otherwise start descending; D-23 wants
     // ascending, descending, unsorted on every header.
     sortDescFirst: false,
@@ -178,6 +205,38 @@ export function InvoiceTable() {
           ))}
         </TableBody>
       </Table>
+      {pageCount > 1 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <p className="text-muted-foreground">
+            {paginationRangeText(
+              pageIndex * PAGE_SIZE + 1,
+              Math.min(rows.length, (pageIndex + 1) * PAGE_SIZE),
+              rows.length,
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <span>{paginationPageText(pageIndex + 1, pageCount)}</span>
+            <Button
+              type="button"
+              variant="outline"
+              className="max-sm:h-11 max-sm:min-w-11"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
+            >
+              {es.table.previous}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="max-sm:h-11 max-sm:min-w-11"
+              disabled={!table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+            >
+              {es.table.next}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

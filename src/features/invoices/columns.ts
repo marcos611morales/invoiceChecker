@@ -1,7 +1,9 @@
 import {
   constructSortFn,
   createColumnHelper,
+  createPaginatedRowModel,
   createSortedRowModel,
+  rowPaginationFeature,
   rowSortingFeature,
   sortFn_basic,
   sortFn_text,
@@ -54,10 +56,12 @@ const sortFn_es = constructSortFn({
   sort: (a, b) => collator.compare(String(a), String(b)),
 });
 
-/** Sorting only in this plan; Plan 01-15 adds pagination. */
+/** Sorting (D-23) and 50-row client-side pagination (D-23). */
 export const features = tableFeatures({
   rowSortingFeature,
+  rowPaginationFeature,
   sortedRowModel: createSortedRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
   sortFns: { basic: sortFn_basic, text: sortFn_text, es: sortFn_es },
 });
 

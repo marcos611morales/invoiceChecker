@@ -114,6 +114,17 @@ export function facturasCargadasHeading(n: number): string {
   return `Facturas cargadas (${n})`;
 }
 
+/** Left side of the table pagination footer: "Mostrando 51–100 de 120" (D-23). */
+export function paginationRangeText(a: number, b: number, n: number): string {
+  if (a === b) return `Mostrando ${a} de ${n}`;
+  return `Mostrando ${a}–${b} de ${n}`;
+}
+
+/** Page indicator of the table pagination footer (D-23). */
+export function paginationPageText(p: number, total: number): string {
+  return `Página ${p} de ${total}`;
+}
+
 /** Sub-label of the "Ignorados" card. */
 export function ignoradosSubLabel(pdf: number, otros: number): string {
   return `PDF: ${pdf}, otros: ${otros}`;
