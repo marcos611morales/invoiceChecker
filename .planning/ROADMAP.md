@@ -89,41 +89,53 @@ Plans:
   4. El usuario marca una factura como "Excluida" y esta deja de contar en todo el análisis; en el panel de calidad de datos ve duplicados, archivos con error, facturas en $0, diferencias de redondeo, sustituciones (TipoRelación 04) y notas de crédito sin factura relacionada.
   5. `pnpm test` pasa las pruebas Vitest del parser y de las reglas de montos sobre XML anonimizados (descuentos, IEPS, facturas a pocas horas de un cambio de mes asignadas al mes de su fecha literal, conversión con TipoCambio y aritmética exacta con big.js), y `Facturas/` está fuera de git.
 
-**Plans:** 11 plans
+**Plans:** 15 plans
 
 Plans:
 **Wave 1**
 - [ ] 02-01-PLAN.md — Tracer: aprobación de paquetes, aritmética exacta con big.js, libro contable y "Gasto total" en la pestaña Dashboard
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 02-02-PLAN.md — Reglas de monto: impuestos de la factura (D-36), catálogos SAT, meses por fecha literal, Con/Sin IVA, IEPS y TipoCambio sobre XML anonimizados
+- [ ] 02-02-PLAN.md — Impuestos de la factura en el parser (D-36): traslados y retenciones del Comprobante sin cambiar el comportamiento de la Fase 1
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 02-03-PLAN.md — Libro contable completo: notas de crédito, $0, exclusión, sustitución 04, forma de pago de PPD y proveedor por RFC
+- [ ] 02-03-PLAN.md — Reglas de monto: catálogos SAT, meses por fecha literal, Con/Sin IVA, IEPS y TipoCambio sobre XML anonimizados
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 02-04-PLAN.md — Selectores compartidos: filtros, KPIs, variación contra el periodo anterior, serie mensual y ranking de proveedores
+- [ ] 02-04-PLAN.md — Libro contable completo: notas de crédito, $0, exclusión, sustitución 04, forma de pago de PPD y proveedor por RFC
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 02-05-PLAN.md — Estado de sesión y ajustes persistidos, interruptor Con/Sin IVA, pestañas controladas y regla de fin de carga
+- [ ] 02-05-PLAN.md — Selectores compartidos: filtros, KPIs, variación contra el periodo anterior, serie mensual y ranking de proveedores
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 02-06-PLAN.md — Barra de filtros: fechas por mes, proveedor y forma de pago con buscador, chips y estado sin coincidencias
+- [ ] 02-06-PLAN.md — Estado de sesión y ajustes persistidos: filtros, exclusiones, pestañas y modo IVA (única clave guardada)
 
 **Wave 7** *(blocked on Wave 6 completion)*
-- [ ] 02-07-PLAN.md — Fila de 4 KPIs con promedio mensual explicado y variación contra el periodo anterior
+- [ ] 02-07-PLAN.md — Interruptor Con/Sin IVA, barra superior responsiva, pestañas controladas y regla de fin de carga
 
 **Wave 8** *(blocked on Wave 7 completion)*
-- [ ] 02-08-PLAN.md — Tendencia mensual con Recharts y ranking top 10 de proveedores con lista completa
+- [ ] 02-08-PLAN.md — Ayudantes de meses y formas de pago, textos de filtros y filtro de fechas por mes
 
 **Wave 9** *(blocked on Wave 8 completion)*
-- [ ] 02-09-PLAN.md — Tabla de facturas con conceptos desplegables, Excluir/Volver a incluir y deshacer
+- [ ] 02-09-PLAN.md — Barra de filtros: proveedor y forma de pago con buscador, chips, pliegue móvil y estado sin coincidencias
 
 **Wave 10** *(blocked on Wave 9 completion)*
-- [ ] 02-10-PLAN.md — Panel de Calidad de datos: decisión D-34, incidencias puras y pestaña con tarjetas y acordeones
+- [ ] 02-10-PLAN.md — Fila de 4 KPIs con promedio mensual explicado y variación contra el periodo anterior
 
 **Wave 11** *(blocked on Wave 10 completion)*
-- [ ] 02-11-PLAN.md — Pestaña Calidad con contador, aviso en el Dashboard, "Ver factura", cierre DEV-03 y revisión humana
+- [ ] 02-11-PLAN.md — Tendencia mensual con Recharts: paquetes con versión fija y gráfica de barras con línea de promedio
+
+**Wave 12** *(blocked on Wave 11 completion)*
+- [ ] 02-12-PLAN.md — Ranking top 10 de proveedores con lista completa, componentes compartidos y fila compuesta con la tendencia
+
+**Wave 13** *(blocked on Wave 12 completion)*
+- [ ] 02-13-PLAN.md — Tabla de facturas con conceptos desplegables, Excluir/Volver a incluir y deshacer
+
+**Wave 14** *(blocked on Wave 13 completion)*
+- [ ] 02-14-PLAN.md — Panel de Calidad de datos: decisión D-34, incidencias puras y pestaña con tarjetas y acordeones
+
+**Wave 15** *(blocked on Wave 14 completion)*
+- [ ] 02-15-PLAN.md — Pestaña Calidad con contador, aviso en el Dashboard, "Ver factura", cierre DEV-03 y revisión humana
 
 **UI hint**: yes
 **Research flag**: ligero — verificar las etiquetas de c_FormaPago contra el catCFDI oficial y la semántica de TipoRelación 04/07 en la guía de llenado del Anexo 20.
@@ -186,7 +198,7 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
-| 2. Dashboard de gasto confiable | 0/11 | Planned | - |
+| 2. Dashboard de gasto confiable | 0/15 | Planned | - |
 | 3. Categorías propias y exportación a Excel | 0/TBD | Not started | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
