@@ -31,7 +31,15 @@ Las fases decimales aparecen entre sus enteros vecinos en orden numérico.
   3. Un CFDI 3.3 o un XML que no es CFDI aparece rechazado con un mensaje claro por archivo, y volver a soltar una factura ya cargada (mismo UUID) la reporta como duplicada sin contarla dos veces.
   4. Al recargar la página las facturas ya no están y la app pide volver a cargarlas.
   5. `pnpm lint` y `pnpm typecheck` pasan sin errores en el proyecto Next.js + TypeScript strict administrado con pnpm, y `.env.example` documenta las variables necesarias para desplegar en Vercel.
-**Plans**: TBD
+**Plans:** 6 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Walking skeleton: aprobación de paquetes, scaffold, candado con contraseña (proxy + jose), elegir carpeta → parseo en el navegador → conteos, docs de despliegue
+- [ ] 01-02-PLAN.md — Validación CFDI completa: todos los campos, catálogo de rechazos en español, fixtures sintéticos y anonimizados, regresión local con la muestra real
+- [ ] 01-03-PLAN.md — Reporte de importación acumulado: duplicados por UUID, ignorados, receptor distinto, progreso por lotes, store en memoria
+- [ ] 01-04-PLAN.md — Login, tema claro/oscuro y barra superior según el UI-SPEC (shadcn base-nova)
+- [ ] 01-05-PLAN.md — Soltar en cualquier parte, tarjetas y acordeones del reporte, avisos, diálogos y aviso al recargar
+- [ ] 01-06-PLAN.md — Tabla "Facturas cargadas", cabeceras de seguridad, smoke de Playwright y despliegue confirmado en Vercel (D-28)
 **UI hint**: yes
 
 ### Phase 2: Dashboard de gasto confiable
@@ -100,7 +108,7 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Acceso protegido y carga de facturas | 0/TBD | Not started | - |
+| 1. Acceso protegido y carga de facturas | 0/6 | Planned | - |
 | 2. Dashboard de gasto confiable | 0/TBD | Not started | - |
 | 3. Categorías propias y exportación a Excel | 0/TBD | Not started | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
