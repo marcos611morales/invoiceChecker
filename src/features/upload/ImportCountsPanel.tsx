@@ -1,34 +1,27 @@
 "use client";
 
 import type { ChangeEvent } from "react";
-import { parseCfdi } from "@/domain/cfdi/parseCfdi";
 import { classifyFile } from "@/domain/import/classifyFile";
-import { reportCounts } from "@/domain/import/report";
-import type { BatchEntry, FileRef } from "@/domain/import/types";
-import { rejectReasonText } from "@/lib/copy/messages";
+import {
+  receptorDistinto,
+  reportCounts,
+} from "@/domain/import/report";
+import {
+  batchToastText,
+  duplicateRowText,
+  groupTriggerText,
+  ignoradosSubLabel,
+  ignoredReasonText,
+  processingText,
+  receptorDistintoText,
+  rejectReasonText,
+  trasladoNominaSubLabel,
+} from "@/lib/copy/messages";
+import { ingest } from "@/lib/client/ingest";
 import { useSessionStore } from "@/stores/sessionStore";
 
 // React's typings lack the non-standard webkitdirectory attribute (Pitfall 10).
 const folderInputProps = { webkitdirectory: "" };
-
-function fileRef(file: File): FileRef {
-  return {
-    name: file.name,
-    path: file.webkitRelativePath !== "" ? file.webkitRelativePath : file.name,
-  };
-}
-
-async function toEntry(file: File): Promise<BatchEntry | null> {
-  const kind = classifyFile(file.name);
-  if (kind === "hidden") return null; // D-12: dropped, not listed
-  const ref = fileRef(file);
-  if (kind !== "xml") return { kind: "ignored", file: ref, ignoredKind: kind };
-  try {
-    return { kind: "parsed", file: ref, result: parseCfdi(await file.text()) };
-  } catch {
-    return { kind: "unreadable", file: ref };
-  }
-}
 
 export function ImportCountsPanel() {
   const invoices = useSessionStore((s) => s.invoices);
@@ -36,57 +29,140 @@ export function ImportCountsPanel() {
   const duplicates = useSessionStore((s) => s.duplicates);
   const ignored = useSessionStore((s) => s.ignored);
   const firstFileByUuid = useSessionStore((s) => s.firstFileByUuid);
-  const applyBatch = useSessionStore((s) => s.applyBatch);
+  const progress = useSessionStore((s) => s.progress);
+  const lastSummary = useSessionStore((s) => s.lastSummary);
+
+  const busy = progress.phase !== "idle";
 
   async function onPick(event: ChangeEvent<HTMLInputElement>) {
     const input = event.target;
     const files = Array.from(input.files ?? []);
     input.value = ""; // allow picking the same folder again
-    // Captured before any await so a clear while parsing makes this batch stale.
-    const generation = useSessionStore.getState().generation;
-    const batch: BatchEntry[] = [];
-    for (const file of files) {
-      const entry = await toEntry(file);
-      if (entry !== null) batch.push(entry);
+    if (files.length === 0) return;
+
+    // Captured before any await so a clear while parsing makes this batch stale (Pitfall 12).
+    const store = useSessionStore.getState();
+    const generation = store.generation;
+    const isCurrent = () => useSessionStore.getState().generation === generation;
+    const total = files.filter((file) => classifyFile(file.name) === "xml").length;
+
+    store.setProgress({ phase: "parsing", done: 0, total });
+    try {
+      const batch = await ingest(files, {
+        onProgress: (done, count) => {
+          if (isCurrent()) {
+            useSessionStore
+              .getState()
+              .setProgress({ phase: "parsing", done, total: count });
+          }
+        },
+        isCancelled: () => !isCurrent(),
+      });
+      if (batch !== null) useSessionStore.getState().applyBatch(batch, generation);
+    } finally {
+      if (isCurrent()) useSessionStore.getState().setProgress({ phase: "idle" });
     }
-    applyBatch(batch, generation);
   }
 
-  const counts = reportCounts({
-    invoices,
-    rejected,
-    duplicates,
-    ignored,
-    firstFileByUuid,
-  });
+  const state = { invoices, rejected, duplicates, ignored, firstFileByUuid };
+  const counts = reportCounts(state);
+  const distintos = receptorDistinto(invoices);
 
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-6">
         <label className="flex flex-col gap-1.5 text-sm font-medium">
           Seleccionar archivos
-          <input type="file" multiple onChange={onPick} />
+          <input type="file" multiple disabled={busy} onChange={onPick} />
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium">
           Seleccionar carpeta
-          <input type="file" multiple {...folderInputProps} onChange={onPick} />
+          <input
+            type="file"
+            multiple
+            disabled={busy}
+            {...folderInputProps}
+            onChange={onPick}
+          />
         </label>
       </div>
-      <p aria-live="polite">
+      <p aria-live="polite" className="min-h-5 text-sm">
+        {progress.phase === "parsing"
+          ? processingText(progress.done, progress.total)
+          : progress.phase === "listing"
+            ? "Leyendo archivos…"
+            : ""}
+      </p>
+      <p aria-live="polite" className="min-h-5 text-sm font-medium">
+        {lastSummary !== null ? batchToastText(lastSummary) : ""}
+      </p>
+      <p>
         {invoices.length} XML: Ingreso {counts.ingreso}, Egreso {counts.egreso},
-        Pago {counts.pago}, Traslado {counts.traslado}, Nómina {counts.nomina}
+        Pago {counts.pago}, Traslado y nómina{" "}
+        {trasladoNominaSubLabel(counts.traslado, counts.nomina)}
         {" · "}Duplicados {counts.duplicados} · Rechazados {counts.rechazados} ·
-        Ignorados {counts.ignorados} (PDF {counts.ignoradosPdf}, otros{" "}
-        {counts.ignoradosOtros})
+        Ignorados {counts.ignorados} ({ignoradosSubLabel(
+          counts.ignoradosPdf,
+          counts.ignoradosOtros,
+        )})
       </p>
       {rejected.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <h2 className="text-sm font-medium">Rechazados</h2>
+          <h2 className="text-sm font-medium">
+            {groupTriggerText("Rechazados", rejected.length)}
+          </h2>
           <ul className="flex flex-col gap-1 text-sm">
             {rejected.map((item, index) => (
               <li key={`${item.file.path}-${index}`}>
-                <span className="font-mono">{item.file.name}</span>:{" "}
-                {rejectReasonText(item.reason, item.detail)}
+                <span className="font-mono" title={item.file.path}>
+                  {item.file.name}
+                </span>
+                : {rejectReasonText(item.reason, item.detail)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {distintos.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-sm font-medium">
+            {groupTriggerText("Receptor distinto", distintos.length)}
+          </h2>
+          <ul className="flex flex-col gap-1 text-sm">
+            {distintos.map((item, index) => (
+              <li key={`${item.file.path}-${index}`} title={item.file.path}>
+                {receptorDistintoText(item.file.name, item.rfc)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {duplicates.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-sm font-medium">
+            {groupTriggerText("Duplicados", duplicates.length)}
+          </h2>
+          <ul className="flex flex-col gap-1 text-sm">
+            {duplicates.map((item, index) => (
+              <li key={`${item.file.path}-${index}`} title={item.file.path}>
+                {duplicateRowText(item)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {ignored.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-sm font-medium">
+            {groupTriggerText("Ignorados", ignored.length)}
+          </h2>
+          <ul className="flex flex-col gap-1 text-sm">
+            {ignored.map((item, index) => (
+              <li key={`${item.file.path}-${index}`}>
+                <span className="font-mono" title={item.file.path}>
+                  {item.file.name}
+                </span>
+                : {ignoredReasonText(item.kind)}
               </li>
             ))}
           </ul>
