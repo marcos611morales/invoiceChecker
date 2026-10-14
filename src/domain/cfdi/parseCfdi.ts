@@ -177,6 +177,10 @@ export function parseCfdi(xmlText: string): ParseResult {
       total,
       totalImpuestosTrasladados: attr(impuestos, "TotalImpuestosTrasladados"),
       totalImpuestosRetenidos: attr(impuestos, "TotalImpuestosRetenidos"),
+      impuestos: {
+        traslados: impuestosOf(kids(impuestos, NS_CFDI4, "Traslados")[0], "Traslado"),
+        retenciones: impuestosOf(kids(impuestos, NS_CFDI4, "Retenciones")[0], "Retencion"),
+      },
       emisor: { rfc: emisorRfc, nombre: attr(emisor, "Nombre") },
       receptor: { rfc: receptorRfc, nombre: attr(receptor, "Nombre") },
       conceptos,

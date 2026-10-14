@@ -20,6 +20,7 @@ function makeInvoice(uuid: string): ParsedInvoice {
     total: "116.00",
     totalImpuestosTrasladados: null,
     totalImpuestosRetenidos: null,
+    impuestos: { traslados: [], retenciones: [] },
     emisor: { rfc: "EMI010101AAA", nombre: null },
     receptor: { rfc: "CAF010101AAA", nombre: null },
     conceptos: [],
