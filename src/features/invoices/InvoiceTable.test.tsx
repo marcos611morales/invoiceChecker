@@ -270,3 +270,164 @@ describe("InvoiceTable sorting", () => {
     expect(column(2)).toEqual(["Egreso", "Ingreso", "Pago"]);
   });
 });
+
+/** `count` valid invoices with distinct, ordered dates (U001 is the oldest). */
+function many(count: number): BatchEntry[] {
+  return Array.from({ length: count }, (_, i) => {
+    const n = String(i + 1).padStart(3, "0");
+    const day = String((i % 28) + 1).padStart(2, "0");
+    const month = String(Math.floor(i / 28) + 1).padStart(2, "0");
+    return parsed(`U${n}`, {
+      fecha: `2025-${month}-${day}T10:00:00`,
+      total: String(i + 1),
+    });
+  });
+}
+
+describe("InvoiceTable pagination", () => {
+  it("shows no footer with a single page", () => {
+    seed(many(10));
+    render(<InvoiceTable />);
+    expect(screen.queryByText(/^Mostrando/)).toBeNull();
+    expect(screen.queryByText(/^Página/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Siguiente" })).toBeNull();
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(10);
+  });
+
+  it("pages 120 rows in three pages of at most 50", () => {
+    seed(many(120));
+    render(<InvoiceTable />);
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(50);
+    expect(screen.getByText("Mostrando 1–50 de 120")).toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 3")).toBeInTheDocument();
+    const previous = screen.getByRole("button", { name: "Anterior" });
+    const next = screen.getByRole("button", { name: "Siguiente" });
+    expect(previous).toBeDisabled();
+    expect(next).toBeEnabled();
+
+    fireEvent.click(next);
+    expect(screen.getByText("Mostrando 51–100 de 120")).toBeInTheDocument();
+    expect(screen.getByText("Página 2 de 3")).toBeInTheDocument();
+    expect(previous).toBeEnabled();
+
+    fireEvent.click(next);
+    expect(screen.getByText("Mostrando 101–120 de 120")).toBeInTheDocument();
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(20);
+    expect(next).toBeDisabled();
+
+    fireEvent.click(previous);
+    expect(screen.getByText("Página 2 de 3")).toBeInTheDocument();
+  });
+
+  it("uses the singular range when the last page holds one row", () => {
+    seed(many(51));
+    render(<InvoiceTable />);
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    expect(screen.getByText("Mostrando 51 de 51")).toBeInTheDocument();
+  });
+
+  it("keeps the page when sorting", () => {
+    seed(many(120));
+    render(<InvoiceTable />);
+    const next = screen.getByRole("button", { name: "Siguiente" });
+    fireEvent.click(next);
+    fireEvent.click(next);
+    expect(screen.getByText("Página 3 de 3")).toBeInTheDocument();
+    click("Total");
+    expect(header("Total")).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.getByText("Página 3 de 3")).toBeInTheDocument();
+    expect(screen.getByText("Mostrando 101–120 de 120")).toBeInTheDocument();
+  });
+
+  it("goes back to page 1 when a new, smaller batch leaves the old page without rows", () => {
+    seed(many(120));
+    render(<InvoiceTable />);
+    const next = screen.getByRole("button", { name: "Siguiente" });
+    fireEvent.click(next);
+    fireEvent.click(next);
+    expect(screen.getByText("Página 3 de 3")).toBeInTheDocument();
+
+    act(() => {
+      useSessionStore.getState().clearAll();
+    });
+    seed(many(10));
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(10);
+    expect(screen.queryByText(/^Página/)).toBeNull();
+
+    // Growing again must start from page 1, not from the forgotten page 3.
+    seed(
+      Array.from({ length: 110 }, (_, i) =>
+        parsed(`V${String(i + 1).padStart(3, "0")}`),
+      ),
+    );
+    expect(screen.getByText("Página 1 de 3")).toBeInTheDocument();
+    expect(screen.getByText("Mostrando 1–50 de 120")).toBeInTheDocument();
+  });
+
+  it("keeps the current page when it still exists after a new batch", () => {
+    seed(many(120));
+    render(<InvoiceTable />);
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    expect(screen.getByText("Página 2 de 3")).toBeInTheDocument();
+    seed(
+      Array.from({ length: 5 }, (_, i) =>
+        parsed(`W${String(i + 1).padStart(3, "0")}`),
+      ),
+    );
+    expect(screen.getByText("Página 2 de 3")).toBeInTheDocument();
+    expect(screen.getByText("Mostrando 51–100 de 125")).toBeInTheDocument();
+  });
+});
+
+describe("InvoiceTable presentation (D-21, D-22) and empty state", () => {
+  it("shows Tipo as an outline badge", () => {
+    seed([parsed("U1", { tipo: "I" })]);
+    render(<InvoiceTable />);
+    const cell = document.querySelectorAll("tbody tr td")[2];
+    const badge = cell?.querySelector('[data-slot="badge"]');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toBe("Ingreso");
+  });
+
+  it("presents the D-22 note in an inline Alert with the note role", () => {
+    seed([parsed("U1")]);
+    render(<InvoiceTable />);
+    const alert = document.querySelector('[data-slot="alert"]');
+    expect(alert).not.toBeNull();
+    expect(alert).toHaveAttribute("role", "note");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(alert?.textContent).toBe(
+      "Montos tal como vienen en cada XML; el cálculo de gasto llega después",
+    );
+  });
+
+  it("explains the empty table when files were processed but none is valid", () => {
+    seed([
+      {
+        kind: "unreadable",
+        file: { name: "roto.xml", path: "carpeta/roto.xml" },
+      },
+    ]);
+    const { container } = render(<InvoiceTable />);
+    expect(screen.getByText("Ninguna factura válida")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Revisa los archivos rechazados arriba y vuelve a soltarlos.",
+      ),
+    ).toBeInTheDocument();
+    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
+  });
+
+  it("keeps the section out of the page when nothing was processed", () => {
+    const { container } = render(<InvoiceTable />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("still has no footer row and no sum with the new presentation", () => {
+    seed([parsed("U1", { total: "100.00" }), parsed("U2", { total: "200.00" })]);
+    const { container } = render(<InvoiceTable />);
+    expect(container.querySelector("tfoot")).toBeNull();
+    expect(container.textContent).not.toContain("300");
+  });
+});

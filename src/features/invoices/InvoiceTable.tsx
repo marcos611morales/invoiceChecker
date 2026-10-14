@@ -2,8 +2,21 @@
 
 import { useId, useMemo, useState } from "react";
 import { useTable } from "@tanstack/react-table";
-import type { Header, SortingState } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import type {
+  Header,
+  PaginationState,
+  SortingState,
+} from "@tanstack/react-table";
+import { ArrowDown, ArrowUp, ArrowUpDown, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   Table,
   TableBody,
@@ -19,7 +32,11 @@ import {
 } from "@/components/ui/tooltip";
 import { hasReport } from "@/domain/import/report";
 import { es } from "@/lib/copy/es";
-import { facturasCargadasHeading } from "@/lib/copy/messages";
+import {
+  facturasCargadasHeading,
+  paginationPageText,
+  paginationRangeText,
+} from "@/lib/copy/messages";
 import { formatFechaIso, formatFolio, formatTotal } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -31,6 +48,10 @@ const RIGHT_ALIGNED = new Set(["total", "conceptos"]);
 
 /** Fecha descending is the default order (D-23, user-confirmed). */
 const DEFAULT_SORTING: SortingState = [{ id: "fecha", desc: true }];
+
+/** First page, 50 rows per page (D-23). */
+const INITIAL_PAGINATION: PaginationState = { pageIndex: 0, pageSize: 50 };
+const PAGE_SIZE = INITIAL_PAGINATION.pageSize;
 
 type InvoiceHeader = Header<typeof features, InvoiceRow>;
 
@@ -71,7 +92,7 @@ function cellContent(columnId: string, row: InvoiceRow) {
         </Tooltip>
       );
     case "tipo":
-      return row.tipo;
+      return <Badge variant="outline">{row.tipo}</Badge>;
     case "folio":
       return formatFolio(row.folio ?? null);
     case "total":
@@ -93,22 +114,50 @@ export function InvoiceTable() {
   const invoices = useSessionStore((s) => s.invoices);
   const rows = useMemo(() => toInvoiceRows(invoices), [invoices]);
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
+  const [pagination, setPagination] =
+    useState<PaginationState>(INITIAL_PAGINATION);
   const headingId = useId();
+
+  // autoResetPageIndex is off so sorting or a new batch keeps the page (D-23).
+  // When the page no longer exists, fall back to the first one. The reset is a
+  // conditional state update during render (React's derived-state pattern),
+  // not an effect, and the clamped index is what the table receives.
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageIndex = pagination.pageIndex < pageCount ? pagination.pageIndex : 0;
+  if (pageIndex !== pagination.pageIndex) {
+    setPagination({ pageIndex, pageSize: PAGE_SIZE });
+  }
 
   const table = useTable({
     features,
     columns,
     data: rows,
     getRowId: (row) => row.id,
-    state: { sorting },
+    state: { sorting, pagination: { pageIndex, pageSize: PAGE_SIZE } },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    autoResetPageIndex: false,
     // Numeric columns would otherwise start descending; D-23 wants
     // ascending, descending, unsorted on every header.
     sortDescFirst: false,
     enableMultiSort: false,
   });
 
-  if (!reportVisible || rows.length === 0) return null;
+  if (!reportVisible) return null;
+
+  // Files were processed but none produced a valid invoice.
+  if (rows.length === 0) {
+    return (
+      <section aria-label={es.table.heading} className="min-w-0">
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle className="text-base">{es.table.emptyHeading}</EmptyTitle>
+            <EmptyDescription>{es.table.emptyBody}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </section>
+    );
+  }
 
   const renderHeader = (header: InvoiceHeader) => {
     const sorted = header.column.getIsSorted();
@@ -143,7 +192,12 @@ export function InvoiceTable() {
         <h2 id={headingId} className="text-xl leading-[1.2] font-semibold">
           {facturasCargadasHeading(rows.length)}
         </h2>
-        <p className="text-sm text-muted-foreground">{es.table.note}</p>
+        {/* role="note" overrides the default alert role: the note never
+            changes, so it must not be announced on every load. */}
+        <Alert role="note">
+          <Info aria-hidden="true" />
+          <AlertDescription>{es.table.note}</AlertDescription>
+        </Alert>
       </div>
       <Table>
         <TableHeader>
@@ -178,6 +232,38 @@ export function InvoiceTable() {
           ))}
         </TableBody>
       </Table>
+      {pageCount > 1 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <p className="text-muted-foreground">
+            {paginationRangeText(
+              pageIndex * PAGE_SIZE + 1,
+              Math.min(rows.length, (pageIndex + 1) * PAGE_SIZE),
+              rows.length,
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <span>{paginationPageText(pageIndex + 1, pageCount)}</span>
+            <Button
+              type="button"
+              variant="outline"
+              className="max-sm:h-11 max-sm:min-w-11"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
+            >
+              {es.table.previous}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="max-sm:h-11 max-sm:min-w-11"
+              disabled={!table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+            >
+              {es.table.next}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
