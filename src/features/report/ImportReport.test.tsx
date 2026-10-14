@@ -6,9 +6,11 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import type { ParsedInvoice, TipoComprobante } from "@/domain/cfdi/types";
+import { hasReport } from "@/domain/import/report";
 import type { BatchEntry, IgnoredKind } from "@/domain/import/types";
 import { useSessionStore } from "@/stores/sessionStore";
 import { ImportReport } from "./ImportReport";
@@ -281,5 +283,69 @@ describe("ImportReport accordions", () => {
     fireEvent.click(trigger("Ingreso (1)"));
     expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
     expect(document.querySelector("img")).toBeNull();
+  });
+});
+
+describe("ImportReport Quitar todas", () => {
+  function openDialog(): void {
+    fireEvent.click(screen.getByRole("button", { name: "Quitar todas" }));
+  }
+
+  it("opens a confirmation dialog with focus on Conservar facturas", async () => {
+    seedMixed();
+    render(<ImportReport />);
+    openDialog();
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).getByText("¿Quitar todas las facturas?"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Se borrarán las facturas cargadas y el reporte de esta sesión.",
+      ),
+    ).toBeInTheDocument();
+    const dismiss = within(dialog).getByRole("button", {
+      name: "Conservar facturas",
+    });
+    await waitFor(() => expect(dismiss).toHaveFocus());
+    const buttons = within(dialog).getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      "Conservar facturas",
+      "Quitar todas",
+    ]);
+  });
+
+  it("confirming empties the session and stays on the page", async () => {
+    seedMixed();
+    render(<ImportReport />);
+    openDialog();
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Quitar todas" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    const state = useSessionStore.getState();
+    expect(hasReport(state)).toBe(false);
+    expect(state.invoices).toEqual([]);
+  });
+
+  it("dismissing keeps everything", async () => {
+    seedMixed();
+    render(<ImportReport />);
+    openDialog();
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Conservar facturas" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(useSessionStore.getState().invoices).toHaveLength(4);
+    expect(screen.getByTestId("summary-ingreso")).toHaveTextContent("2");
+  });
+
+  it("is disabled while a batch is processing", () => {
+    seedMixed();
+    act(() => {
+      useSessionStore.getState().setProgress({ phase: "parsing", done: 1, total: 5 });
+    });
+    render(<ImportReport />);
+    expect(screen.getByRole("button", { name: "Quitar todas" })).toBeDisabled();
   });
 });
