@@ -2,8 +2,9 @@
 
 import { ShieldCheck, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { hasReport } from "@/domain/import/report";
-import { InvoiceTable } from "@/features/invoices/InvoiceTable";
+import { DashboardTab } from "@/features/dashboard/DashboardTab";
 import { ImportReport } from "@/features/report/ImportReport";
 import { EmptyDropzone } from "@/features/upload/EmptyDropzone";
 import { ProcessingIndicator } from "@/features/upload/ProcessingIndicator";
@@ -30,6 +31,38 @@ function AddInvoicesButton() {
   );
 }
 
+const TRIGGER_CLASS =
+  "group-data-horizontal/tabs:h-10 flex-none px-4 text-sm font-semibold hover:bg-secondary";
+
+/**
+ * Loaded screen (D-01): Dashboard and Importación. The Phase 1 invoices table
+ * is no longer rendered here (D-02).
+ */
+function LoadedTabs() {
+  return (
+    <Tabs defaultValue="dashboard" className="gap-8">
+      <TabsList
+        variant="line"
+        aria-label={es.tabs.ariaLabel}
+        className="group-data-horizontal/tabs:h-10 gap-2 p-0"
+      >
+        <TabsTrigger value="dashboard" className={TRIGGER_CLASS}>
+          {es.tabs.dashboard}
+        </TabsTrigger>
+        <TabsTrigger value="import" className={TRIGGER_CLASS}>
+          {es.tabs.import}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="dashboard">
+        <DashboardTab />
+      </TabsContent>
+      <TabsContent value="import">
+        <ImportReport />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
 export function AppShell() {
   // The report shows as soon as any non-hidden file was processed (D-10).
   const reportVisible = useSessionStore((s) => hasReport(s));
@@ -41,8 +74,7 @@ export function AppShell() {
       <TopBar actions={reportVisible ? <AddInvoicesButton /> : null} />
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 pt-8 pb-16">
         <ProcessingIndicator />
-        {reportVisible ? <ImportReport /> : <EmptyDropzone />}
-        {reportVisible && <InvoiceTable />}
+        {reportVisible ? <LoadedTabs /> : <EmptyDropzone />}
         {reportVisible && (
           <footer className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="size-3" aria-hidden="true" />
