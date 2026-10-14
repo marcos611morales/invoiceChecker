@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd" Version="4.0" Serie="M" Folio="2" Fecha="2025-02-20T12:00:00" FormaPago="01" SubTotal="229.69" Descuento="2.00" Moneda="MXN" TipoCambio="1" Total="259.60" TipoDeComprobante="I" Exportacion="01" MetodoPago="PUE" LugarExpedicion="00000">
+  <cfdi:Emisor Rfc="EKU9003173C9" Nombre="PROVEEDOR DE PRUEBA SA DE CV" RegimenFiscal="601"/>
+  <cfdi:Receptor Rfc="XAXX010101000" Nombre="RECEPTOR DE PRUEBA" DomicilioFiscalReceptor="00000" RegimenFiscalReceptor="616" UsoCFDI="G03"/>
+  <cfdi:Conceptos>
+    <cfdi:Concepto ClaveProdServ="01010101" NoIdentificacion="SKU-001" Cantidad="2" ClaveUnidad="H87" Unidad="Pieza" Descripcion="PRODUCTO DE PRUEBA UNO" ValorUnitario="12.345678" Importe="24.69" Descuento="2.00" ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado Base="22.69" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="3.63"/>
+        </cfdi:Traslados>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+    <cfdi:Concepto ClaveProdServ="01010102" Cantidad="1" ClaveUnidad="H87" Descripcion="PRODUCTO DE PRUEBA DOS" ValorUnitario="50.00" Importe="50.00" ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado Base="50.00" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="8.00"/>
+        </cfdi:Traslados>
+        <cfdi:Retenciones>
+          <cfdi:Retencion Base="50.00" Impuesto="001" TipoFactor="Tasa" TasaOCuota="0.100000" Importe="5.00"/>
+        </cfdi:Retenciones>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+    <cfdi:Concepto ClaveProdServ="01010103" Cantidad="1" ClaveUnidad="H87" Unidad="Pieza" Descripcion="PRODUCTO DE PRUEBA TRES CON IEPS" ValorUnitario="100.00" Importe="100.00" ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado Base="100.00" Impuesto="003" TipoFactor="Tasa" TasaOCuota="0.080000" Importe="8.00"/>
+          <cfdi:Traslado Base="108.00" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="17.28"/>
+        </cfdi:Traslados>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+    <cfdi:Concepto ClaveProdServ="01010104" Cantidad="3" ClaveUnidad="H87" Unidad="Pieza" Descripcion="PRODUCTO DE PRUEBA CUATRO EXENTO" ValorUnitario="10.00" Importe="30.00" ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado Base="30.00" Impuesto="002" TipoFactor="Exento"/>
+        </cfdi:Traslados>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+    <cfdi:Concepto ClaveProdServ="01010105" Cantidad="1" ClaveUnidad="H87" Unidad="Pieza" Descripcion="PRODUCTO DE PRUEBA CINCO" ValorUnitario="20.00" Importe="20.00" ObjetoImp="01"/>
+    <cfdi:Concepto ClaveProdServ="01010106" Cantidad="1" ClaveUnidad="H87" Unidad="Pieza" Descripcion="PRODUCTO DE PRUEBA SEIS TASA CERO" ValorUnitario="5.00" Importe="5.00" ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado Base="5.00" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.000000" Importe="0.00"/>
+        </cfdi:Traslados>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+  </cfdi:Conceptos>
+  <cfdi:Impuestos TotalImpuestosRetenidos="5.00" TotalImpuestosTrasladados="36.91">
+    <cfdi:Retenciones>
+      <cfdi:Retencion Impuesto="001" Importe="5.00"/>
+    </cfdi:Retenciones>
+    <cfdi:Traslados>
+      <cfdi:Traslado Base="205.69" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="28.91"/>
+      <cfdi:Traslado Base="100.00" Impuesto="003" TipoFactor="Tasa" TasaOCuota="0.080000" Importe="8.00"/>
+    </cfdi:Traslados>
+  </cfdi:Impuestos>
+  <cfdi:Complemento>
+    <tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" Version="1.1" UUID="AAAAAAAA-0000-4000-8000-000000000002" FechaTimbrado="2025-02-20T12:01:00" RfcProvCertif="SPR190613I52" SelloCFD="AAAA" NoCertificadoSAT="00000000000000000000" SelloSAT="BBBB"/>
+  </cfdi:Complemento>
+</cfdi:Comprobante>

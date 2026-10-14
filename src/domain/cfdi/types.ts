@@ -7,8 +7,58 @@ export type RejectReason =
   | "no-timbre"
   | "too-large";
 
+/** A Traslado or Retencion of a concepto. Strings are the exact XML values. */
+export interface Impuesto {
+  base: string | null;
+  impuesto: string;
+  tipoFactor: string | null;
+  tasaOCuota: string | null;
+  importe: string | null;
+}
+
 /**
- * Header-level data of a CFDI 4.0. Money and rates stay as the exact XML
+ * One Concepto of a CFDI 4.0 with its own (concept-level) taxes. Required
+ * attributes that are absent become "" (never undefined); optional ones null.
+ */
+export interface Concepto {
+  claveProdServ: string;
+  noIdentificacion: string | null;
+  cantidad: string;
+  claveUnidad: string;
+  unidad: string | null;
+  descripcion: string;
+  valorUnitario: string;
+  importe: string;
+  descuento: string | null;
+  objetoImp: string | null;
+  traslados: Impuesto[];
+  retenciones: Impuesto[];
+}
+
+/** One CfdiRelacionados element: its TipoRelacion and trimmed, uppercased UUIDs. */
+export interface CfdiRelacionados {
+  tipoRelacion: string;
+  uuids: string[];
+}
+
+/** A pago20 DoctoRelacionado; idDocumento is trimmed and uppercased. */
+export interface DoctoRelacionado {
+  idDocumento: string;
+  monedaDR: string | null;
+  impPagado: string | null;
+}
+
+/** A pago20 Pago with its related documents. Totales is ignored. */
+export interface Pago {
+  fechaPago: string;
+  formaDePagoP: string;
+  monedaP: string;
+  monto: string;
+  doctos: DoctoRelacionado[];
+}
+
+/**
+ * Data of a CFDI 4.0. Money and rates stay as the exact XML
  * attribute strings (no numeric type in Phase 1). Absent optional attributes
  * are null.
  */
@@ -30,6 +80,9 @@ export interface ParsedInvoice {
   totalImpuestosRetenidos: string | null;
   emisor: { rfc: string; nombre: string | null };
   receptor: { rfc: string; nombre: string | null };
+  conceptos: Concepto[];
+  relacionados: CfdiRelacionados[];
+  pagos: Pago[];
 }
 
 export type ParseResult =

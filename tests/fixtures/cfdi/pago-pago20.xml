@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:pago20="http://www.sat.gob.mx/Pagos20" Version="4.0" Serie="P" Folio="5" Fecha="2025-05-12T11:00:00" SubTotal="0" Moneda="XXX" Total="0" TipoDeComprobante="P" Exportacion="01" LugarExpedicion="00000">
+  <cfdi:Emisor Rfc="EKU9003173C9" Nombre="PROVEEDOR DE PRUEBA SA DE CV" RegimenFiscal="601"/>
+  <cfdi:Receptor Rfc="XAXX010101000" Nombre="RECEPTOR DE PRUEBA" DomicilioFiscalReceptor="00000" RegimenFiscalReceptor="616" UsoCFDI="CP01"/>
+  <cfdi:Conceptos>
+    <cfdi:Concepto ClaveProdServ="84111506" Cantidad="1" ClaveUnidad="ACT" Descripcion="Pago" ValorUnitario="0" Importe="0" ObjetoImp="01"/>
+  </cfdi:Conceptos>
+  <cfdi:Complemento>
+    <pago20:Pagos Version="2.0">
+      <pago20:Totales MontoTotalPagos="116.00" TotalTrasladosBaseIVA16="100.00" TotalTrasladosImpuestoIVA16="16.00"/>
+      <pago20:Pago FechaPago="2025-05-12T10:00:00" FormaDePagoP="03" MonedaP="MXN" TipoCambioP="1" Monto="116.00">
+        <pago20:DoctoRelacionado IdDocumento="aaaaaaaa-0000-4000-8000-000000000001" Serie="T" Folio="1" MonedaDR="MXN" EquivalenciaDR="1" NumParcialidad="1" ImpSaldoAnt="116.00" ImpPagado="116.00" ImpSaldoInsoluto="0.00" ObjetoImpDR="02"/>
+      </pago20:Pago>
+    </pago20:Pagos>
+    <tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" Version="1.1" UUID="AAAAAAAA-0000-4000-8000-000000000005" FechaTimbrado="2025-05-12T11:01:00" RfcProvCertif="SPR190613I52" SelloCFD="AAAA" NoCertificadoSAT="00000000000000000000" SelloSAT="BBBB"/>
+  </cfdi:Complemento>
+</cfdi:Comprobante>

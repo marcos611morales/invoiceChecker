@@ -1,4 +1,11 @@
-import type { ParseResult, TipoComprobante } from "./types";
+import type {
+  CfdiRelacionados,
+  Concepto,
+  Impuesto,
+  Pago,
+  ParseResult,
+  TipoComprobante,
+} from "./types";
 
 export const NS_CFDI4 = "http://www.sat.gob.mx/cfd/4";
 export const NS_CFDI3 = "http://www.sat.gob.mx/cfd/3";
@@ -27,8 +34,65 @@ function attr(el: Element | undefined, name: string): string | null {
   return el ? el.getAttribute(name) : null;
 }
 
+/** Required attribute: exact string, "" when absent (never undefined). */
+function req(el: Element | undefined, name: string): string {
+  return attr(el, name) ?? "";
+}
+
+/** Traslado/Retencion children of `container` (a Traslados or Retenciones element). */
+function impuestosOf(container: Element | undefined, local: string): Impuesto[] {
+  return kids(container, NS_CFDI4, local).map((el) => ({
+    base: attr(el, "Base"),
+    impuesto: req(el, "Impuesto"),
+    tipoFactor: attr(el, "TipoFactor"),
+    tasaOCuota: attr(el, "TasaOCuota"),
+    importe: attr(el, "Importe"),
+  }));
+}
+
+function conceptoOf(el: Element): Concepto {
+  const impuestos = kids(el, NS_CFDI4, "Impuestos")[0];
+  return {
+    claveProdServ: req(el, "ClaveProdServ"),
+    noIdentificacion: attr(el, "NoIdentificacion"),
+    cantidad: req(el, "Cantidad"),
+    claveUnidad: req(el, "ClaveUnidad"),
+    unidad: attr(el, "Unidad"),
+    descripcion: req(el, "Descripcion"),
+    valorUnitario: req(el, "ValorUnitario"),
+    importe: req(el, "Importe"),
+    descuento: attr(el, "Descuento"),
+    objetoImp: attr(el, "ObjetoImp"),
+    traslados: impuestosOf(kids(impuestos, NS_CFDI4, "Traslados")[0], "Traslado"),
+    retenciones: impuestosOf(kids(impuestos, NS_CFDI4, "Retenciones")[0], "Retencion"),
+  };
+}
+
+function relacionadosOf(el: Element): CfdiRelacionados {
+  return {
+    tipoRelacion: req(el, "TipoRelacion"),
+    uuids: kids(el, NS_CFDI4, "CfdiRelacionado").map((r) =>
+      req(r, "UUID").trim().toUpperCase(),
+    ),
+  };
+}
+
+function pagoOf(el: Element): Pago {
+  return {
+    fechaPago: req(el, "FechaPago"),
+    formaDePagoP: req(el, "FormaDePagoP"),
+    monedaP: req(el, "MonedaP"),
+    monto: req(el, "Monto"),
+    doctos: kids(el, NS_PAGO20, "DoctoRelacionado").map((d) => ({
+      idDocumento: req(d, "IdDocumento").trim().toUpperCase(),
+      monedaDR: attr(d, "MonedaDR"),
+      impPagado: attr(d, "ImpPagado"),
+    })),
+  };
+}
+
 /**
- * Pure CFDI 4.0 validation chain plus header extraction.
+ * Pure CFDI 4.0 validation chain plus field extraction.
  * Requires the global DOMParser (browser or jsdom).
  */
 export function parseCfdi(xmlText: string): ParseResult {
@@ -86,6 +150,14 @@ export function parseCfdi(xmlText: string): ParseResult {
   if (receptorRfc === null) return malformed("Receptor.Rfc");
 
   const impuestos = kids(root, NS_CFDI4, "Impuestos")[0];
+  const conceptos = kids(root, NS_CFDI4, "Conceptos").flatMap((c) =>
+    kids(c, NS_CFDI4, "Concepto").map(conceptoOf),
+  );
+  const relacionados = kids(root, NS_CFDI4, "CfdiRelacionados").map(relacionadosOf);
+  // pago20:Totales is deliberately ignored.
+  const pagos = complemento
+    .flatMap((c) => kids(c, NS_PAGO20, "Pagos"))
+    .flatMap((p) => kids(p, NS_PAGO20, "Pago").map(pagoOf));
 
   return {
     ok: true,
@@ -107,6 +179,9 @@ export function parseCfdi(xmlText: string): ParseResult {
       totalImpuestosRetenidos: attr(impuestos, "TotalImpuestosRetenidos"),
       emisor: { rfc: emisorRfc, nombre: attr(emisor, "Nombre") },
       receptor: { rfc: receptorRfc, nombre: attr(receptor, "Nombre") },
+      conceptos,
+      relacionados,
+      pagos,
     },
   };
 }
