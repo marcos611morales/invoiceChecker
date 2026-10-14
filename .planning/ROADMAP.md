@@ -31,15 +31,25 @@ Las fases decimales aparecen entre sus enteros vecinos en orden numérico.
   3. Un CFDI 3.3 o un XML que no es CFDI aparece rechazado con un mensaje claro por archivo, y volver a soltar una factura ya cargada (mismo UUID) la reporta como duplicada sin contarla dos veces.
   4. Al recargar la página las facturas ya no están y la app pide volver a cargarlas.
   5. `pnpm lint` y `pnpm typecheck` pasan sin errores en el proyecto Next.js + TypeScript strict administrado con pnpm, y `.env.example` documenta las variables necesarias para desplegar en Vercel.
-**Plans:** 6 plans
+**Plans:** 16 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Walking skeleton: aprobación de paquetes, scaffold, candado con contraseña (proxy + jose), elegir carpeta → parseo en el navegador → conteos, docs de despliegue
-- [ ] 01-02-PLAN.md — Validación CFDI completa: todos los campos, catálogo de rechazos en español, fixtures sintéticos y anonimizados, regresión local con la muestra real
-- [ ] 01-03-PLAN.md — Reporte de importación acumulado: duplicados por UUID, ignorados, receptor distinto, progreso por lotes, store en memoria
-- [ ] 01-04-PLAN.md — Login, tema claro/oscuro y barra superior según el UI-SPEC (shadcn base-nova)
-- [ ] 01-05-PLAN.md — Soltar en cualquier parte, tarjetas y acordeones del reporte, avisos, diálogos y aviso al recargar
-- [ ] 01-06-PLAN.md — Tabla "Facturas cargadas", cabeceras de seguridad, smoke de Playwright y despliegue confirmado en Vercel (D-28)
+- [ ] 01-01-PLAN.md — Walking skeleton: aprobación de paquetes, scaffold, candado con contraseña (proxy + jose), elegir carpeta → parseo en el navegador → conteos, cerrar sesión
+- [ ] 01-02-PLAN.md — Parser completo: conceptos con sus impuestos, CfdiRelacionados y Pagos; variantes de BOM y prefijos
+- [ ] 01-03-PLAN.md — Kit shadcn base-nova, tokens del UI-SPEC, tema que sigue al sistema y textos es-MX
+- [ ] 01-04-PLAN.md — Cada motivo de rechazo probado y mostrado en español por archivo
+- [ ] 01-05-PLAN.md — Regresión con la muestra real, fixtures anonimizados y guardia contra fugas
+- [ ] 01-06-PLAN.md — Tarjeta de login del UI-SPEC con mostrar/ocultar contraseña
+- [ ] 01-07-PLAN.md — Botón de tema y barra superior fija con "Cerrar sesión"
+- [ ] 01-08-PLAN.md — Duplicados por UUID, archivos ignorados y store en memoria con generación
+- [ ] 01-09-PLAN.md — Pruebas unitarias del candado y estados del login (pendiente, errores, regreso seguro)
+- [ ] 01-10-PLAN.md — Parseo por lotes con progreso, resumen por lote y listas del reporte
+- [ ] 01-11-PLAN.md — Tarjetas y acordeones del reporte, y "Quitar todas"
+- [ ] 01-12-PLAN.md — Barra de progreso y avisos (toasts) por lote
+- [ ] 01-13-PLAN.md — Soltar en cualquier parte, zona vacía, confirmación al cerrar sesión y aviso al recargar
+- [ ] 01-14-PLAN.md — Tabla "Facturas cargadas" con formato y orden
+- [ ] 01-15-PLAN.md — Paginación, insignia de tipo, nota y estado vacío de la tabla
+- [ ] 01-16-PLAN.md — Cabeceras de seguridad, docs de despliegue, smoke de Playwright y despliegue confirmado en Vercel (D-28)
 **UI hint**: yes
 
 ### Phase 2: Dashboard de gasto confiable

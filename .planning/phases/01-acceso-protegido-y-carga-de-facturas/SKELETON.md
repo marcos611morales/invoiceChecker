@@ -2,7 +2,7 @@
 
 **Phase:** 1
 **Generated:** 2026-10-13
-**Delivered by:** `01-01-PLAN.md` (tracer task). Plans 01-02 to 01-06 add vertical slices on top of it without changing the decisions below.
+**Delivered by:** `01-01-PLAN.md` (tracer task). Plans 01-02 to 01-16 add vertical slices on top of it without changing the decisions below.
 
 ## Capability Proven End-to-End
 
@@ -17,10 +17,10 @@ A partner who knows the shared password opens the app, is sent to `/login`, ente
 | Data layer | **No database.** Invoices live only in a module-level zustand store (`src/stores/sessionStore.ts`), never persisted; reload or logout clears them. The skeleton's "real write" is `parseCfdi` results going into that store; the "real read" is the page rendering counts from it. | CARGA-06 and the "sin base de datos" constraint. Settings persistence (`localStorage`, zod-validated) arrives in Phase 3; the theme preference is the only Phase 1 browser storage. |
 | Parsing | Native `DOMParser` in the browser, pure function `parseCfdi(xmlText): ParseResult` in `src/domain/cfdi/`, namespace-URI child lookups, BOM stripped, DTD pre-rejected, 2 MB cap, money/rates kept as exact XML strings | CLAUDE.md "XML parsing"; user decision Q8 (no numeric type in Phase 1; Phase 2 adopts big.js per REGLA-04). |
 | Auth | `src/proxy.ts` (Next 16 Proxy, fail-closed exclude-list matcher) + `jose` HS256 JWT in cookie `session` (HttpOnly, Secure in production, SameSite=Lax, Path=/, 30 days), keyed `pwd` claim so changing `APP_PASSWORD` invalidates every session; login/logout route handlers under `/api/auth/*` | D-01, D-02, D-03, D-05; RESEARCH Pattern 3 (verified with curl on `next start`). Phase 4 adds a per-handler `requireSession()` on the LLM routes. |
-| Deployment target | Vercel Hobby, default `*.vercel.app` domain, Node 24.x (`engines.node`), env vars `APP_PASSWORD`, `SESSION_SECRET` (>= 32 chars), `ENABLE_EXPERIMENTAL_COREPACK=1`; the user creates the project | D-26, D-27, D-28 (blocking human deploy checkpoint in Plan 06). |
-| UI kit | shadcn/ui `base-nova` (Base UI) + Tailwind 4 CSS-first tokens, Geist Sans/Mono, light/dark via class `.dark` + pre-hydration script | UI-SPEC (approved). Base UI uses the `render` prop and `multiple` accordions, not Radix habits. |
+| Deployment target | Vercel Hobby, default `*.vercel.app` domain, Node 24.x (`engines.node`), env vars `APP_PASSWORD`, `SESSION_SECRET` (>= 32 chars), `ENABLE_EXPERIMENTAL_COREPACK=1`; the user creates the project | D-26, D-27, D-28 (blocking human deploy checkpoint in Plan 16). |
+| UI kit | shadcn/ui `base-nova` (Base UI) + Tailwind 4 CSS-first tokens, Geist Sans/Mono, light/dark via class `.dark` + pre-hydration script; `shadcn init` once (Plan 01-03), then each slice runs `shadcn add` for the components it first uses (the union is the UI-SPEC inventory) | UI-SPEC (approved). Base UI uses the `render` prop and `multiple` accordions, not Radix habits. |
 | Tables | TanStack Table 9.3.1 (v9 API: `useTable` + `tableFeatures`) | D-23; exercises v9 before Phase 2 builds on it. |
-| Directory layout | `src/domain/**` pure (ESLint forbids react/next/zustand/`@/lib`/`@/components`/`@/stores`/`@/features` imports), `src/lib/server/**` (`import "server-only"`), `src/lib/client/**` (browser adapters), `src/lib/copy/**` (es-MX copy), `src/stores/**`, `src/features/{shell,upload,report,invoices}/**`, `src/components/ui/**` (shadcn copy-in) | Keeps the parser and import rules testable in Vitest and movable to a worker later. |
+| Directory layout | `src/domain/**` pure (ESLint forbids react/next/zustand/`@/lib`/`@/components`/`@/stores`/`@/features` imports), `src/lib/server/**` (`import "server-only"`), `src/lib/client/**` (browser adapters), `src/lib/copy/es.ts` (static es-MX strings), `src/lib/copy/messages.ts` (interpolated Spanish sentences), `src/lib/format.ts` (value formatting: dates, money, folios), `src/stores/**`, `src/features/{shell,upload,report,invoices}/**`, `src/components/ui/**` (shadcn copy-in), `tests/fixtures/cfdi/**` (hand-written and anonymized XML), `tests/support/cfdiVariants.ts` (mechanical variants derived from the fixtures, shared by Vitest and Playwright) | Keeps the parser and import rules testable in Vitest and movable to a worker later; one source per fixture, never copied into a second folder. |
 | Tests | Vitest 5 (`node` env by default, `// @vitest-environment jsdom` per file), `resolve.tsconfigPaths: true`; one local Playwright smoke spec (Chrome channel) against `build && start`, outside `pnpm verify` | User decision Q10; CLAUDE.md "Testing". |
 | Quality gate | `pnpm verify` = `pnpm lint && pnpm typecheck && pnpm test && pnpm build`; `typecheck` = `next typegen && tsc --noEmit`; `pnpm smoke:auth` exercises the gate on a production build | DEV-02; RESEARCH Pattern 2 and Pitfall 2. |
 
@@ -44,11 +44,21 @@ A partner who knows the shared password opens the app, is sent to `/login`, ente
 
 Within Phase 1 (each plan is a vertical slice on top of the skeleton):
 
-- 01-02: every CFDI rejection reason in Spanish, full CFDI field extraction, anonymized fixtures.
-- 01-03: accumulated import report (duplicates by UUID, ignored files, receptor distinto, progress).
-- 01-04: login screen, theme toggle and top bar per UI-SPEC.
-- 01-05: drag-and-drop anywhere, report cards/accordions, toasts, confirmation dialogs, unload warning.
-- 01-06: "Facturas cargadas" table, security headers, Playwright smoke, Vercel deploy confirmation.
+- 01-02: full CFDI field extraction (conceptos and their taxes, CfdiRelacionados, Pagos), prefix/BOM variants.
+- 01-03: shadcn base-nova kit, UI-SPEC tokens, theme that follows the OS, es-MX copy module.
+- 01-04: every rejection reason proven, Spanish reasons per file in the page.
+- 01-05: real-sample regression, anonymized fixtures, leak guard.
+- 01-06: login card per UI-SPEC with show/hide password.
+- 01-07: theme toggle and sticky top bar with "Cerrar sesión".
+- 01-08: first-wins duplicates, ignored files, in-memory store with generation.
+- 01-09: gate unit tests and login states (pending, errors, safe next).
+- 01-10: chunked ingest with progress, batch summary, duplicate/ignored/receptor lists.
+- 01-11: report cards, accordions and "Quitar todas".
+- 01-12: progress bar and per-batch toasts.
+- 01-13: drop anywhere, empty dropzone, logout confirmation and reload warning.
+- 01-14: "Facturas cargadas" table with formatting and sorting.
+- 01-15: table pagination, type badge, note and empty state.
+- 01-16: security headers, deploy docs, Playwright smoke, Vercel deploy confirmation (D-28).
 
 Later phases:
 
