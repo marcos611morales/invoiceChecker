@@ -33,7 +33,7 @@ Las fases decimales aparecen entre sus enteros vecinos en orden numérico.
   4. Al recargar la página las facturas ya no están y la app pide volver a cargarlas.
   5. `pnpm lint` y `pnpm typecheck` pasan sin errores en el proyecto Next.js + TypeScript strict administrado con pnpm, y `.env.example` documenta las variables necesarias para desplegar en Vercel.
 
-**Plans:** 10/16 plans executed
+**Plans:** 11/16 plans executed
 
 Plans:
 **Wave 1**
@@ -57,7 +57,7 @@ Plans:
 - [x] 01-10-PLAN.md — Parseo por lotes con progreso, resumen por lote y listas del reporte
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 01-11-PLAN.md — Tarjetas y acordeones del reporte, y "Quitar todas"
+- [x] 01-11-PLAN.md — Tarjetas y acordeones del reporte, y "Quitar todas"
 
 **Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 01-12-PLAN.md — Barra de progreso y avisos (toasts) por lote
@@ -150,7 +150,7 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Acceso protegido y carga de facturas | 10/16 | In Progress | - |
+| 1. Acceso protegido y carga de facturas | 11/16 | In Progress | - |
 | 2. Dashboard de gasto confiable | 0/TBD | Not started | - |
 | 3. Categorías propias y exportación a Excel | 0/TBD | Not started | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
