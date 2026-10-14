@@ -1,5 +1,18 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { reportCounts } from "@/domain/import/report";
 import { es } from "@/lib/copy/es";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -13,6 +26,11 @@ export function ImportReport() {
   const duplicates = useSessionStore((s) => s.duplicates);
   const ignored = useSessionStore((s) => s.ignored);
   const firstFileByUuid = useSessionStore((s) => s.firstFileByUuid);
+
+  const busy = useSessionStore((s) => s.progress.phase !== "idle");
+  const clearAll = useSessionStore((s) => s.clearAll);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const dismissRef = useRef<HTMLButtonElement>(null);
 
   const counts = reportCounts({
     invoices,
@@ -28,6 +46,37 @@ export function ImportReport() {
         <h2 className="text-xl leading-[1.2] font-semibold">
           {es.report.heading}
         </h2>
+        <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <AlertDialogTrigger
+            render={<Button variant="outline" disabled={busy} />}
+          >
+            {es.global.resetAll}
+          </AlertDialogTrigger>
+          <AlertDialogContent initialFocus={dismissRef}>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-xl leading-[1.2] font-semibold">
+                {es.dialogs.resetAll.title}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {es.dialogs.resetAll.body}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel ref={dismissRef}>
+                {es.dialogs.resetAll.dismiss}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  clearAll();
+                  setDialogOpen(false);
+                }}
+              >
+                {es.dialogs.resetAll.confirm}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
       <SummaryCards counts={counts} />
       <ReportAccordions />
