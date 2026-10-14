@@ -62,6 +62,20 @@ Las reglas de montos de PROJECT.md (Key Decisions) son definitivas y no se repit
 - **D-32:** Tipos de incidencia: notas de crédito sin factura relacionada, sustituciones (04), facturas en $0, diferencias de redondeo, PPD sin complemento, moneda sin TipoCambio, excluidas y sustituidas. Duplicados y archivos con error **no se repiten**: se muestra su conteo con un enlace "Ver en Importación".
 - **D-33:** Cada incidencia tiene "Ver factura" (lleva al Dashboard y abre esa fila) y las acciones propias del caso ("Volver a incluir" en excluidas y sustituidas). El resto solo informa.
 
+### Decisiones de planeación (respuestas a las Open Questions de 02-RESEARCH.md, 2026-10-14)
+- **D-34:** Nota de crédito con varias facturas relacionadas cargadas en meses distintos: se imputa al mes de la relacionada con la **fecha más antigua**. El texto de la fila en Calidad lo explica.
+- **D-35:** Factura con montos no numéricos o `Fecha` mal formada: **se carga pero no suma** (no se rechaza en el parser). Es un tipo de incidencia nuevo, adicional a D-32: título **"Datos inválidos"** (tarjeta y acordeón), texto de fila **"{Campo} inválido: no se suma"**. **Cambia montos**: su acordeón se abre por defecto, activa el aviso de D-04 y va justo después de "Moneda sin tipo de cambio". El motor de reglas nunca debe lanzar error en el render por estos valores.
+- **D-36:** `ParsedInvoice` gana un campo **adicional** con los Traslados y Retenciones a nivel factura (`Comprobante/Impuestos`); el IEPS se toma de ahí. Nada del comportamiento de la Fase 1 cambia.
+- **D-37:** "Factura en $0" se decide **solo por el Total convertido**, sin importar el modo IVA; el conteo de facturas nunca cambia con el selector.
+- **D-38:** Monto "con IVA" de un concepto = importe − descuento + Σ traslados − Σ retenciones (cuadra con el Total), en lugar del literal de D-25.
+- **D-39:** Ticket promedio sin facturas que cuenten: se muestra **"—"**.
+- **D-40:** Porcentajes con espacio: **"12.4 %"**, como en el UI-SPEC (no el `12.4%` de `Intl`).
+- **D-41:** El rango por defecto (D-12) se calcula con **todas las facturas cargadas** (incluye P, $0 y excluidas).
+- **D-42:** Si la factura que sustituye (04) está excluida o vale $0, la original **sigue "Sustituida"** (D-08 literal); el usuario puede "Volver a incluir".
+- **D-43:** El proveedor se identifica **por RFC** en filtros y ranking.
+- **D-44:** Toda carga terminada abre Dashboard, aunque no agregue facturas nuevas, salvo que la sesión no tenga ninguna factura (entonces abre Importación).
+- **D-45:** Se aceptan para v1 las etiquetas de c_FormaPago y la semántica de TipoRelación 04/07 de 02-RESEARCH.md (espejo phpcfdi y fuentes secundarias); se pueden confirmar después contra el catCFDI y el Anexo 20 oficiales.
+
 ### Claude's Discretion
 - Columnas exactas de la tabla y orden por defecto (sugerido: fecha, de la más reciente a la más antigua).
 - Qué hacer en "Ver factura" si los filtros activos ocultan esa fila (p. ej. quitar filtros o avisar).
