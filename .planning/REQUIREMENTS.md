@@ -7,19 +7,19 @@
 
 ### Acceso (ACC)
 
-- [ ] **ACC-01**: Usuario debe ingresar una contraseña compartida (variable de entorno en Vercel) antes de ver cualquier página
-- [ ] **ACC-02**: La sesión persiste vía cookie firmada HttpOnly; el usuario puede cerrar sesión
+- [x] **ACC-01**: Usuario debe ingresar una contraseña compartida (variable de entorno en Vercel) antes de ver cualquier página
+- [x] **ACC-02**: La sesión persiste vía cookie firmada HttpOnly; el usuario puede cerrar sesión
 - [ ] **ACC-03**: Las rutas del LLM rechazan (401) cualquier llamada sin sesión válida, verificado dentro de cada handler
 - [ ] **ACC-04**: La API key de DeepSeek nunca llega al navegador ni al bundle del cliente
 
 ### Carga de facturas (CARGA)
 
-- [ ] **CARGA-01**: Usuario puede arrastrar/soltar o seleccionar varios archivos XML (y carpetas) a la vez; los PDF se ignoran y se reportan como ignorados
-- [ ] **CARGA-02**: Los XML se parsean en el navegador (DOMParser nativo, tolerante a BOM y a cualquier prefijo de namespace) sin enviarse a ningún servidor
-- [ ] **CARGA-03**: Solo se acepta CFDI 4.0; archivos 3.3 u otros XML se rechazan con mensaje claro por archivo
-- [ ] **CARGA-04**: Facturas duplicadas (mismo UUID del timbre) se cargan una sola vez y se reportan
-- [ ] **CARGA-05**: Usuario ve un reporte de importación: totales por tipo (I/E/P), duplicados, errores e ignorados
-- [ ] **CARGA-06**: Las facturas viven solo en memoria; al recargar hay que volver a cargarlas (los ajustes sí persisten)
+- [x] **CARGA-01**: Usuario puede arrastrar/soltar o seleccionar varios archivos XML (y carpetas) a la vez; los PDF se ignoran y se reportan como ignorados
+- [x] **CARGA-02**: Los XML se parsean en el navegador (DOMParser nativo, tolerante a BOM y a cualquier prefijo de namespace) sin enviarse a ningún servidor
+- [x] **CARGA-03**: Solo se acepta CFDI 4.0; archivos 3.3 u otros XML se rechazan con mensaje claro por archivo
+- [x] **CARGA-04**: Facturas duplicadas (mismo UUID del timbre) se cargan una sola vez y se reportan
+- [x] **CARGA-05**: Usuario ve un reporte de importación: totales por tipo (I/E/P), duplicados, errores e ignorados
+- [x] **CARGA-06**: Las facturas viven solo en memoria; al recargar hay que volver a cargarlas (los ajustes sí persisten)
 
 ### Reglas de montos (REGLA)
 
@@ -97,10 +97,10 @@
 
 ### Calidad de código (DEV)
 
-- [ ] **DEV-01**: Proyecto Next.js + TypeScript en modo strict, administrado con pnpm
-- [ ] **DEV-02**: `pnpm lint` (ESLint) y `pnpm typecheck` pasan sin errores
+- [x] **DEV-01**: Proyecto Next.js + TypeScript en modo strict, administrado con pnpm
+- [x] **DEV-02**: `pnpm lint` (ESLint) y `pnpm typecheck` pasan sin errores
 - [ ] **DEV-03**: Pruebas unitarias (Vitest) del parser y reglas de montos usando XML anonimizados; `Facturas/` fuera de git
-- [ ] **DEV-04**: Desplegable en Vercel con variables de entorno documentadas (`.env.example`)
+- [x] **DEV-04**: Desplegable en Vercel con variables de entorno documentadas (`.env.example`)
 
 ## v2 Requirements
 
@@ -127,16 +127,16 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ACC-01 | Phase 1 | Pending |
-| ACC-02 | Phase 1 | Pending |
+| ACC-01 | Phase 1 | Complete |
+| ACC-02 | Phase 1 | Complete |
 | ACC-03 | Phase 4 | Pending |
 | ACC-04 | Phase 4 | Pending |
-| CARGA-01 | Phase 1 | Pending |
-| CARGA-02 | Phase 1 | Pending |
-| CARGA-03 | Phase 1 | Pending |
-| CARGA-04 | Phase 1 | Pending |
-| CARGA-05 | Phase 1 | Pending |
-| CARGA-06 | Phase 1 | Pending |
+| CARGA-01 | Phase 1 | Complete |
+| CARGA-02 | Phase 1 | Complete |
+| CARGA-03 | Phase 1 | Complete |
+| CARGA-04 | Phase 1 | Complete |
+| CARGA-05 | Phase 1 | Complete |
+| CARGA-06 | Phase 1 | Complete |
 | REGLA-01 | Phase 2 | Pending |
 | REGLA-02 | Phase 2 | Pending |
 | REGLA-03 | Phase 2 | Pending |
@@ -184,10 +184,10 @@
 | XLS-01 | Phase 3 | Pending |
 | XLS-02 | Phase 3 | Pending |
 | XLS-03 | Phase 3 | Pending |
-| DEV-01 | Phase 1 | Pending |
-| DEV-02 | Phase 1 | Pending |
+| DEV-01 | Phase 1 | Complete |
+| DEV-02 | Phase 1 | Complete |
 | DEV-03 | Phase 2 | Pending |
-| DEV-04 | Phase 1 | Pending |
+| DEV-04 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 61 total

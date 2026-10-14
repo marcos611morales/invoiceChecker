@@ -12,11 +12,11 @@ Ver con claridad, a partir de las facturas XML, **en qué gastamos más y dónde
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Cargar varios archivos CFDI XML en el navegador (arrastrar/soltar) y parsearlos del lado del cliente — Phase 1
+- ✓ Acceso protegido con una contraseña simple compartida que protege la página — Phase 1 (la protección de la ruta del LLM sigue activa para la Fase 4)
 
 ### Active
 
-- [ ] Cargar varios archivos CFDI XML en el navegador (arrastrar/soltar) y parsearlos del lado del cliente
 - [ ] Extraer de cada factura: fecha, emisor (RFC/nombre), tipo de comprobante, forma y método de pago, moneda, subtotal, impuestos, total y conceptos (descripción, cantidad, unidad, valor unitario, importe, ClaveProdServ)
 - [ ] Tratamiento por tipo: Ingreso (I) cuenta como gasto, Egreso (E, notas de crédito) resta, Pago (P, complementos) se excluye para no duplicar
 - [ ] Selector global para ver los montos con IVA (total) o sin IVA (subtotal)
@@ -29,7 +29,7 @@ Ver con claridad, a partir de las facturas XML, **en qué gastamos más y dónde
 - [ ] Filtros: rango de fechas/mes, proveedor, categoría y forma de pago
 - [ ] Exportar a Excel con varias hojas (facturas, conceptos/productos, resúmenes por categoría, proveedor y mes) respetando los filtros activos
 - [ ] Los ajustes de categorías y las agrupaciones del LLM se guardan en el navegador (localStorage)
-- [ ] Acceso protegido con una contraseña simple compartida (variable de entorno en Vercel) que protege la página y el uso del LLM
+- [ ] La contraseña compartida también protege el uso del LLM (401 en la ruta sin sesión; key fuera del bundle)
 
 ### Out of Scope
 
@@ -63,25 +63,27 @@ Ver con claridad, a partir de las facturas XML, **en qué gastamos más y dónde
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Solo XML como fuente de datos | Los XML son estructurados y completos; los PDF son duplicados | — Pending |
-| Carga en el navegador, sin DB | Requisito del usuario: procesamiento local y sin persistencia en servidor | — Pending |
+| Carga en el navegador, sin DB | Requisito del usuario: procesamiento local y sin persistencia en servidor | ✓ Good (Phase 1) |
 | DeepSeek para agrupar productos y sugerir categorías | Elección del usuario; las descripciones varían entre tiendas | — Pending |
-| API key en variable de Vercel + contraseña simple | Evita exponer la key y que terceros gasten el saldo | — Pending |
+| API key en variable de Vercel + contraseña simple | Evita exponer la key y que terceros gasten el saldo | ✓ Good (Phase 1) |
 | Ajustes en localStorage | Persistencia sin DB; el usuario aceptó que es por navegador | — Pending |
 | Categoría por proveedor, ajustable por concepto | Equilibrio entre esfuerzo y precisión (en Walmart se compran cosas de varias categorías) | — Pending |
 | Notas de crédito restan, complementos de Pago se excluyen | Evita duplicar el gasto y refleja las devoluciones | — Pending |
-| Next.js + TS strict + pnpm + ESLint | Elección del usuario; Next.js es nativo de Vercel | — Pending |
+| Next.js + TS strict + pnpm + ESLint | Elección del usuario; Next.js es nativo de Vercel | ✓ Good (Phase 1) |
 | "Sin IVA" = Subtotal − Descuento + IEPS (solo se quita IVA) | 68/143 facturas con descuento; IEPS es costo real | — Pending |
 | Notas de crédito restan en el mes de la factura relacionada | Son aplicaciones de anticipo (TipoRelación 07) | — Pending |
 | Facturas $0 fuera de conteos/promedios | 12 facturas bancarias en $0 distorsionan el ticket promedio | — Pending |
 | Promedio mensual sobre meses del calendario del rango | Elección del usuario | — Pending |
-| Facturas solo en memoria (recargar = volver a cargar) | Elección del usuario; ajustes sí persisten | — Pending |
+| Facturas solo en memoria (recargar = volver a cargar) | Elección del usuario; ajustes sí persisten | ✓ Good (Phase 1) |
 | Canceladas: botón manual "Excluir", sin consulta al SAT | Mantiene procesamiento local | — Pending |
 | Precedencia categoría: concepto > producto > proveedor | Elección del usuario | — Pending |
 | Se envía nombre de proveedor (no RFC) a DeepSeek | Mejora sugerencias de categoría | — Pending |
 | Servicios/combustible excluidos de comparación de precios | No son productos comparables | — Pending |
-| Solo CFDI 4.0; otras monedas se convierten con TipoCambio | Elección del usuario | — Pending |
+| Solo CFDI 4.0; otras monedas se convierten con TipoCambio | Elección del usuario | ✓ 4.0-only rejection shipped (Phase 1); TipoCambio pending |
 | write-excel-file, DOMParser nativo, big.js | Elegidos tras research (estilos, robustez de namespaces, exactitud decimal) | — Pending |
-| Facturas/ fuera de git; pruebas con XML anonimizados | Contienen RFCs y datos personales | — Pending |
+| Facturas/ fuera de git; pruebas con XML anonimizados | Contienen RFCs y datos personales | ✓ Good (Phase 1) |
+| Sesión JWT HS256 (jose) con claim HMAC de la contraseña | Cambiar APP_PASSWORD invalida sesiones sin DB (D-02) | ✓ Good (Phase 1) |
+| CSP `connect-src 'self'` + E2E que prueba cero XML en la red | Garantiza que las facturas no salen del navegador | ✓ Good (Phase 1) |
 
 ## Evolution
 
@@ -101,4 +103,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-13 after initialization*
+*Last updated: 2026-10-14 after Phase 1*

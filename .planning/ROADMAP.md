@@ -12,7 +12,7 @@ InvoiceChecker se construye en cinco rebanadas verticales, cada una utilizable d
 
 Las fases decimales aparecen entre sus enteros vecinos en orden numérico.
 
-- [ ] **Phase 1: Acceso protegido y carga de facturas** - Contraseña compartida, app desplegada en Vercel y carga de XML en el navegador con reporte de importación
+- [x] **Phase 1: Acceso protegido y carga de facturas** - Contraseña compartida, app desplegada en Vercel y carga de XML en el navegador con reporte de importación (completed 2026-10-14)
 - [ ] **Phase 2: Dashboard de gasto confiable** - Reglas de montos (I/E/P, con/sin IVA, $0, excluidas), KPIs, tendencia mensual, ranking por proveedor, filtros y calidad de datos
 - [ ] **Phase 3: Categorías propias y exportación a Excel** - Categorías editables por proveedor y por concepto, persistidas y respaldables, vistas por categoría y Excel de varias hojas
 - [ ] **Phase 4: Agrupación de productos con DeepSeek** - Agrupación de "mismo producto" y sugerencias de categoría por una ruta protegida, con cola de revisión
@@ -33,7 +33,7 @@ Las fases decimales aparecen entre sus enteros vecinos en orden numérico.
   4. Al recargar la página las facturas ya no están y la app pide volver a cargarlas.
   5. `pnpm lint` y `pnpm typecheck` pasan sin errores en el proyecto Next.js + TypeScript strict administrado con pnpm, y `.env.example` documenta las variables necesarias para desplegar en Vercel.
 
-**Plans:** 16/16 plans executed
+**Plans:** 16/16 plans complete
 
 Plans:
 **Wave 1**
@@ -150,7 +150,7 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Acceso protegido y carga de facturas | 16/16 | In Progress | - |
+| 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
 | 2. Dashboard de gasto confiable | 0/TBD | Not started | - |
 | 3. Categorías propias y exportación a Excel | 0/TBD | Not started | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
