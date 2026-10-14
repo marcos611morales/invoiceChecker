@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { es } from "@/lib/copy/es";
 import { safeNextPath } from "@/lib/safeNext";
 
@@ -21,6 +26,7 @@ function isServerNotConfigured(body: unknown): boolean {
 
 export function LoginForm() {
   const [password, setPassword] = useState("");
+  const [visible, setVisible] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -73,18 +79,37 @@ export function LoginForm() {
             <FieldLabel htmlFor="password" className="font-semibold">
               {es.login.fieldLabel}
             </FieldLabel>
-            <InputGroup className="h-9">
+            <InputGroup className="h-9 max-sm:h-11">
               <InputGroupInput
                 id="password"
                 name="password"
-                type="password"
+                type={visible ? "text" : "password"}
                 autoFocus
                 autoComplete="current-password"
+                className="h-full"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 aria-invalid={message !== null}
                 aria-describedby={message !== null ? "password-error" : undefined}
               />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  type="button"
+                  size="icon-sm"
+                  aria-label={
+                    visible ? es.login.hidePassword : es.login.showPassword
+                  }
+                  aria-pressed={visible}
+                  onClick={() => setVisible((v) => !v)}
+                  className="max-sm:size-11"
+                >
+                  {visible ? (
+                    <EyeOff className="size-5" aria-hidden="true" />
+                  ) : (
+                    <Eye className="size-5" aria-hidden="true" />
+                  )}
+                </InputGroupButton>
+              </InputGroupAddon>
             </InputGroup>
             {message !== null ? (
               <FieldError
