@@ -138,7 +138,13 @@ try {
   res = await get("/login", token);
   check("authenticated /login stays 200", res.status === 200, `status ${res.status}`);
 
-  const tampered =token.slice(0, -1) + (token.endsWith("A") ? "B" : "A");
+  // Flip the FIRST character of the signature: the last base64url character of an HS256
+  // signature carries 2 unused bits, so changing only it can leave the signature valid (flaky).
+  const sigStart = token.lastIndexOf(".") + 1;
+  const tampered =
+    token.slice(0, sigStart) +
+    (token.charAt(sigStart) === "A" ? "B" : "A") +
+    token.slice(sigStart + 1);
   res = await get("/", tampered);
   check("tampered cookie is redirected", res.status === 307, `status ${res.status}`);
 
