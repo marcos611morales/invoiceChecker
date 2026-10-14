@@ -233,3 +233,63 @@ describe("parseCfdi relacionados and pagos", () => {
     }
   });
 });
+
+describe("parseCfdi invoice-level impuestos (D-36)", () => {
+  it("captures the root-level IVA traslados with exact strings and no retenciones", () => {
+    const invoice = parseOk(readFixture("anon/anon-ingreso-descuento.xml"));
+    expect(invoice.impuestos.traslados).toEqual([
+      {
+        base: "344.83",
+        impuesto: "002",
+        tipoFactor: "Tasa",
+        tasaOCuota: "0.160000",
+        importe: "55.17",
+      },
+      {
+        base: "945.99",
+        impuesto: "002",
+        tipoFactor: "Tasa",
+        tasaOCuota: "0.000000",
+        importe: "0.00",
+      },
+    ]);
+    expect(invoice.impuestos.retenciones).toEqual([]);
+  });
+
+  it("gives empty arrays when the root has no Impuestos element", () => {
+    const invoice = parseOk(readFixture("ingreso-sin-impuestos.xml"));
+    expect(invoice.impuestos).toEqual({ traslados: [], retenciones: [] });
+  });
+
+  it("captures both a Retencion and a Traslado with null for absent optional attributes", () => {
+    const xml = readFixture("anon/anon-ingreso-descuento.xml").replace(
+      /<cfdi:Impuestos TotalImpuestosTrasladados="55.17">.*?<\/cfdi:Impuestos>/,
+      '<cfdi:Impuestos TotalImpuestosRetenidos="1.25" TotalImpuestosTrasladados="8.00">' +
+        '<cfdi:Retenciones><cfdi:Retencion Impuesto="001" Importe="1.25"/></cfdi:Retenciones>' +
+        '<cfdi:Traslados><cfdi:Traslado Impuesto="003" TipoFactor="Tasa" TasaOCuota="0.080000" Importe="8.00"/></cfdi:Traslados>' +
+        "</cfdi:Impuestos>",
+    );
+    const invoice = parseOk(xml);
+    expect(invoice.impuestos.retenciones).toEqual([
+      { base: null, impuesto: "001", tipoFactor: null, tasaOCuota: null, importe: "1.25" },
+    ]);
+    expect(invoice.impuestos.traslados).toEqual([
+      {
+        base: null,
+        impuesto: "003",
+        tipoFactor: "Tasa",
+        tasaOCuota: "0.080000",
+        importe: "8.00",
+      },
+    ]);
+  });
+
+  it("matches the Traslado and Retencion children by namespace URI, not by prefix", () => {
+    const source = readFixture("ingreso-multiconcepto-descuento.xml");
+    const plain = parseOk(source);
+    const renamed = parseOk(withPrefixes(source, { cfdi: "x", tfd: "t" }));
+    expect(plain.impuestos.retenciones).toHaveLength(1);
+    expect(plain.impuestos.traslados).toHaveLength(2);
+    expect(renamed.impuestos).toEqual(plain.impuestos);
+  });
+});
