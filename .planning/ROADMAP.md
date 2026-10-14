@@ -33,7 +33,7 @@ Las fases decimales aparecen entre sus enteros vecinos en orden numérico.
   4. Al recargar la página las facturas ya no están y la app pide volver a cargarlas.
   5. `pnpm lint` y `pnpm typecheck` pasan sin errores en el proyecto Next.js + TypeScript strict administrado con pnpm, y `.env.example` documenta las variables necesarias para desplegar en Vercel.
 
-**Plans:** 3/16 plans executed
+**Plans:** 7/16 plans executed
 
 Plans:
 **Wave 1**
@@ -44,10 +44,10 @@ Plans:
 - [x] 01-03-PLAN.md — Kit shadcn base-nova, tokens del UI-SPEC, tema que sigue al sistema y textos es-MX
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 01-04-PLAN.md — Cada motivo de rechazo probado y mostrado en español por archivo
-- [ ] 01-05-PLAN.md — Regresión con la muestra real, fixtures anonimizados y guardia contra fugas
-- [ ] 01-06-PLAN.md — Tarjeta de login del UI-SPEC con mostrar/ocultar contraseña
-- [ ] 01-07-PLAN.md — Botón de tema y barra superior fija con "Cerrar sesión"
+- [x] 01-04-PLAN.md — Cada motivo de rechazo probado y mostrado en español por archivo
+- [x] 01-05-PLAN.md — Regresión con la muestra real, fixtures anonimizados y guardia contra fugas
+- [x] 01-06-PLAN.md — Tarjeta de login del UI-SPEC con mostrar/ocultar contraseña
+- [x] 01-07-PLAN.md — Botón de tema y barra superior fija con "Cerrar sesión"
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 01-08-PLAN.md — Duplicados por UUID, archivos ignorados y store en memoria con generación
@@ -150,7 +150,7 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Acceso protegido y carga de facturas | 3/16 | In Progress | - |
+| 1. Acceso protegido y carga de facturas | 7/16 | In Progress | - |
 | 2. Dashboard de gasto confiable | 0/TBD | Not started | - |
 | 3. Categorías propias y exportación a Excel | 0/TBD | Not started | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
