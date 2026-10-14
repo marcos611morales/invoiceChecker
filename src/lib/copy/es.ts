@@ -1,10 +1,10 @@
 /**
- * Static es-MX copy of the UI-SPEC Copywriting Contract (Phase 1).
+ * Static es-MX copy of the UI-SPEC Copywriting Contract (Phase 1, extended in Phase 2).
  *
  * Only fixed strings live here. Interpolated sentences (batch toast, "Procesando N de M",
  * duplicate and receptor rows, pagination text, ...) live in `src/lib/copy/messages.ts`
  * and value formatting (dates, money, folio) in `src/lib/format.ts`.
- * Later plans read this module and do not edit it.
+ * Phase 2 adds new keys (`tabs`, `dashboard`, ...) and never renames existing ones.
  */
 export const es = {
   global: {
@@ -110,6 +110,19 @@ export const es = {
     next: "Siguiente",
     emptyHeading: "Ninguna factura válida",
     emptyBody: "Revisa los archivos rechazados arriba y vuelve a soltarlos.",
+  },
+
+  tabs: {
+    ariaLabel: "Secciones",
+    dashboard: "Dashboard",
+    quality: "Calidad de datos",
+    import: "Importación",
+  },
+
+  dashboard: {
+    kpis: {
+      gasto: "Gasto total",
+    },
   },
 
   errors: {

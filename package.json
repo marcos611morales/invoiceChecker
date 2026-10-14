@@ -20,6 +20,7 @@
   "dependencies": {
     "@base-ui/react": "^1.9.0",
     "@tanstack/react-table": "9.3.1",
+    "big.js": "7.0.1",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "jose": "6.2.12",
@@ -40,6 +41,7 @@
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
+    "@types/big.js": "7.0.0",
     "@types/node": "^24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",

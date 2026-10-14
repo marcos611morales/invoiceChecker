@@ -60,7 +60,11 @@ async function logIn(page: Page): Promise<void> {
 
 async function pickFolder(page: Page, folder: string): Promise<void> {
   await page.locator('input[type="file"][webkitdirectory]').setInputFiles(folder);
-  await expect(page.getByText("Reporte de importación")).toBeVisible({ timeout: 60_000 });
+  // The loaded screen opens on Dashboard; the import report lives in its own tab.
+  const importTab = page.getByRole("tab", { name: "Importación" });
+  await expect(importTab).toBeVisible({ timeout: 60_000 });
+  await importTab.click();
+  await expect(page.getByText("Reporte de importación")).toBeVisible();
 }
 
 /** No request carries XML, bodies exist only for the login POST, and every URL is same-origin. */
@@ -150,7 +154,13 @@ test("carpeta sintética: reporte correcto, ningún XML sale del navegador, reca
   await expect(page.getByTestId("summary-duplicados")).toHaveText("1");
   await expect(page.getByTestId("summary-rechazados")).toHaveText("2");
   await expect(page.getByTestId("summary-ignorados")).toHaveText("3");
-  await expect(page.getByText("Facturas cargadas (4)")).toBeVisible();
+
+  // The Dashboard tab shows the Gasto total KPI; back to Importación so the
+  // report assertions after the reload steps still hold.
+  await page.getByRole("tab", { name: "Dashboard" }).click();
+  await expect(page.getByTestId("kpi-gasto")).toBeVisible();
+  await page.getByRole("tab", { name: "Importación" }).click();
+  await expect(page.getByText("Reporte de importación")).toBeVisible();
 
   expectNoXmlLeavesTheBrowser(requests);
 
