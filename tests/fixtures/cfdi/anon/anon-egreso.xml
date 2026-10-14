@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Certificado="AAAA" CondicionesDePago="X" Exportacion="01" Fecha="2025-09-01T13:53:13" Folio="11111111" FormaPago="30" LugarExpedicion="00000" MetodoPago="PUE" Moneda="MXN" NoCertificado="00000000000000000000" Sello="AAAA" Serie="A" SubTotal="862.07" TipoCambio="1" TipoDeComprobante="E" Total="1000" Version="4.0" xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd">
+    <cfdi:CfdiRelacionados TipoRelacion="07">
+        <cfdi:CfdiRelacionado UUID="846EECB6-27A5-4697-9D02-FA7A222EE18B"/>
+    </cfdi:CfdiRelacionados>
+    <cfdi:Emisor Nombre="PROVEEDOR ANONIMO 1" RegimenFiscal="601" Rfc="EKU9003173C9"/>
+    <cfdi:Receptor DomicilioFiscalReceptor="00000" Nombre="RECEPTOR ANONIMO" RegimenFiscalReceptor="626" Rfc="XAXX010101000" UsoCFDI="G02"/>
+    <cfdi:Conceptos>
+        <cfdi:Concepto Cantidad="1" ClaveProdServ="84111506" ClaveUnidad="ACT" Descripcion="CONCEPTO 1" Importe="862.07" ObjetoImp="02" Unidad="Servicio" ValorUnitario="862.07">
+            <cfdi:Impuestos>
+                <cfdi:Traslados>
+                    <cfdi:Traslado Base="862.07" Importe="137.93" Impuesto="002" TasaOCuota="0.160000" TipoFactor="Tasa"/>
+                </cfdi:Traslados>
+            </cfdi:Impuestos>
+        </cfdi:Concepto>
+    </cfdi:Conceptos>
+    <cfdi:Impuestos TotalImpuestosTrasladados="137.93">
+        <cfdi:Traslados>
+            <cfdi:Traslado Base="862.07" Importe="137.93" Impuesto="002" TasaOCuota="0.160000" TipoFactor="Tasa"/>
+        </cfdi:Traslados>
+    </cfdi:Impuestos>
+    <cfdi:Complemento><tfd:TimbreFiscalDigital xsi:schemaLocation="http://www.sat.gob.mx/TimbreFiscalDigital http://www.sat.gob.mx/sitio_internet/cfd/TimbreFiscalDigital/TimbreFiscalDigitalv11.xsd" Version="1.1" UUID="930543AA-448E-49E5-90B7-AB2159A55043" FechaTimbrado="2025-09-01T15:34:23" SelloCFD="AAAA" NoCertificadoSAT="00000000000000000000" SelloSAT="AAAA" RfcProvCertif="AAA010101AAA"/></cfdi:Complemento></cfdi:Comprobante>
