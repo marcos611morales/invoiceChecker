@@ -2,21 +2,7 @@
 
 import type { ChangeEvent } from "react";
 import { classifyFile } from "@/domain/import/classifyFile";
-import {
-  receptorDistinto,
-  reportCounts,
-} from "@/domain/import/report";
-import {
-  batchToastText,
-  duplicateRowText,
-  groupTriggerText,
-  ignoradosSubLabel,
-  ignoredReasonText,
-  processingText,
-  receptorDistintoText,
-  rejectReasonText,
-  trasladoNominaSubLabel,
-} from "@/lib/copy/messages";
+import { batchToastText, processingText } from "@/lib/copy/messages";
 import { ingest } from "@/lib/client/ingest";
 import { useSessionStore } from "@/stores/sessionStore";
 
@@ -24,11 +10,6 @@ import { useSessionStore } from "@/stores/sessionStore";
 const folderInputProps = { webkitdirectory: "" };
 
 export function ImportCountsPanel() {
-  const invoices = useSessionStore((s) => s.invoices);
-  const rejected = useSessionStore((s) => s.rejected);
-  const duplicates = useSessionStore((s) => s.duplicates);
-  const ignored = useSessionStore((s) => s.ignored);
-  const firstFileByUuid = useSessionStore((s) => s.firstFileByUuid);
   const progress = useSessionStore((s) => s.progress);
   const lastSummary = useSessionStore((s) => s.lastSummary);
 
@@ -64,10 +45,6 @@ export function ImportCountsPanel() {
     }
   }
 
-  const state = { invoices, rejected, duplicates, ignored, firstFileByUuid };
-  const counts = reportCounts(state);
-  const distintos = receptorDistinto(invoices);
-
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-6">
@@ -96,78 +73,6 @@ export function ImportCountsPanel() {
       <p aria-live="polite" className="min-h-5 text-sm font-medium">
         {lastSummary !== null ? batchToastText(lastSummary) : ""}
       </p>
-      <p>
-        {invoices.length} XML: Ingreso {counts.ingreso}, Egreso {counts.egreso},
-        Pago {counts.pago}, Traslado y nómina{" "}
-        {trasladoNominaSubLabel(counts.traslado, counts.nomina)}
-        {" · "}Duplicados {counts.duplicados} · Rechazados {counts.rechazados} ·
-        Ignorados {counts.ignorados} ({ignoradosSubLabel(
-          counts.ignoradosPdf,
-          counts.ignoradosOtros,
-        )})
-      </p>
-      {rejected.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <h2 className="text-sm font-medium">
-            {groupTriggerText("Rechazados", rejected.length)}
-          </h2>
-          <ul className="flex flex-col gap-1 text-sm">
-            {rejected.map((item, index) => (
-              <li key={`${item.file.path}-${index}`}>
-                <span className="font-mono" title={item.file.path}>
-                  {item.file.name}
-                </span>
-                : {rejectReasonText(item.reason, item.detail)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {distintos.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <h2 className="text-sm font-medium">
-            {groupTriggerText("Receptor distinto", distintos.length)}
-          </h2>
-          <ul className="flex flex-col gap-1 text-sm">
-            {distintos.map((item, index) => (
-              <li key={`${item.file.path}-${index}`} title={item.file.path}>
-                {receptorDistintoText(item.file.name, item.rfc)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {duplicates.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <h2 className="text-sm font-medium">
-            {groupTriggerText("Duplicados", duplicates.length)}
-          </h2>
-          <ul className="flex flex-col gap-1 text-sm">
-            {duplicates.map((item, index) => (
-              <li key={`${item.file.path}-${index}`} title={item.file.path}>
-                {duplicateRowText(item)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {ignored.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <h2 className="text-sm font-medium">
-            {groupTriggerText("Ignorados", ignored.length)}
-          </h2>
-          <ul className="flex flex-col gap-1 text-sm">
-            {ignored.map((item, index) => (
-              <li key={`${item.file.path}-${index}`}>
-                <span className="font-mono" title={item.file.path}>
-                  {item.file.name}
-                </span>
-                : {ignoredReasonText(item.kind)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Tus facturas se procesan en este navegador y no se suben a ningún
         servidor
