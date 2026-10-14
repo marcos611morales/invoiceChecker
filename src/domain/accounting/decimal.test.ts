@@ -2,6 +2,9 @@ import Big from "big.js";
 import { describe, expect, it } from "vitest";
 import { ZERO, parseDecimal, sum, toMoneyString } from "./decimal";
 
+// BigInt() calls, not literals: the tsconfig target (ES2017) rejects bigint literals.
+const HUNDRED = BigInt(100);
+
 function bigOf(raw: string): Big {
   const parsed = parseDecimal(raw);
   if (parsed === null) throw new Error(`not a decimal: ${raw}`);
@@ -52,13 +55,13 @@ describe("exact sums (REGLA-04)", () => {
       // Deterministic amounts with odd cents so float drift would show.
       const c = BigInt(((i * 7919 + 13) % 1_000_003) + 1);
       cents.push(c);
-      const whole = c / 100n;
-      const frac = (c % 100n).toString().padStart(2, "0");
+      const whole = c / HUNDRED;
+      const frac = (c % HUNDRED).toString().padStart(2, "0");
       values.push(bigOf(`${whole.toString()}.${frac}`));
     }
-    const reference = cents.reduce((acc, c) => acc + c, 0n);
-    const refWhole = reference / 100n;
-    const refFrac = (reference % 100n).toString().padStart(2, "0");
+    const reference = cents.reduce((acc, c) => acc + c, BigInt(0));
+    const refWhole = reference / HUNDRED;
+    const refFrac = (reference % HUNDRED).toString().padStart(2, "0");
     expect(sum(values).toString()).toBe(
       bigOf(`${refWhole.toString()}.${refFrac}`).toString(),
     );
