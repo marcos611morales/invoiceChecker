@@ -74,6 +74,8 @@ Las reglas de montos de PROJECT.md (Key Decisions) son definitivas y no se repit
 - **D-42:** Si la factura que sustituye (04) está excluida o vale $0, la original **sigue "Sustituida"** (D-08 literal); el usuario puede "Volver a incluir".
 - **D-43:** El proveedor se identifica **por RFC** en filtros y ranking.
 - **D-44:** Toda carga terminada abre Dashboard, aunque no agregue facturas nuevas, salvo que la sesión no tenga ninguna factura (entonces abre Importación).
+- **D-46:** (Afina D-34) Tipo de incidencia nuevo **"Notas de crédito con varias relacionadas"**, para notas de crédito cuyas relacionadas cargadas caen en meses distintos. Es **informativa** (la nota sí resta): su acordeón va cerrado y no activa el aviso de D-04. Texto de fila: **"Aplica a {mes}: la relacionada más antigua de {n}"**.
+- **D-47:** (Afina D-35) El texto de fila de "Datos inválidos" concuerda en género con el campo: "Fecha inválida: no se suma", "Total inválido: no se suma".
 - **D-45:** Se aceptan para v1 las etiquetas de c_FormaPago y la semántica de TipoRelación 04/07 de 02-RESEARCH.md (espejo phpcfdi y fuentes secundarias); se pueden confirmar después contra el catCFDI y el Anexo 20 oficiales.
 
 ### Claude's Discretion
