@@ -89,11 +89,11 @@ Plans:
   4. El usuario marca una factura como "Excluida" y esta deja de contar en todo el análisis; en el panel de calidad de datos ve duplicados, archivos con error, facturas en $0, diferencias de redondeo, sustituciones (TipoRelación 04) y notas de crédito sin factura relacionada.
   5. `pnpm test` pasa las pruebas Vitest del parser y de las reglas de montos sobre XML anonimizados (descuentos, IEPS, facturas a pocas horas de un cambio de mes asignadas al mes de su fecha literal, conversión con TipoCambio y aritmética exacta con big.js), y `Facturas/` está fuera de git.
 
-**Plans:** 15 plans
+**Plans:** 1/15 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 02-01-PLAN.md — Tracer: aprobación de paquetes, aritmética exacta con big.js, libro contable y "Gasto total" en la pestaña Dashboard
+- [x] 02-01-PLAN.md — Tracer: aprobación de paquetes, aritmética exacta con big.js, libro contable y "Gasto total" en la pestaña Dashboard
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 02-02-PLAN.md — Impuestos de la factura en el parser (D-36): traslados y retenciones del Comprobante sin cambiar el comportamiento de la Fase 1
@@ -198,7 +198,7 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
-| 2. Dashboard de gasto confiable | 0/15 | Planned | - |
+| 2. Dashboard de gasto confiable | 1/15 | In Progress | - |
 | 3. Categorías propias y exportación a Excel | 0/TBD | Not started | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
