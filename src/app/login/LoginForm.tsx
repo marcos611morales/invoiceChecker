@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { CircleAlert, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { Spinner } from "@/components/ui/spinner";
+import { hardNavigate } from "@/lib/client/navigation";
 import { es } from "@/lib/copy/es";
 import { safeNextPath } from "@/lib/safeNext";
 
@@ -29,12 +31,22 @@ export function LoginForm() {
   const [visible, setVisible] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Re-focus the field with its content selected so the user can retype at once.
+  function focusAndSelect() {
+    const input = inputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
     if (password.length === 0) {
       setMessage(es.login.emptyPassword);
+      focusAndSelect();
       return;
     }
     setPending(true);
@@ -48,7 +60,7 @@ export function LoginForm() {
       if (res.status === 200) {
         // D-05: read ?next= at submit time (never via the search-params hook, Pitfall 6).
         const next = new URLSearchParams(window.location.search).get("next");
-        window.location.assign(safeNextPath(next));
+        hardNavigate(safeNextPath(next));
         return;
       }
       if (res.status === 401) {
@@ -63,6 +75,7 @@ export function LoginForm() {
       setMessage(es.login.networkError);
     }
     setPending(false);
+    focusAndSelect();
   }
 
   return (
@@ -81,6 +94,7 @@ export function LoginForm() {
             </FieldLabel>
             <InputGroup className="h-9 max-sm:h-11">
               <InputGroupInput
+                ref={inputRef}
                 id="password"
                 name="password"
                 type={visible ? "text" : "password"}
@@ -88,7 +102,11 @@ export function LoginForm() {
                 autoComplete="current-password"
                 className="h-full"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  // The error describes the previous attempt; typing dismisses it.
+                  setMessage(null);
+                }}
                 aria-invalid={message !== null}
                 aria-describedby={message !== null ? "password-error" : undefined}
               />
@@ -125,7 +143,14 @@ export function LoginForm() {
             ) : null}
           </Field>
           <Button type="submit" size="lg" disabled={pending} className="w-full font-semibold">
-            {pending ? es.login.submitPending : es.login.submit}
+            {pending ? (
+              <>
+                <Spinner aria-hidden="true" />
+                {es.login.submitPending}
+              </>
+            ) : (
+              es.login.submit
+            )}
           </Button>
         </form>
       </CardContent>
