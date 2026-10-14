@@ -35,6 +35,28 @@ export interface Concepto {
   retenciones: Impuesto[];
 }
 
+/** One CfdiRelacionados element: its TipoRelacion and trimmed, uppercased UUIDs. */
+export interface CfdiRelacionados {
+  tipoRelacion: string;
+  uuids: string[];
+}
+
+/** A pago20 DoctoRelacionado; idDocumento is trimmed and uppercased. */
+export interface DoctoRelacionado {
+  idDocumento: string;
+  monedaDR: string | null;
+  impPagado: string | null;
+}
+
+/** A pago20 Pago with its related documents. Totales is ignored. */
+export interface Pago {
+  fechaPago: string;
+  formaDePagoP: string;
+  monedaP: string;
+  monto: string;
+  doctos: DoctoRelacionado[];
+}
+
 /**
  * Data of a CFDI 4.0. Money and rates stay as the exact XML
  * attribute strings (no numeric type in Phase 1). Absent optional attributes
@@ -59,6 +81,8 @@ export interface ParsedInvoice {
   emisor: { rfc: string; nombre: string | null };
   receptor: { rfc: string; nombre: string | null };
   conceptos: Concepto[];
+  relacionados: CfdiRelacionados[];
+  pagos: Pago[];
 }
 
 export type ParseResult =

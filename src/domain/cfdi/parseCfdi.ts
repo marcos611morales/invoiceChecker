@@ -1,4 +1,11 @@
-import type { Concepto, Impuesto, ParseResult, TipoComprobante } from "./types";
+import type {
+  CfdiRelacionados,
+  Concepto,
+  Impuesto,
+  Pago,
+  ParseResult,
+  TipoComprobante,
+} from "./types";
 
 export const NS_CFDI4 = "http://www.sat.gob.mx/cfd/4";
 export const NS_CFDI3 = "http://www.sat.gob.mx/cfd/3";
@@ -58,6 +65,29 @@ function conceptoOf(el: Element): Concepto {
     objetoImp: attr(el, "ObjetoImp"),
     traslados: impuestosOf(kids(impuestos, NS_CFDI4, "Traslados")[0], "Traslado"),
     retenciones: impuestosOf(kids(impuestos, NS_CFDI4, "Retenciones")[0], "Retencion"),
+  };
+}
+
+function relacionadosOf(el: Element): CfdiRelacionados {
+  return {
+    tipoRelacion: req(el, "TipoRelacion"),
+    uuids: kids(el, NS_CFDI4, "CfdiRelacionado").map((r) =>
+      req(r, "UUID").trim().toUpperCase(),
+    ),
+  };
+}
+
+function pagoOf(el: Element): Pago {
+  return {
+    fechaPago: req(el, "FechaPago"),
+    formaDePagoP: req(el, "FormaDePagoP"),
+    monedaP: req(el, "MonedaP"),
+    monto: req(el, "Monto"),
+    doctos: kids(el, NS_PAGO20, "DoctoRelacionado").map((d) => ({
+      idDocumento: req(d, "IdDocumento").trim().toUpperCase(),
+      monedaDR: attr(d, "MonedaDR"),
+      impPagado: attr(d, "ImpPagado"),
+    })),
   };
 }
 
@@ -123,6 +153,11 @@ export function parseCfdi(xmlText: string): ParseResult {
   const conceptos = kids(root, NS_CFDI4, "Conceptos").flatMap((c) =>
     kids(c, NS_CFDI4, "Concepto").map(conceptoOf),
   );
+  const relacionados = kids(root, NS_CFDI4, "CfdiRelacionados").map(relacionadosOf);
+  // pago20:Totales is deliberately ignored.
+  const pagos = complemento
+    .flatMap((c) => kids(c, NS_PAGO20, "Pagos"))
+    .flatMap((p) => kids(p, NS_PAGO20, "Pago").map(pagoOf));
 
   return {
     ok: true,
@@ -145,6 +180,8 @@ export function parseCfdi(xmlText: string): ParseResult {
       emisor: { rfc: emisorRfc, nombre: attr(emisor, "Nombre") },
       receptor: { rfc: receptorRfc, nombre: attr(receptor, "Nombre") },
       conceptos,
+      relacionados,
+      pagos,
     },
   };
 }
