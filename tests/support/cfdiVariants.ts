@@ -99,3 +99,58 @@ export function withVersion(xml: string, version: string): string {
     "Comprobante.Version",
   );
 }
+
+/** Pattern for an attribute of the root Comprobante start tag (the `\s` anchor keeps Total off SubTotal). */
+function rootAttr(name: string): RegExp {
+  return new RegExp(`(<(?:[\\w-]+:)?Comprobante\\b[^>]*?\\s${name}=")[^"]*(")`);
+}
+
+/** Replaces Fecha on the root. */
+export function withFecha(xml: string, fecha: string): string {
+  return replaceAttr(xml, rootAttr("Fecha"), fecha, "Comprobante.Fecha");
+}
+
+/** Replaces Moneda on the root. */
+export function withMoneda(xml: string, moneda: string): string {
+  return replaceAttr(xml, rootAttr("Moneda"), moneda, "Comprobante.Moneda");
+}
+
+/** Replaces TipoCambio on the root; throws when the root has none. */
+export function withTipoCambio(xml: string, tipoCambio: string): string {
+  return replaceAttr(xml, rootAttr("TipoCambio"), tipoCambio, "Comprobante.TipoCambio");
+}
+
+/** Replaces Total on the root (never SubTotal or TotalImpuestos*). */
+export function withTotal(xml: string, total: string): string {
+  return replaceAttr(xml, rootAttr("Total"), total, "Comprobante.Total");
+}
+
+/** Replaces SubTotal on the root. */
+export function withSubTotal(xml: string, subTotal: string): string {
+  return replaceAttr(xml, rootAttr("SubTotal"), subTotal, "Comprobante.SubTotal");
+}
+
+/** Replaces Descuento on the root; throws when the root has none. */
+export function withDescuento(xml: string, descuento: string): string {
+  return replaceAttr(xml, rootAttr("Descuento"), descuento, "Comprobante.Descuento");
+}
+
+/** Replaces MetodoPago on the root. */
+export function withMetodoPago(xml: string, metodoPago: string): string {
+  return replaceAttr(xml, rootAttr("MetodoPago"), metodoPago, "Comprobante.MetodoPago");
+}
+
+/** Replaces FormaPago on the root. */
+export function withFormaPago(xml: string, formaPago: string): string {
+  return replaceAttr(xml, rootAttr("FormaPago"), formaPago, "Comprobante.FormaPago");
+}
+
+/** Replaces TipoRelacion on the first CfdiRelacionados element. */
+export function withTipoRelacion(xml: string, tipoRelacion: string): string {
+  return replaceAttr(
+    xml,
+    /(<(?:[\w-]+:)?CfdiRelacionados\b[^>]*?\sTipoRelacion=")[^"]*(")/,
+    tipoRelacion,
+    "CfdiRelacionados.TipoRelacion",
+  );
+}
