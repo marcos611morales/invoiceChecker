@@ -42,6 +42,7 @@ function makeInvoice(uuid: string, o: InvoiceOverrides = {}): ParsedInvoice {
     total: o.total ?? "116.00",
     totalImpuestosTrasladados: null,
     totalImpuestosRetenidos: null,
+    impuestos: { traslados: [], retenciones: [] },
     emisor: {
       rfc: o.emisorRfc ?? "EMI010101AAA",
       nombre: o.emisorNombre === undefined ? "Proveedor" : o.emisorNombre,

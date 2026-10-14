@@ -17,6 +17,15 @@ export interface Impuesto {
 }
 
 /**
+ * The invoice-level Traslados and Retenciones of Comprobante/Impuestos.
+ * Both are empty when the root has no Impuestos element.
+ */
+export interface InvoiceImpuestos {
+  traslados: Impuesto[];
+  retenciones: Impuesto[];
+}
+
+/**
  * One Concepto of a CFDI 4.0 with its own (concept-level) taxes. Required
  * attributes that are absent become "" (never undefined); optional ones null.
  */
@@ -78,6 +87,7 @@ export interface ParsedInvoice {
   total: string;
   totalImpuestosTrasladados: string | null;
   totalImpuestosRetenidos: string | null;
+  impuestos: InvoiceImpuestos;
   emisor: { rfc: string; nombre: string | null };
   receptor: { rfc: string; nombre: string | null };
   conceptos: Concepto[];

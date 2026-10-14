@@ -37,6 +37,7 @@ function makeInvoice(
     total: "116.00",
     totalImpuestosTrasladados: null,
     totalImpuestosRetenidos: null,
+    impuestos: { traslados: [], retenciones: [] },
     emisor: { rfc: "EMI010101AAA", nombre: emisorNombre },
     receptor: { rfc: receptorRfc, nombre: null },
     conceptos: [],
