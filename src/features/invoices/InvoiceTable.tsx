@@ -7,8 +7,16 @@ import type {
   PaginationState,
   SortingState,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   Table,
   TableBody,
@@ -84,7 +92,7 @@ function cellContent(columnId: string, row: InvoiceRow) {
         </Tooltip>
       );
     case "tipo":
-      return row.tipo;
+      return <Badge variant="outline">{row.tipo}</Badge>;
     case "folio":
       return formatFolio(row.folio ?? null);
     case "total":
@@ -135,7 +143,21 @@ export function InvoiceTable() {
     enableMultiSort: false,
   });
 
-  if (!reportVisible || rows.length === 0) return null;
+  if (!reportVisible) return null;
+
+  // Files were processed but none produced a valid invoice.
+  if (rows.length === 0) {
+    return (
+      <section aria-label={es.table.heading} className="min-w-0">
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle className="text-base">{es.table.emptyHeading}</EmptyTitle>
+            <EmptyDescription>{es.table.emptyBody}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </section>
+    );
+  }
 
   const renderHeader = (header: InvoiceHeader) => {
     const sorted = header.column.getIsSorted();
@@ -170,7 +192,12 @@ export function InvoiceTable() {
         <h2 id={headingId} className="text-xl leading-[1.2] font-semibold">
           {facturasCargadasHeading(rows.length)}
         </h2>
-        <p className="text-sm text-muted-foreground">{es.table.note}</p>
+        {/* role="note" overrides the default alert role: the note never
+            changes, so it must not be announced on every load. */}
+        <Alert role="note">
+          <Info aria-hidden="true" />
+          <AlertDescription>{es.table.note}</AlertDescription>
+        </Alert>
       </div>
       <Table>
         <TableHeader>
