@@ -689,31 +689,33 @@ Feed the chart numeric points only for **plotting**; keep the exact `Big`/string
 | A7 | TipoRelacion `04`: the substituting CFDI lists the cancelled original (cancellation motive 01) | Pattern 6 | If reversed, D-08 would exclude the wrong invoice; sample's single `04` has an unloaded target so cannot disprove it. Sources are third-party (LOW-MEDIUM) |
 | A8 | The official SAT catalog labels equal the phpcfdi mirror (fetched through a summarizing tool) | Code Examples | A label typo would show in filters; the 7 codes present in the sample match UI-SPEC wording |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-Per CLAUDE.md rule 1, none of these is decided here; each has a recommendation. Items 1-4 and 8 can change numbers; the rest are presentation or edge cases.
+**Resolved 2026-10-14 by the user** in 02-CONTEXT.md: 1→D-34 (refined by D-46), 2→D-35 (load but do not sum; refined by D-47), 3→D-36, 4→D-37, 5→D-39, 6→D-40, 7→D-41, 8→D-38, 9→D-42, 10→D-43, 11→D-44, 12→D-45. Where a decision differs from the recommendation below (item 2), CONTEXT governs.
 
-1. **Credit note with several loaded related invoices in different months: which month?**
+Per CLAUDE.md rule 1, none of these was decided in this research; each had a recommendation. Items 1-4 and 8 can change numbers; the rest are presentation or edge cases.
+
+1. **RESOLVED (D-34): Credit note with several loaded related invoices in different months: which month?**
    - Known: REGLA-02 says "mes de la factura relacionada"; every sample E has exactly 1 relation and it shares the E's month.
    - Options: (a) earliest `fecha` among loaded related invoices; (b) first listed UUID; (c) split proportionally (rejected: complex).
    - Recommendation: (a), deterministic and documented in the Calidad row text.
-2. **Reject invoices whose money attributes or `Fecha` are not valid decimals/ISO at parse time?**
+2. **RESOLVED (D-35): Reject invoices whose money attributes or `Fecha` are not valid decimals/ISO at parse time?**
    - Known: parser keeps raw strings (Pitfall 3); `big.js` would throw in render.
    - Options: (a) harden `parseCfdi` → `malformed` with `detail: "invalid:<Attr>"`, reported in "Archivos con error" (touches Phase 1 code and its tests); (b) accounting layer treats them as `noSuma: "invalido"` and adds a new incident type (not in D-32).
    - Recommendation: (a).
-3. **Capture invoice-level `Impuestos/Traslados` and `Retenciones` in `ParsedInvoice`?**
+3. **RESOLVED (D-36): Capture invoice-level `Impuestos/Traslados` and `Retenciones` in `ParsedInvoice`?**
    - Known: only `totalImpuestosTrasladados/Retenidos` and concept-level lists exist; concept vs invoice IVA drifts in 38 invoices.
    - Options: (a) add an additive field (no Phase 1 behavior change) and take IEPS from it; (b) sum concept-level `003`.
    - Recommendation: (a); (b) as documented fallback.
-4. **Definition of "$0" (REGLA-06, D-18):** by converted `Total` only (mode-independent) vs "the amount of the active mode". Recommendation: `Total` only, so the Facturas count never changes with the toggle.
-5. **Ticket promedio when there are no counted invoices (only credit notes or empty):** show `—` (recommended) or `$0.00` muted (UI-SPEC says zero values render muted).
-6. **Percent text:** UI-SPEC shows "12.4 %" with a space, `Intl` prints "12.4%". Recommendation: follow the UI-SPEC text by composing `"{n} %"`.
-7. **Default date span source:** min/max imputation month over **all loaded entries** (includes P/T/N, $0 and excluded) vs only counted ones. Recommendation: all loaded (matches D-12 "facturas cargadas", is stable under exclusions).
-8. **Concept "con IVA" with retenciones (D-25 says "+ IVA trasladado"):** literal (importe − descuento + IEPS + IVA) vs tie-to-Total (importe − descuento + Σ traslados − Σ retenciones). No retenciones in the sample, so no visible difference today. Recommendation: tie-to-Total, so concept sums reconcile with the invoice `Total` identity.
-9. **Substituting invoice excluded or itself $0:** keep the original "Sustituida" (literal D-08, recommended) vs release it. Needs a decision only if the user expects automatic release.
-10. **Supplier identity:** RFC (recommended; 39 RFCs, no name conflicts in the sample) vs displayed name.
-11. **Batch that adds nothing but the session already has invoices (all duplicates):** open Dashboard (recommended: any finished batch → Dashboard unless the session has zero invoices) vs stay on the current tab.
-12. **Official verification of SAT catalogs and TipoRelacion semantics:** the SAT host (`omawww.sat.gob.mx`) refused the connection, so labels and semantics rest on a mirror and blogs. Recommendation: accept for v1; if the owner or accountant wants primary-source confirmation, check the `catCFDI` workbook and the Anexo 20 guía de llenado once from a networked machine.
+4. **RESOLVED (D-37): Definition of "$0" (REGLA-06, D-18):** by converted `Total` only (mode-independent) vs "the amount of the active mode". Recommendation: `Total` only, so the Facturas count never changes with the toggle.
+5. **RESOLVED (D-39): Ticket promedio when there are no counted invoices (only credit notes or empty):** show `—` (recommended) or `$0.00` muted (UI-SPEC says zero values render muted).
+6. **RESOLVED (D-40): Percent text:** UI-SPEC shows "12.4 %" with a space, `Intl` prints "12.4%". Recommendation: follow the UI-SPEC text by composing `"{n} %"`.
+7. **RESOLVED (D-41): Default date span source:** min/max imputation month over **all loaded entries** (includes P/T/N, $0 and excluded) vs only counted ones. Recommendation: all loaded (matches D-12 "facturas cargadas", is stable under exclusions).
+8. **RESOLVED (D-38): Concept "con IVA" with retenciones (D-25 says "+ IVA trasladado"):** literal (importe − descuento + IEPS + IVA) vs tie-to-Total (importe − descuento + Σ traslados − Σ retenciones). No retenciones in the sample, so no visible difference today. Recommendation: tie-to-Total, so concept sums reconcile with the invoice `Total` identity.
+9. **RESOLVED (D-42): Substituting invoice excluded or itself $0:** keep the original "Sustituida" (literal D-08, recommended) vs release it. Needs a decision only if the user expects automatic release.
+10. **RESOLVED (D-43): Supplier identity:** RFC (recommended; 39 RFCs, no name conflicts in the sample) vs displayed name.
+11. **RESOLVED (D-44): Batch that adds nothing but the session already has invoices (all duplicates):** open Dashboard (recommended: any finished batch → Dashboard unless the session has zero invoices) vs stay on the current tab.
+12. **RESOLVED (D-45): Official verification of SAT catalogs and TipoRelacion semantics:** the SAT host (`omawww.sat.gob.mx`) refused the connection, so labels and semantics rest on a mirror and blogs. Recommendation: accept for v1; if the owner or accountant wants primary-source confirmation, check the `catCFDI` workbook and the Anexo 20 guía de llenado once from a networked machine.
 
 ## Environment Availability
 
