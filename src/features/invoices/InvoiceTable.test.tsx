@@ -378,3 +378,56 @@ describe("InvoiceTable pagination", () => {
     expect(screen.getByText("Mostrando 51–100 de 125")).toBeInTheDocument();
   });
 });
+
+describe("InvoiceTable presentation (D-21, D-22) and empty state", () => {
+  it("shows Tipo as an outline badge", () => {
+    seed([parsed("U1", { tipo: "I" })]);
+    render(<InvoiceTable />);
+    const cell = document.querySelectorAll("tbody tr td")[2];
+    const badge = cell?.querySelector('[data-slot="badge"]');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toBe("Ingreso");
+  });
+
+  it("presents the D-22 note in an inline Alert with the note role", () => {
+    seed([parsed("U1")]);
+    render(<InvoiceTable />);
+    const alert = document.querySelector('[data-slot="alert"]');
+    expect(alert).not.toBeNull();
+    expect(alert).toHaveAttribute("role", "note");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(alert?.textContent).toBe(
+      "Montos tal como vienen en cada XML; el cálculo de gasto llega después",
+    );
+  });
+
+  it("explains the empty table when files were processed but none is valid", () => {
+    seed([
+      {
+        kind: "unreadable",
+        file: { name: "roto.xml", path: "carpeta/roto.xml" },
+      },
+    ]);
+    const { container } = render(<InvoiceTable />);
+    expect(screen.getByText("Ninguna factura válida")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Revisa los archivos rechazados arriba y vuelve a soltarlos.",
+      ),
+    ).toBeInTheDocument();
+    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
+  });
+
+  it("keeps the section out of the page when nothing was processed", () => {
+    const { container } = render(<InvoiceTable />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("still has no footer row and no sum with the new presentation", () => {
+    seed([parsed("U1", { total: "100.00" }), parsed("U2", { total: "200.00" })]);
+    const { container } = render(<InvoiceTable />);
+    expect(container.querySelector("tfoot")).toBeNull();
+    expect(container.textContent).not.toContain("300");
+  });
+});
