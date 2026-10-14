@@ -5,7 +5,7 @@
  * Plan 02-03.
  */
 import type Big from "big.js";
-import type { ParsedInvoice } from "../cfdi/types";
+import type { Concepto, ParsedInvoice } from "../cfdi/types";
 import { ZERO, parseDecimal } from "./decimal";
 
 export type AmountField = "Total" | "SubTotal" | "Descuento" | "Importe";
@@ -23,6 +23,19 @@ export type AmountResult =
   | { ok: true; amounts: InvoiceAmounts }
   | { ok: false; reason: "moneda-sin-tc" }
   | { ok: false; reason: "invalido"; field: AmountField };
+
+// RED stubs: replaced by the implementation in the GREEN commit.
+export interface ConceptAmounts {
+  precioUnitario: Big | null;
+  conIva: Big | null;
+  sinIva: Big | null;
+}
+export function iepsOf(_invoice: ParsedInvoice): Big | null {
+  return null;
+}
+export function conceptAmounts(_concepto: Concepto, _invoice: ParsedInvoice): ConceptAmounts {
+  return { precioUnitario: null, conIva: null, sinIva: null };
+}
 
 export function invoiceAmounts(invoice: ParsedInvoice): AmountResult {
   const total = parseDecimal(invoice.total);

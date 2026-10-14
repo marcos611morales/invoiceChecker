@@ -11,7 +11,12 @@ import type { ParsedInvoice } from "./types";
 const SYNTHETIC_UUID_RE = /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/;
 const ANY_UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
-const FILES = ["anon-ingreso-descuento.xml", "anon-egreso.xml", "anon-pago.xml"] as const;
+const FILES = [
+  "anon-ingreso-descuento.xml",
+  "anon-egreso.xml",
+  "anon-pago.xml",
+  "anon-ingreso-ieps.xml",
+] as const;
 
 function parseOk(name: string): ParsedInvoice {
   const result = parseCfdi(readFixture(`anon/${name}`));
@@ -27,6 +32,13 @@ describe("anonymized fixtures", () => {
     expect(invoice.tipo).toBe("I");
     expect(invoice.descuento).not.toBeNull();
     expect(invoice.conceptos.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("anon-ingreso-ieps parses as MXN I with an invoice-level IEPS traslado", () => {
+    const invoice = parseOk("anon-ingreso-ieps.xml");
+    expect(invoice.tipo).toBe("I");
+    expect(invoice.moneda).toBe("MXN");
+    expect(invoice.impuestos.traslados.some((t) => t.impuesto === "003")).toBe(true);
   });
 
   it("anon-egreso parses as E", () => {
