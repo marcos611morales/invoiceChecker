@@ -3,6 +3,7 @@ import type { DuplicateFile } from "@/domain/import/types";
 import {
   batchToastText,
   duplicateRowText,
+  facturasCargadasHeading,
   groupTriggerText,
   ignoradosSubLabel,
   ignoredReasonText,
@@ -127,5 +128,12 @@ describe("progress and label texts", () => {
   it("formats the card sub-labels", () => {
     expect(trasladoNominaSubLabel(1, 0)).toBe("Traslado: 1, Nómina: 0");
     expect(ignoradosSubLabel(143, 2)).toBe("PDF: 143, otros: 2");
+  });
+});
+
+describe("facturasCargadasHeading", () => {
+  it("formats the table heading with the invoice count", () => {
+    expect(facturasCargadasHeading(4)).toBe("Facturas cargadas (4)");
+    expect(facturasCargadasHeading(0)).toBe("Facturas cargadas (0)");
   });
 });

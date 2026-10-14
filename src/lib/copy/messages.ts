@@ -109,6 +109,11 @@ export function trasladoNominaSubLabel(traslado: number, nomina: number): string
   return `Traslado: ${traslado}, Nómina: ${nomina}`;
 }
 
+/** Heading of the loaded invoices table (D-21). */
+export function facturasCargadasHeading(n: number): string {
+  return `Facturas cargadas (${n})`;
+}
+
 /** Sub-label of the "Ignorados" card. */
 export function ignoradosSubLabel(pdf: number, otros: number): string {
   return `PDF: ${pdf}, otros: ${otros}`;
