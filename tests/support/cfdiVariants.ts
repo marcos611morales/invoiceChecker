@@ -58,3 +58,44 @@ export function withUuid(xml: string, uuid: string): string {
     "TimbreFiscalDigital.UUID",
   );
 }
+
+/** Cuts the document in the middle of an element so it is no longer well-formed. */
+export function truncated(xml: string): string {
+  const anchor = "<cfdi:Conceptos>";
+  const at = xml.indexOf(anchor);
+  if (at === -1) {
+    throw new Error("cfdiVariants: anchor not found (cfdi:Conceptos)");
+  }
+  return xml.slice(0, at + "<cfdi:Concep".length);
+}
+
+/** Inserts a DOCTYPE holding an ENTITY declaration right after the XML declaration. */
+export function withDoctype(xml: string): string {
+  const declaration = /^(﻿?\s*<\?xml[^?]*\?>)/;
+  if (!declaration.test(xml)) {
+    throw new Error("cfdiVariants: anchor not found (XML declaration)");
+  }
+  return xml.replace(
+    declaration,
+    (_m, head: string) => `${head}\n<!DOCTYPE cfdi:Comprobante [<!ENTITY xxe "expandido">]>`,
+  );
+}
+
+/** Removes the Complemento element and everything inside it. */
+export function withoutComplemento(xml: string): string {
+  const pattern = /<(?:[\w-]+:)?Complemento\b[\s\S]*?<\/(?:[\w-]+:)?Complemento>/;
+  if (!pattern.test(xml)) {
+    throw new Error("cfdiVariants: anchor not found (Complemento)");
+  }
+  return xml.replace(pattern, "");
+}
+
+/** Replaces the Version attribute of the root element. */
+export function withVersion(xml: string, version: string): string {
+  return replaceAttr(
+    xml,
+    /(<(?:[\w-]+:)?Comprobante\b[^>]*?\sVersion=")[^"]*(")/,
+    version,
+    "Comprobante.Version",
+  );
+}
