@@ -1,0 +1,38 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": null,
+  "phases": [
+    {
+      "number": "1",
+      "name": "Acceso protegido y carga de facturas",
+      "status": "in_progress"
+    },
+    {
+      "number": "2",
+      "name": "Dashboard de gasto confiable",
+      "status": "pending"
+    },
+    {
+      "number": "3",
+      "name": "Categorías propias y exportación a Excel",
+      "status": "pending"
+    },
+    {
+      "number": "4",
+      "name": "Agrupación de productos con DeepSeek",
+      "status": "pending"
+    },
+    {
+      "number": "5",
+      "name": "Comparación de precios entre tiendas",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 01 of 5 · 0% · executing"
+  },
+  "updated_at": "2026-10-14T02:12:46.310Z"
+}
