@@ -7,6 +7,8 @@ import {
   groupTriggerText,
   ignoradosSubLabel,
   ignoredReasonText,
+  paginationPageText,
+  paginationRangeText,
   processingText,
   receptorDistintoText,
   rejectReasonText,
@@ -135,5 +137,21 @@ describe("facturasCargadasHeading", () => {
   it("formats the table heading with the invoice count", () => {
     expect(facturasCargadasHeading(4)).toBe("Facturas cargadas (4)");
     expect(facturasCargadasHeading(0)).toBe("Facturas cargadas (0)");
+  });
+});
+
+describe("pagination texts", () => {
+  it("formats the range with an en dash", () => {
+    expect(paginationRangeText(51, 100, 120)).toBe("Mostrando 51–100 de 120");
+    expect(paginationRangeText(101, 120, 120)).toBe("Mostrando 101–120 de 120");
+  });
+
+  it("uses the singular form for a one-row range", () => {
+    expect(paginationRangeText(1, 1, 1)).toBe("Mostrando 1 de 1");
+    expect(paginationRangeText(51, 51, 51)).toBe("Mostrando 51 de 51");
+  });
+
+  it("formats the page indicator", () => {
+    expect(paginationPageText(2, 3)).toBe("Página 2 de 3");
   });
 });
