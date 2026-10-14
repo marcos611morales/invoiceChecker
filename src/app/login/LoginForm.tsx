@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { CircleAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
+import { es } from "@/lib/copy/es";
 import { safeNextPath } from "@/lib/safeNext";
-
-const MSG_EMPTY = "Escribe la contraseña.";
-const MSG_WRONG = "Contraseña incorrecta. Revísala e inténtalo de nuevo.";
-const MSG_NOT_CONFIGURED =
-  "El servidor no está configurado. Avisa a quien administra la app.";
-const MSG_FAILURE =
-  "No se pudo iniciar sesión. Revisa tu conexión e inténtalo de nuevo.";
 
 function isServerNotConfigured(body: unknown): boolean {
   return (
@@ -29,7 +28,7 @@ export function LoginForm() {
     event.preventDefault();
     if (pending) return;
     if (password.length === 0) {
-      setMessage(MSG_EMPTY);
+      setMessage(es.login.emptyPassword);
       return;
     }
     setPending(true);
@@ -47,51 +46,64 @@ export function LoginForm() {
         return;
       }
       if (res.status === 401) {
-        setMessage(MSG_WRONG);
+        setMessage(es.login.wrongPassword);
       } else if (res.status === 500) {
         const body: unknown = await res.json().catch(() => null);
-        setMessage(isServerNotConfigured(body) ? MSG_NOT_CONFIGURED : MSG_FAILURE);
+        setMessage(isServerNotConfigured(body) ? es.login.serverNotConfigured : es.login.networkError);
       } else {
-        setMessage(MSG_FAILURE);
+        setMessage(es.login.networkError);
       }
     } catch {
-      setMessage(MSG_FAILURE);
+      setMessage(es.login.networkError);
     }
     setPending(false);
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex w-full max-w-sm flex-col gap-4"
-      noValidate
-    >
-      <h1 className="text-2xl font-semibold">InvoiceChecker</h1>
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="password" className="text-sm font-medium">
-          Contraseña
-        </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autoFocus
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
-        />
-      </div>
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-foreground px-4 py-2 font-medium text-background disabled:opacity-60"
-      >
-        {pending ? "Entrando…" : "Entrar"}
-      </button>
-      <p role="alert" className="min-h-5 text-sm text-red-600">
-        {message}
-      </p>
-    </form>
+    <Card className="w-96 max-w-[calc(100%-2rem)] border border-border bg-background ring-0 [--card-spacing:--spacing(4)] sm:[--card-spacing:--spacing(6)]">
+      <CardHeader>
+        <h1 className="text-xl leading-[1.2] font-semibold">
+          {es.global.appName}
+        </h1>
+        <p className="text-sm text-muted-foreground">{es.global.subtitle}</p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+          <Field>
+            <FieldLabel htmlFor="password" className="font-semibold">
+              {es.login.fieldLabel}
+            </FieldLabel>
+            <InputGroup className="h-9">
+              <InputGroupInput
+                id="password"
+                name="password"
+                type="password"
+                autoFocus
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                aria-invalid={message !== null}
+                aria-describedby={message !== null ? "password-error" : undefined}
+              />
+            </InputGroup>
+            {message !== null ? (
+              <FieldError
+                id="password-error"
+                className="flex items-start gap-1"
+              >
+                <CircleAlert
+                  className="mt-0.5 size-4 shrink-0"
+                  aria-hidden="true"
+                />
+                <span>{message}</span>
+              </FieldError>
+            ) : null}
+          </Field>
+          <Button type="submit" size="lg" disabled={pending} className="w-full font-semibold">
+            {pending ? es.login.submitPending : es.login.submit}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
