@@ -1,7 +1,8 @@
 ---
 phase: "02"
 slug: dashboard-de-gasto-confiable
-status: draft
+status: approved
+reviewed_at: "2026-10-14"
 shadcn_initialized: true
 preset: "base-nova (preset code b2fA, neutral, geist, lucide)"
 created: "2026-10-14"
@@ -45,9 +46,9 @@ New npm packages this pulls in (need the same package-approval step as Phase 1):
 
 ## Component Inventory
 
-Enumerated by `node_modules/.bin/shadcn search @shadcn --limit 200 --offset 0|200|400` (counting entries typed `(ui)`) — 65 components — shadcn@4.21.4 — 2026-10-14.
+Enumerated by `node_modules/.bin/shadcn search @shadcn --limit 200 --offset 0|200|400` (run three times: `--offset 0`, `--offset 200`, `--offset 400`; counting entries typed `(ui)`) — 65 components — shadcn@4.21.4 — 2026-10-14.
 
-Installed in the project today (from `node_modules/.bin/shadcn info`, 19): accordion, alert-dialog, alert, badge, button, card, empty, field, input-group, input, label, progress, scroll-area, separator, sonner, spinner, table, textarea, tooltip. Re-run `shadcn info` after the install command above to confirm the new set.
+Installed in the project today: enumerated by `node_modules/.bin/shadcn info` — 19 components — shadcn@4.21.4 — 2026-10-14: accordion, alert-dialog, alert, badge, button, card, empty, field, input-group, input, label, progress, scroll-area, separator, sonner, spinner, table, textarea, tooltip. Re-run `shadcn info` after the install command above to confirm the new set.
 
 The table is a **non-exhaustive** list of known-good components for this phase, never a closed allowlist: the executor may use anything the design system exports.
 
@@ -70,8 +71,9 @@ The table is a **non-exhaustive** list of known-good components for this phase, 
 | Alert | `@/components/ui/alert` | Amount-changing-incidents notice [D-04], hidden-by-filters notice. Installed. |
 | Empty | `@/components/ui/empty` | "Ninguna factura coincide con los filtros" [D-07], "Sin incidencias". Installed. |
 | Button | `@/components/ui/button` | Filter triggers, "Quitar filtros", "Ver todos", row actions. Installed. |
-| Sonner | `@/components/ui/sonner` | "Factura excluida · Deshacer" [D-29]. Installed. |
-| Tooltip | `@/components/ui/tooltip` | Truncated names, IVA mode explanation, bar values. Installed. |
+| Sonner | `@/components/ui/sonner` | "Factura excluida · Deshacer exclusión" [D-29]. Installed. |
+| Tooltip | `@/components/ui/tooltip` | Truncated names (pointer devices), IVA mode explanation, bar values. Installed. |
+| Popover (truncated text on touch) | `@/components/ui/popover` | On touch devices a tap on truncated text opens its full text [user-confirmed, decision 9]. Same component as the filters. |
 | ScrollArea | `@/components/ui/scroll-area` | Filter option lists (max 288px), full supplier list. Installed. |
 
 ---
@@ -128,7 +130,7 @@ Rules:
 
 ## Color
 
-Phase 1 tokens are unchanged (see 01-UI-SPEC Color). This phase adds **chart** and **positive** tokens to `globals.css`, both themes:
+Phase 1 tokens are unchanged (see 01-UI-SPEC Color). 01-UI-SPEC says "No third semantic color is introduced in this phase"; that sentence was scoped to Phase 1, and this Phase 2 contract supersedes it by adding `--positive` [D-20, user-confirmed decision 2]. This phase adds **chart** and **positive** tokens to `globals.css`, both themes:
 
 | Role | Light | Dark | Usage |
 |------|-------|------|-------|
@@ -205,9 +207,9 @@ All strings are final unless marked `{…}` (interpolated). Number formats: `Int
 | Proveedor search placeholder | Buscar proveedor |
 | Forma de pago search placeholder | Buscar forma de pago |
 | Option label pattern | {nombre} ({n}) e.g. "Nueva Wal-Mart de México (39)" |
-| Search with no match | Ningún proveedor coincide · Ninguna forma de pago coincide |
+| Search with no match [user-confirmed, decision 10] | "Ningún proveedor coincide con «{texto}». Revisa la búsqueda." · "Ninguna forma de pago coincide con «{texto}». Revisa la búsqueda." |
 | PPD without complemento option | Por definir (sin complemento de pago) |
-| Popover footer | Limpiar (clears that one filter) |
+| Popover footer [user-confirmed, decision 10] | Limpiar proveedores (Proveedor popover) · Limpiar formas de pago (Forma de pago popover); each clears only that filter |
 | Global reset | Quitar filtros (shown only when any filter differs from the default) |
 | Chip patterns | "Fechas: {rango}" (only when not the default range) · "Proveedor: {n1}, {n2} +{k}" · "Forma de pago: {n1} +{k}"; each chip has a remove button with `aria-label` "Quitar filtro {Fechas / Proveedor / Forma de pago}" |
 | Mobile disclosure button | Filtros (with " · {n}" when n filters are active) |
@@ -266,7 +268,7 @@ Forma de pago labels come from the SAT catalog c_FormaPago, never the code [D-14
 | Sustituida line (inside the panel) | Sustituida por la factura {folio}. No se suma. |
 | Row menu trigger `aria-label` | Acciones de la factura {folio o UUID corto} |
 | Row menu items | Excluir factura · Volver a incluir |
-| Toast after Excluir [D-29] | Factura excluida · action button "Deshacer" (6 s, bottom-right, closable) |
+| Toast after Excluir [D-29] | Factura excluida · action button "Deshacer exclusión" [user-confirmed, decision 10] (6 s, bottom-right, closable) |
 | Toast after Volver a incluir [default] | Factura incluida de nuevo |
 | Pagination | As Phase 1: "Mostrando {a}–{b} de {n}" · "Página {p} de {P}" · Anterior · Siguiente |
 | Filters hide the requested row (from "Ver factura") [default] | Alert: "La factura {folio} no se ve porque los filtros la ocultan." + button "Quitar filtros" |
@@ -301,7 +303,7 @@ Forma de pago labels come from the SAT catalog c_FormaPago, never the code [D-14
 
 ### Destructive confirmations
 
-None added. "Excluir factura" is reversible, applies instantly with no confirmation or reason, and offers "Deshacer" in the toast [D-29]. The exclusion lasts only the session [D-30]; nothing is written to `localStorage`. Phase 1's "Cerrar sesión" and "Quitar todas" dialogs are unchanged and now live: "Quitar todas" sits in the Importación tab header.
+None added. "Excluir factura" is reversible, applies instantly with no confirmation or reason, and offers "Deshacer exclusión" in the toast [D-29]. The exclusion lasts only the session [D-30]; nothing is written to `localStorage`. Phase 1's "Cerrar sesión" and "Quitar todas" dialogs are unchanged and now live: "Quitar todas" sits in the Importación tab header.
 
 ### Errors
 
@@ -344,8 +346,8 @@ Vertical order, 32px gaps: (1) amount-changing-incidents Alert when present [D-0
 - Row of three popover triggers (Button outline, 36px, with ChevronDown, 14/600 label, value summary in 14/400 muted after the label, truncated at 200px with Tooltip) + "Quitar filtros" (ghost, right-aligned, shown only if any filter differs from default). 8px gap. Wraps to a second line when needed.
 - Under 640px the row collapses into one "Filtros" button (outline, full width, 44px) that toggles a `Collapsible` region stacking the three triggers full width; chips and the mode caption stay visible below the button.
 - **Fechas popover (320px):** two `Select`s "Desde" and "Hasta" listing the months from the first to the last month with loaded invoices (option text "ene 2025", oldest first), plus three shortcut buttons (outline, 36px): Todo, Este año, Últimos 3 meses; then the helper line. Choosing a Desde later than Hasta moves Hasta to equal Desde; choosing a Hasta earlier than Desde moves Desde to equal Hasta (the range is never invalid). Options outside the loaded span do not exist [default]. Shortcuts anchor on the **last month with loaded invoices**, not on today's date: "Este año" = January of the last loaded month's year through the last loaded month (clipped to the loaded span); "Últimos 3 meses" = that last month and the two before it [user-confirmed, decision 1].
-- **Default range** [D-12]: first to last loaded month. Adding invoices recalculates the range **only while the user has not touched the date filter** [CONTEXT discretion, inferred; confirm in planning]. "Quitar filtros" and the "Todo" shortcut restore it.
-- **Proveedor and Forma de pago popovers (360px / 320px):** `Command` with a search input, then a `ScrollArea` list (max 288px) of rows: `Checkbox` + label + invoice count in muted 12px, sorted by count descending then name (es collation); the checked rows do not jump to the top. Footer: "Limpiar". Multiple selection; no selection = no filter. Counts are over all loaded invoices of that supplier / payment form, independent of the other filters [default]. A row's whole area toggles the checkbox; Space/Enter toggle, arrows move, Esc closes the popover and returns focus to the trigger.
+- **Default range** [D-12]: first to last loaded month. Every finished batch that adds invoices **resets the date range to the full loaded span** (first to last loaded month), even if the user had changed it [user-confirmed, decision 11]. "Quitar filtros" and the "Todo" shortcut restore it.
+- **Proveedor and Forma de pago popovers (360px / 320px):** `Command` with a search input, then a `ScrollArea` list (max 288px) of rows: `Checkbox` + label + invoice count in muted 12px, sorted by count descending then name (es collation); the checked rows do not jump to the top. Footer: "Limpiar proveedores" / "Limpiar formas de pago". Multiple selection; no selection = no filter. Counts are over all loaded invoices of that supplier / payment form, independent of the other filters [default]. A row's whole area toggles the checkbox; Space/Enter toggle, arrows move, Esc closes the popover and returns focus to the trigger.
 - **Chips:** one chip per active filter dimension (Badge-like, 12px, `secondary` surface, 1px border, trailing X icon button 20px hit area inside, 44px under 640px) in a wrapping row under the triggers; removing a chip clears only that dimension. Chips are `aria-live="polite"` as a group.
 - Filters live in the session store (`sessionStore`), are not persisted, and are cleared with "Quitar todas" / logout [D-11]. They apply to KPIs, trend, ranking and table at once (FILT-05); the previous-period comparison uses the same Proveedor and Forma de pago filters [CONTEXT discretion].
 
@@ -370,7 +372,7 @@ Vertical order, 32px gaps: (1) amount-changing-incidents Alert when present [D-0
 - Pagination: 50 per page, footer only when more than one page, same copy and behavior as Phase 1; sorting or filter changes keep the page when it still exists, else go to page 1.
 - Row states [D-26..D-28]: `Ingreso` normal. `Nota de crédito`: Monto negative `−$…`, caption under the badge. `No suma` (Pago, Traslado, Nómina, total $0, foreign currency without TC): row text in muted-foreground, Monto "—" for Pago/Traslado/Nómina or the real amount for $0, State badge "No suma"; **no opacity reduction** (muted token keeps 7:1 contrast). `Excluida`: muted text, Monto with `line-through`, State badge "Excluida". `Sustituida`: same as Excluida with badge "Sustituida" and the explanatory line in the panel. Attenuated rows still hover to `secondary` and stay keyboard-reachable.
 - Expand [D-24, D-25]: only the chevron button toggles (the row itself is not clickable so the menu and Tooltips never fight with it). The panel is a full-width cell (`colSpan` all) on `secondary`, 16px padding, containing: optional lines (PPD payment line, original currency line "Moneda original: {MON} · TC {tc}" when not MXN, Sustituida line), then a compact concept table (Body 14, header 12/600): Descripción (wraps; never truncated), Cantidad (right, up to 6 decimals, trailing zeros trimmed), Unidad (the `unidad` text, else the ClaveUnidad in Geist Mono), Precio unitario (right, MXN, 2–6 decimals), Monto (right, per mode and per the same IVA rule as the invoice [D-25]); finally the "Diferencia de redondeo" Label line when the concept sum differs from the invoice amount (the invoice amount governs). Several rows can be open at once; open state is kept by invoice id across sort, page and filter changes. Concept amounts and unit price are shown in MXN (converted with the invoice's TipoCambio) so they sum to the row [default].
-- Row menu [D-28, D-29]: `DropdownMenu` on the "⋯" button with one item: "Excluir factura" (normal / NC rows) or "Volver a incluir" (excluded or substituted rows). Rows that never count (Pago, Traslado, Nómina, $0, foreign without TC) render no "⋯" button; the actions cell stays empty but keeps its 48px width. Selecting "Excluir factura" applies immediately: the row stays in the table, attenuated with "Excluida"; KPIs, charts and ranking recompute; the toast "Factura excluida · Deshacer" appears; "Deshacer" restores it. Focus returns to the row's "⋯" button after the menu closes; the toast action is reachable by keyboard (Sonner).
+- Row menu [D-28, D-29]: `DropdownMenu` on the "⋯" button with one item: "Excluir factura" (normal / NC rows) or "Volver a incluir" (excluded or substituted rows). Rows that never count (Pago, Traslado, Nómina, $0, foreign without TC) render no "⋯" button; the actions cell stays empty but keeps its 48px width. Selecting "Excluir factura" applies immediately: the row stays in the table, attenuated with "Excluida"; KPIs, charts and ranking recompute; the toast "Factura excluida · Deshacer exclusión" appears; "Deshacer exclusión" restores it. Focus returns to the row's "⋯" button after the menu closes; the toast action is reachable by keyboard (Sonner).
 - The table region is `aria-labelledby` the section heading; horizontal scroll inside its container under 1024px (table min width 960px), the page itself never scrolls horizontally; Fecha stays the first data column.
 
 ### Calidad de datos tab [D-04, D-31..D-33]
@@ -399,42 +401,82 @@ The Phase 1 report (summary cards + accordions, "Quitar todas" in its header) mo
 - The trend chart exposes an accessible name and an `sr-only` data table (month, amount); the ranking list is a real `<ol>`; delta direction is also in `sr-only` text.
 - Filter popovers trap focus while open, Esc closes and restores focus to the trigger; chips and the "Quitar filtros" button are keyboard operable; filter changes announce through the chips' `aria-live` region.
 - Expand buttons use `aria-expanded` + `aria-controls`; the panel has an accessible title.
-- Toasts are `aria-live` (Sonner). The "Deshacer" action stays visible for 6 s and is focusable.
+- Toasts are `aria-live` (Sonner). The "Deshacer exclusión" action stays visible for 6 s and is focusable.
 - Transitions (tab change, popover, collapsible, dialog) are 150 ms and removed under `prefers-reduced-motion`; chart animations are disabled outright.
+- Truncated text on touch [user-confirmed, decision 9]: every element that truncates with a Tooltip (supplier names in table, ranking, dialog and Calidad rows; forma de pago cells; filter trigger values) also opens its full text on tap on touch devices (`(hover: none)` / `pointer: coarse`), in a `Popover` anchored to the text, closed by tapping outside or Esc. The truncated text is a button with `aria-label` "{texto completo}" so screen readers always get the full value. Pointer devices keep the Tooltip on hover/focus. Inside the filter triggers, a tap opens the filter popover itself (whose content already shows the full selection), not a second popover.
 - Contrast: AA in both themes per the tables above and Phase 1.
 
 ---
 
 ## UI Considerations
 
-> Preliminary: resolved by the researcher from the contract above. The ui-phase UI-consideration probe (Step 9.5) may replace these rows on its run (idempotent). Empty-state and error copy lives in `## Copywriting Contract`; this table references it instead of restating it.
+> Resolved by the ui-phase UI-consideration probe (Step 9.5) on 2026-10-14, after checker approval. The user approved the proposed resolutions as a set [user-confirmed, decision 8]: rows the contract already answers are `resolved` (explicit truth), visual edge cases are `resolved` with a backstop test, and categories that cannot occur are dismissed with a reason. E5 (trend chart) was classified by the user as `list-collection` and E9 (empty states) as `static-content`; the heuristic left both unclassified. Empty-state and error copy lives in `## Copywriting Contract`; rows here reference it instead of restating it.
 
-Applicable state considerations resolved (preliminary): 14 covered, 6 backstop, 0 unresolved.
+Coverage: 59 applicable · 35 resolved (explicit) · 8 resolved (backstop) · 16 dismissed · 0 unresolved.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | list-collection (filtered dashboard) | ✅ covered | Zero rows after filters replace KPIs, charts and table with the documented "Ninguna factura coincide con los filtros" empty state and a "Quitar filtros" button; the filter bar stays. |
-| empty | list-collection (Calidad de datos) | ✅ covered | Zero incidents show "Sin incidencias"; a type with 0 shows a muted 0 card and no accordion. |
-| empty | list-collection (no valid invoice) | ✅ covered | Files processed but nothing valid keeps the "Ninguna factura válida" state and opens the Importación tab. |
-| empty | list-collection (filter option lists) | ✅ covered | A search with no match shows "Ningún proveedor coincide" / "Ninguna forma de pago coincide". |
-| loading | interactive-control (filters, mode, exclude) | ✅ covered | Computation is synchronous in the browser for about 150 invoices; every change recomputes in the same frame and charts do not animate. No skeleton is needed. |
-| loading | interactive-control (batch in progress) | ✅ covered | The Phase 1 processing indicator stays above the tabs; the tab switches only when the batch finishes. |
-| error | interactive-control (settings storage) | ✅ covered | Blocked or invalid `localStorage` falls back to "Con IVA" silently and the app keeps working. |
-| partial | list-collection (invoice rows with missing data) | ✅ covered | Missing folio renders "—"; Pago amount renders "—"; unknown payment-form code renders "Forma de pago {código}"; foreign currency without TC renders the original line and "No suma". |
-| partial | list-collection (KPI delta) | ✅ covered | Previous period empty or net ≤ $0 renders "Sin datos del periodo anterior" in muted text; a percentage against $0 is never computed. |
-| zero-one-many | list-collection (KPIs, chips, counts) | ✅ covered | "+1 nota de crédito" vs "+N notas de crédito", "Entre 1 mes" vs "Entre N meses", "Mostrando 1 de 1" and pagination hidden with one page, ranking with fewer than 10 suppliers hides "Ver todos". |
-| zero-one-many | list-collection (single-month range) | ✅ covered | One month renders one bar, the average line equals that bar, Fechas trigger reads "Fechas: mayo 2025". |
-| overflow | list-collection (table on small screens) | ✅ covered | Horizontal scroll inside the table container under 1024px; the page never scrolls horizontally. |
-| overflow | nav (top bar with IVA control) | ✅ covered | Labels collapse to icon-only under 768px and the IVA control moves to a sticky sub-bar under 640px, so nothing wraps or overflows at 360px. |
-| populated | list-collection (143 invoices real dataset) | ✅ covered | Table paginates at 50; the ranking shows the top 10 with "Ver todos"; Calidad lists scroll in 320px regions. |
-| overflow | static-content (KPI amounts) | 🧪 backstop | Four-column KPI cards fit a 13-character MXN amount at 28px from 1200px viewports; verify with a visual test using `$12,345,678.90` at 1200px and 360px. |
-| long-text | static-content (supplier names, folios, payment forms) | 🧪 backstop | Supplier names truncate with Tooltip in table, ranking and dialog; payment-form lists truncate with Tooltip; verify with a 90-character supplier name and three payment forms. |
-| long-text | static-content (concept descriptions) | 🧪 backstop | Descriptions wrap (never truncate) in the expanded panel; verify with a 200-character description without spaces (`overflow-wrap: anywhere`). |
-| overflow | interactive-control (filter popover lists) | 🧪 backstop | Lists scroll inside a 288px region with search; verify with 60+ suppliers and keyboard navigation. |
-| overflow | interactive-control (chart with many months) | 🧪 backstop | Ticks use `preserveStartEnd` and `minTickGap` beyond 12 months; verify with a 36-month synthetic range. |
-| overflow | interactive-control ("Ver factura" scroll target) | 🧪 backstop | The target row on another page is reached and centered, focus lands on its chevron, and nothing happens silently when filters hide it; verify with a held-out test. |
+Elements: E1 Tabs · E2 IVA toggle · E3 Filter bar · E4 KPI cards · E5 Trend chart · E6 Supplier ranking + "Ver todos" · E7 Facturas table · E8 Calidad de datos · E9 Empty states · E10 Alerts.
 
-Dismissed (not applicable, with reason): loading/error on the static tab labels and the mode caption (fixed copy); error on the dialog and popovers (no async work); empty on the IVA control (always has a selected item); long-text on toasts (bounded fixed copy).
+| Element | Category | Status | Resolution |
+|---------|----------|--------|------------|
+| E1 | loading | resolved (explicit) | While a batch runs, the Phase 1 processing indicator stays above the tabs; the tab switches (to Dashboard, or Importación when nothing is valid) only when the batch finishes; a manual tab choice is respected during the batch. |
+| E1 | error | dismissed | Tabs do no async work; import failures are reported in Importación (Phase 1 copy). |
+| E1 | overflow | resolved (explicit) | The tab list is three short labels (max "Calidad de datos · 99") and fits 360px with 16px padding and 8px gap; no wrapping or scroll. |
+| E1 | long-text | resolved (explicit) | Tab labels are fixed copy; the counter is the only variable part and is a number. |
+| E2 | loading | resolved (explicit) | Before `rehydrate()` resolves the control renders "Con IVA" so server and client markup match; the control appears only after invoices load, so hydration is done before its first paint. |
+| E2 | error | resolved (explicit) | Blocked storage or an invalid stored value falls back silently to "Con IVA"; every storage call is in `try/catch`. |
+| E2 | overflow | resolved (explicit) | ≥768px full labels; 640–767px icon-only side buttons; <640px sticky 52px sub-bar with "c/IVA \| s/IVA" [decision 4]. |
+| E2 | long-text | dismissed | Fixed two-option copy. |
+| E3 | empty | resolved (explicit) | A search with no match shows the "Ningún proveedor coincide con «{texto}»…" copy [decision 10]; no selection means no filter. |
+| E3 | loading | dismissed | Options come from in-memory invoices; nothing loads. |
+| E3 | error | dismissed | No async work; the date range can never be invalid (Desde/Hasta auto-adjust). |
+| E3 | populated | resolved (explicit) | Option rows show "{nombre} ({n})", sorted by count then name; checked rows do not jump; chips summarize "+{k}". |
+| E3 | partial | resolved (explicit) | PPD invoices without complemento appear as "Por definir (sin complemento de pago)"; an unknown payment code shows "Forma de pago {código}". |
+| E3 | overflow | resolved (backstop) | `{ statement: "Option lists scroll inside a 288px region with search and keyboard navigation", verification: backstop }` — test with 60+ suppliers. |
+| E3 | zero-one-many | resolved (explicit) | One supplier selected: chip "Proveedor: {n1}"; several: "{n1}, {n2} +{k}"; the "Filtros · {n}" counter on mobile. |
+| E3 | long-text | resolved (backstop) | `{ statement: "Trigger values truncate at 200px with Tooltip on pointer devices; on touch a tap opens the filter popover with the full selection", verification: backstop }` [decision 9]. |
+| E4 | empty | resolved (explicit) | When filters leave no invoice the KPI row is replaced by the filtered empty state (Copywriting → Empty states). |
+| E4 | loading | dismissed | Values are computed synchronously in the same frame as the filter or mode change. |
+| E4 | error | dismissed | No async work; division by zero is avoided by the rules below. |
+| E4 | populated | resolved (explicit) | Four cards with label, Display numeral (`tabular-nums`, never truncated), sub-labels and delta line. |
+| E4 | partial | resolved (explicit) | Previous period empty or net ≤ $0 renders "Sin datos del periodo anterior"; zero values render muted; Gasto total may be negative (`−$…`). |
+| E4 | overflow | resolved (backstop) | `{ statement: "A 13-character MXN amount fits each KPI card without truncation", verification: backstop }` — test `$12,345,678.90` at 1200px and 360px. |
+| E4 | zero-one-many | resolved (explicit) | "+1 nota de crédito" vs "+N notas de crédito"; "Entre 1 mes del calendario" vs "Entre N meses…". |
+| E5 | empty | resolved (explicit) | No invoices after filters: the chart is replaced by the filtered empty state; a month without spend is a zero-height bar with its tick [DASH-02]. |
+| E5 | loading | dismissed | Animations are off and data is in memory; redraw is instant. |
+| E5 | error | dismissed | No async data source. |
+| E5 | populated | resolved (explicit) | One bar per month in `--chart-1`, dashed average line, tooltip "{mes largo} {aaaa}", accessible name and `sr-only` table. |
+| E5 | partial | resolved (explicit) | Negative months draw below the zero `ReferenceLine`. |
+| E5 | overflow | resolved (backstop) | `{ statement: "Beyond 12 months the ticks use preserveStartEnd and minTickGap 8 and stay legible", verification: backstop }` — test a 36-month synthetic range. |
+| E5 | zero-one-many | resolved (explicit) | One month: one bar and the average line equals it; ticks "ene" within a year, "ene 25" across years. |
+| E6 | empty | resolved (explicit) | No invoices: replaced by the filtered empty state. |
+| E6 | loading | dismissed | In-memory computation. |
+| E6 | error | dismissed | No async work; the dialog opens local data. |
+| E6 | populated | resolved (explicit) | Top 10 `<ol>` with name, net amount, proportional bar and caption; "Ver todos" opens the Dialog [decision 5]. |
+| E6 | partial | resolved (explicit) | A supplier with negative net goes last, shows no fill (2px tick) and the negative-net caption. |
+| E6 | overflow | resolved (explicit) | The Dialog list scrolls inside a 480px `ScrollArea`; full screen under 640px. |
+| E6 | zero-one-many | resolved (explicit) | Fewer than 10 suppliers: only those rows; "Ver todos" hidden when the list is complete. |
+| E6 | long-text | resolved (backstop) | `{ statement: "Long supplier names truncate with Tooltip on pointer devices and open full text on tap on touch", verification: backstop }` [decision 9] — test a 90-character name. |
+| E7 | empty | resolved (explicit) | Filters leave no row: the filtered empty state replaces the table (Copywriting → Empty states). |
+| E7 | loading | dismissed | Sort, page, filter and exclusion recompute synchronously. |
+| E7 | error | dismissed | No async work; exclusion is in-memory and reversible. |
+| E7 | populated | resolved (explicit) | 50 rows per page, default sort Fecha descending, expand panel per row, row menu with undo toast. |
+| E7 | partial | resolved (explicit) | Missing folio and Pago amount render "—"; foreign currency without TC shows the original line and "No suma"; attenuated rows keep 7:1 contrast. |
+| E7 | overflow | resolved (explicit) | Under 1024px the table scrolls horizontally inside its container (min width 960px); the page never scrolls horizontally. |
+| E7 | zero-one-many | resolved (explicit) | One page: no pagination footer; "Facturas (1)" heading. |
+| E7 | long-text | resolved (backstop) | `{ statement: "Supplier and forma de pago cells truncate (Tooltip / tap Popover); concept descriptions wrap with overflow-wrap anywhere and never truncate", verification: backstop }` — test a 90-character supplier, three payment forms and a 200-character description without spaces. |
+| E8 | empty | resolved (explicit) | Zero incidents: "Sin incidencias" state; a type with 0 shows a muted 0 card and no accordion. |
+| E8 | loading | dismissed | Incidents are derived synchronously from loaded invoices. |
+| E8 | error | dismissed | No async work. |
+| E8 | populated | resolved (explicit) | Cards grid plus accordions in the fixed order, amount-changing ones open by default. |
+| E8 | partial | resolved (explicit) | Duplicados and Archivos con error are link-only cards to Importación; NC rows explain whether the related invoice is loaded. |
+| E8 | overflow | resolved (explicit) | Each accordion panel scrolls inside a 320px `ScrollArea`. |
+| E8 | zero-one-many | resolved (explicit) | Tab counter shows " · {n}" only when n > 0; accessible name "Calidad de datos, {n} incidencias". |
+| E8 | long-text | resolved (backstop) | `{ statement: "Row identity line truncates the supplier (Tooltip / tap Popover); explanation sentences wrap", verification: backstop }`. |
+| E9 | overflow | resolved (explicit) | Empty states use the `Empty` component, centered, with wrapping text at 360px. |
+| E9 | long-text | dismissed | Fixed copy only. |
+| E10 | loading | dismissed | Alerts are derived state; they appear and disappear synchronously. |
+| E10 | error | resolved (backstop) | `{ statement: "'Ver factura' reaches a row on another page, centers it, focuses its chevron, and shows the hidden-by-filters Alert instead of changing filters silently", verification: backstop }` [decision 6]. |
+| E10 | long-text | resolved (explicit) | The only variable part is the folio (or UUID short form); the Alert text wraps. |
 
 ---
 
@@ -450,7 +492,7 @@ No third-party registries declared. Do not add the `dashboard-01` block or any s
 
 ## User decisions
 
-Confirmed by the user on 2026-10-14 (all seven matched the researcher's recommendation; do not re-ask):
+Confirmed by the user on 2026-10-14 (do not re-ask). Decisions 1-10 matched the recommendation; decision 11 overrides it (the recommended option was "recalculate only while the date filter is untouched"):
 
 1. Date shortcuts ("Este año", "Últimos 3 meses") anchor on the last month with loaded invoices, not on today's date.
 2. KPI deltas: a decrease uses the new green `--positive` token; an increase is neutral (foreground) with an up arrow.
@@ -459,6 +501,10 @@ Confirmed by the user on 2026-10-14 (all seven matched the researcher's recommen
 5. "Ver todos" opens a centered Dialog, full screen on phones.
 6. "Ver factura" when filters hide the invoice: the filters stay untouched and an Alert with a "Quitar filtros" button appears.
 7. Active IVA mode: a surface segment with border, bold text and a check icon (not accent-filled).
+8. UI Considerations: the probe's proposed resolutions are accepted as a set (explicit where the contract answers, backstop for visual edge cases, dismissed with reason where a state cannot occur).
+9. Truncated text on touch devices: a tap opens the full text in a Popover; pointer devices keep the Tooltip.
+10. More specific copy: "Limpiar proveedores" / "Limpiar formas de pago", "Deshacer exclusión", and the no-match messages with the search text and "Revisa la búsqueda.". "Cerrar" stays.
+11. Default date range: every finished batch that adds invoices resets the range to the full loaded span, even if the user had changed it.
 
 Low-risk `[default]` values taken without a question (listed so the checker and planner can see them): the Calidad counter counts incident rows; the date range is limited to the loaded span; filter option counts ignore the other filters; chips are one per filter dimension; concept prices are shown converted to MXN; the toast "Factura incluida de nuevo"; the "Sin incidencias" and "Hay incidencias que cambian los montos." texts; rows that never count have no "⋯" menu; when a batch has no valid invoice the Importación tab opens.
 
@@ -470,12 +516,12 @@ Open questions: none.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS
+- [x] Dimension 1 Copywriting: FLAG (resolved after review: specific labels and no-match copy, decision 10)
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS (supersession of the Phase 1 "no third semantic color" sentence now stated)
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: FLAG (resolved after review: provenance line for the installed set, runnable offsets)
 
-**Approval:** pending
+**Approval:** approved 2026-10-14 by gsd-ui-checker (no BLOCK). FLAGs fixed afterwards in this file without changing any verified dimension.
