@@ -170,3 +170,66 @@ describe("parseCfdi variants (CARGA-02, D-16, D-17, D-18)", () => {
     expect(() => withUuid("<a/>", "X")).toThrow();
   });
 });
+
+describe("parseCfdi relacionados and pagos", () => {
+  const egreso = readFixture("egreso-relacionado.xml");
+
+  it("extracts CfdiRelacionados with uppercased UUIDs", () => {
+    const invoice = parseOk(egreso);
+    expect(invoice.tipo).toBe("E");
+    expect(invoice.relacionados).toEqual([
+      { tipoRelacion: "07", uuids: ["AAAAAAAA-0000-4000-8000-000000000001"] },
+    ]);
+  });
+
+  it("keeps repeated CfdiRelacionados elements in arrival order", () => {
+    const block = /<cfdi:CfdiRelacionados[\s\S]*?<\/cfdi:CfdiRelacionados>/.exec(egreso);
+    expect(block).not.toBeNull();
+    const original = block?.[0] ?? "";
+    const second = original
+      .replace('TipoRelacion="07"', 'TipoRelacion="01"')
+      .replace(
+        /<cfdi:CfdiRelacionado UUID="[^"]*"\/>/,
+        '<cfdi:CfdiRelacionado UUID=" aaaaaaaa-0000-4000-8000-000000000009 "/>',
+      );
+    const xml = egreso.replace(original, `${original}\n  ${second}`);
+    expect(parseOk(xml).relacionados).toEqual([
+      { tipoRelacion: "07", uuids: ["AAAAAAAA-0000-4000-8000-000000000001"] },
+      { tipoRelacion: "01", uuids: ["AAAAAAAA-0000-4000-8000-000000000009"] },
+    ]);
+  });
+
+  it("extracts the pago20 Pago and its DoctoRelacionado, ignoring Totales", () => {
+    const invoice = parseOk(readFixture("pago-pago20.xml"));
+    expect(invoice.tipo).toBe("P");
+    expect(invoice.moneda).toBe("XXX");
+    expect(invoice.total).toBe("0");
+    expect(invoice.pagos).toEqual([
+      {
+        fechaPago: "2025-05-12T10:00:00",
+        formaDePagoP: "03",
+        monedaP: "MXN",
+        monto: "116.00",
+        doctos: [
+          {
+            idDocumento: "AAAAAAAA-0000-4000-8000-000000000001",
+            monedaDR: "MXN",
+            impPagado: "116.00",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("leaves relacionados and pagos empty on the Ingreso fixtures", () => {
+    for (const name of [
+      "ingreso-bom-decl.xml",
+      "ingreso-multiconcepto-descuento.xml",
+      "ingreso-sin-impuestos.xml",
+    ]) {
+      const invoice = parseOk(readFixture(name));
+      expect(invoice.relacionados).toEqual([]);
+      expect(invoice.pagos).toEqual([]);
+    }
+  });
+});
