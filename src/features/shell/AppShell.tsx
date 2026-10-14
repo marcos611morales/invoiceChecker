@@ -10,6 +10,7 @@ import { UploadRoot, useUpload } from "@/features/upload/UploadRoot";
 import { es } from "@/lib/copy/es";
 import { useSessionStore } from "@/stores/sessionStore";
 import { TopBar } from "./TopBar";
+import { useBeforeUnload } from "./useBeforeUnload";
 
 /** Top bar button shown on the loaded screen only (D-10); inert while a batch runs. */
 function AddInvoicesButton() {
@@ -31,6 +32,9 @@ function AddInvoicesButton() {
 export function AppShell() {
   // The report shows as soon as any non-hidden file was processed (D-10).
   const reportVisible = useSessionStore((s) => hasReport(s));
+  // The unload warning keys on loaded invoices, not on the report (D-07b).
+  const hasInvoices = useSessionStore((s) => s.invoices.length > 0);
+  useBeforeUnload(hasInvoices);
   return (
     <UploadRoot>
       <TopBar actions={reportVisible ? <AddInvoicesButton /> : null} />
