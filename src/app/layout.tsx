@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { themeInitScript } from "@/lib/client/themeScript";
 import "./globals.css";
 
@@ -14,8 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "InvoiceChecker",
+  title: { default: "InvoiceChecker", template: "%s · InvoiceChecker" },
   description: "Análisis de gastos del Coworking Café",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -29,7 +31,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Constant script with no user data (T-01-21); the only raw-HTML use in the app. */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <TooltipProvider>{children}</TooltipProvider>
+      </body>
     </html>
   );
 }
