@@ -129,3 +129,35 @@ export function paginationPageText(p: number, total: number): string {
 export function ignoradosSubLabel(pdf: number, otros: number): string {
   return `PDF: ${pdf}, otros: ${otros}`;
 }
+
+/** Empty supplier search (UI-SPEC "Filters"). */
+export function noSupplierMatch(text: string): string {
+  return `Ningún proveedor coincide con «${text}». Revisa la búsqueda.`;
+}
+
+/** Empty forma de pago search (UI-SPEC "Filters"). */
+export function noFormaMatch(text: string): string {
+  return `Ninguna forma de pago coincide con «${text}». Revisa la búsqueda.`;
+}
+
+/** Filter option: name with its invoice count. */
+export function optionLabel(name: string, count: number): string {
+  return `${name} (${count})`;
+}
+
+/** Filter chip: label, the first `shown` names and "+N" for the rest. */
+export function chipText(label: string, names: readonly string[], shown: number): string {
+  const head = names.slice(0, shown).join(", ");
+  const rest = names.length - shown;
+  return rest > 0 ? `${label}: ${head} +${rest}` : `${label}: ${head}`;
+}
+
+/** Accessible name of a chip's remove button. */
+export function removeChipAria(label: string): string {
+  return `Quitar filtro ${label}`;
+}
+
+/** Mobile filters button, with the number of active filters when there are any. */
+export function filtersButtonText(activeCount: number): string {
+  return activeCount > 0 ? `Filtros \u00b7 ${activeCount}` : "Filtros";
+}

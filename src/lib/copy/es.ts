@@ -131,10 +131,33 @@ export const es = {
     captionSin: "Montos sin IVA (Subtotal − Descuento + IEPS)",
   },
 
+  filters: {
+    dates: "Fechas",
+    supplier: "Proveedor",
+    forma: "Forma de pago",
+    from: "Desde",
+    to: "Hasta",
+    all: "Todo",
+    thisYear: "Este año",
+    last3: "Últimos 3 meses",
+    dateHelper: "Para ver un solo mes, elige el mismo mes en Desde y Hasta.",
+    searchSupplier: "Buscar proveedor",
+    searchForma: "Buscar forma de pago",
+    clearSuppliers: "Limpiar proveedores",
+    clearFormas: "Limpiar formas de pago",
+    reset: "Quitar filtros",
+    mobile: "Filtros",
+  },
+
   dashboard: {
     kpis: {
       gasto: "Gasto total",
     },
+    emptyFilteredHeading: "Ninguna factura coincide con los filtros",
+    emptyFilteredBody: "Cambia o quita los filtros para ver el gasto.",
+    noInvoicesHeading: "Ninguna factura válida",
+    noInvoicesBody:
+      "Revisa los archivos rechazados en Importación y vuelve a soltarlos.",
   },
 
   errors: {
