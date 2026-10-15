@@ -13,7 +13,10 @@ import type { ParsedInvoice } from "@/domain/cfdi/types";
 import { AppShell } from "@/features/shell/AppShell";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { DashboardTab } from "./DashboardTab";
 import { readFixture } from "../../../tests/support/cfdiVariants";
+import { makeInvoice } from "../../../tests/support/ledgerFactory";
+import "../../../tests/support/domPolyfills";
 import {
   clearStoredSettings,
   readStoredSettings,
@@ -338,5 +341,176 @@ describe("AppShell: shell wiring (D-01, D-05, UI Considerations E1 and E2)", () 
     const label = within(button).getByText("Agregar facturas");
     expect(label.className).toContain("max-md:sr-only");
     expect(label.className).not.toContain("max-sm:sr-only");
+  });
+});
+
+describe("Dashboard tab: filters (FILT-02, FILT-04, FILT-05, D-03, D-07)", () => {
+  const ABARROTES = { rfc: "AAA010101AAA", nombre: "Abarrotes del Sur" };
+  const CAFE = { rfc: "BBB010101BBB", nombre: "Café Árbol" };
+  const ZETA = { rfc: "CCC010101CCC", nombre: "Zeta Comercial" };
+
+  function filterable(): ParsedInvoice[] {
+    return [
+      makeInvoice({
+        emisor: ABARROTES,
+        fecha: "2025-01-15T10:00:00",
+        formaPago: "03",
+        subTotal: "100.00",
+        total: "116.00",
+      }),
+      makeInvoice({
+        emisor: ABARROTES,
+        fecha: "2025-03-02T10:00:00",
+        formaPago: "03",
+        subTotal: "200.00",
+        total: "232.00",
+      }),
+      makeInvoice({
+        emisor: CAFE,
+        fecha: "2025-02-10T10:00:00",
+        formaPago: "28",
+        subTotal: "50.00",
+        total: "58.00",
+      }),
+      makeInvoice({
+        emisor: ZETA,
+        fecha: "2025-04-20T10:00:00",
+        formaPago: "99",
+        metodoPago: "PPD",
+        subTotal: "400.00",
+        total: "464.00",
+      }),
+    ];
+  }
+
+  const bar = () => within(screen.getByTestId("filter-triggers-desktop"));
+
+  function pickSupplier(name: string): void {
+    fireEvent.click(bar().getByRole("button", { name: "Proveedor" }));
+    act(() => {
+      fireEvent.click(screen.getByText(name));
+    });
+    fireEvent.keyDown(screen.getByPlaceholderText("Buscar proveedor"), { key: "Escape" });
+  }
+
+  it("shows 'Ninguna factura válida' and no filter bar when nothing is loaded", () => {
+    render(<DashboardTab />);
+    expect(screen.getByText("Ninguna factura válida")).toBeInTheDocument();
+    expect(
+      screen.getByText("Revisa los archivos rechazados en Importación y vuelve a soltarlos."),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("filter-bar")).toBeNull();
+    expect(screen.queryByTestId("kpi-gasto")).toBeNull();
+  });
+
+  it("orders the filter bar, the mode caption and the KPIs as in D-03", () => {
+    load(filterable());
+    render(<DashboardTab />);
+    const filterBar = screen.getByTestId("filter-bar");
+    const caption = screen.getByTestId("mode-caption");
+    const kpi = screen.getByTestId("kpi-gasto");
+    expect(filterBar.compareDocumentPosition(caption) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(caption.compareDocumentPosition(kpi) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(gastoText()).toBe("$870.00");
+  });
+
+  it("shows the Con IVA caption and the Sin IVA caption when the mode changes", () => {
+    load(filterable());
+    render(<DashboardTab />);
+    expect(screen.getByTestId("mode-caption")).toHaveTextContent(
+      "Montos con IVA (Total de cada factura)",
+    );
+    act(() => {
+      useSettingsStore.setState({ ivaMode: "sin" });
+    });
+    expect(screen.getByTestId("mode-caption")).toHaveTextContent(
+      "Montos sin IVA (Subtotal − Descuento + IEPS)",
+    );
+    expect(gastoText()).toBe("$750.00");
+  });
+
+  it("narrows the Gasto total to one supplier and brings it back with the chip's X", () => {
+    load(filterable());
+    render(<DashboardTab />);
+    pickSupplier("Café Árbol");
+    expect(gastoText()).toBe("$58.00");
+    const chips = within(screen.getByTestId("filter-chips"));
+    expect(chips.getByText("Proveedor: Café Árbol")).toBeInTheDocument();
+    act(() => {
+      fireEvent.click(chips.getByRole("button", { name: "Quitar filtro Proveedor" }));
+    });
+    expect(gastoText()).toBe("$870.00");
+  });
+
+  it("combines supplier and dates with AND", () => {
+    load(filterable());
+    render(<DashboardTab />);
+    act(() => {
+      const store = useSessionStore.getState();
+      store.setSuppliers(new Set([ABARROTES.rfc]));
+      store.setRange({ from: "2025-03", to: "2025-04" });
+    });
+    expect(gastoText()).toBe("$232.00");
+  });
+
+  it("applies the supplier filter in Sin IVA as well", () => {
+    load(filterable());
+    render(<DashboardTab />);
+    act(() => {
+      useSettingsStore.setState({ ivaMode: "sin" });
+      useSessionStore.getState().setSuppliers(new Set([ABARROTES.rfc]));
+    });
+    expect(gastoText()).toBe("$300.00");
+  });
+
+  it("keeps exactly the PPD invoice without complemento when its forma is selected", () => {
+    load(filterable());
+    render(<DashboardTab />);
+    fireEvent.click(bar().getByRole("button", { name: "Forma de pago" }));
+    act(() => {
+      fireEvent.click(screen.getByText("Por definir (sin complemento de pago)"));
+    });
+    expect(gastoText()).toBe("$464.00");
+    expect(
+      within(screen.getByTestId("filter-chips")).getByText(
+        "Forma de pago: Por definir (sin complemento de pago)",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("replaces everything below the bar by the empty state when no invoice matches", () => {
+    load(filterable());
+    render(<DashboardTab />);
+    act(() => {
+      const store = useSessionStore.getState();
+      store.setSuppliers(new Set([CAFE.rfc]));
+      store.setRange({ from: "2025-03", to: "2025-04" });
+    });
+    const empty = within(screen.getByTestId("dashboard-empty-filtered"));
+    expect(empty.getByText("Ninguna factura coincide con los filtros")).toBeInTheDocument();
+    expect(empty.getByText("Cambia o quita los filtros para ver el gasto.")).toBeInTheDocument();
+    expect(screen.queryByTestId("kpi-gasto")).toBeNull();
+    // The bar and the caption stay so the filters can be changed.
+    expect(screen.getByTestId("filter-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("mode-caption")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-empty-filtered").className).toContain("text-center");
+
+    act(() => {
+      fireEvent.click(empty.getByRole("button", { name: "Quitar filtros" }));
+    });
+    expect(screen.queryByTestId("dashboard-empty-filtered")).toBeNull();
+    expect(gastoText()).toBe("$870.00");
+  });
+
+  it("keeps the filters out of the persisted settings (memory only)", async () => {
+    load(filterable());
+    render(<DashboardTab />);
+    act(() => {
+      useSettingsStore.setState({ ivaMode: "sin" });
+      useSessionStore.getState().setSuppliers(new Set([ABARROTES.rfc]));
+    });
+    const stored = await readStoredSettings();
+    expect(stored).toEqual({ state: { ivaMode: "sin" }, version: 1 });
+    expect(JSON.stringify(stored)).not.toContain(ABARROTES.rfc);
   });
 });
