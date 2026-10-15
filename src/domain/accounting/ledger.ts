@@ -8,6 +8,10 @@ import type Big from "big.js";
 import type { ParsedInvoice, TipoComprobante } from "../cfdi/types";
 import type { LoadedInvoice } from "../import/types";
 import { invoiceAmounts } from "./amounts";
+import type { MonthKey } from "./months";
+
+/** Form-of-payment sentinel of a PPD invoice with no loaded Pago complement. */
+export const PPD_SIN_COMPLEMENTO = "PPD_SIN_COMPLEMENTO";
 
 export type EntryKind =
   | "ingreso"
@@ -44,6 +48,13 @@ export interface LedgerEntry {
   sinIva: Big | null;
   supplierRfc: string;
   supplierName: string;
+  ownMonth: MonthKey | null;
+  month: MonthKey | null;
+  relatedLoaded: string[];
+  relatedCount: number;
+  formas: string[];
+  substitutedBy: string | null;
+  substitutes: string[];
 }
 
 function kindOf(tipo: TipoComprobante): EntryKind {
@@ -100,6 +111,13 @@ function buildEntry(
     sinIva,
     supplierRfc: invoice.emisor.rfc,
     supplierName: invoice.emisor.nombre ?? invoice.emisor.rfc,
+    ownMonth: null,
+    month: null,
+    relatedLoaded: [],
+    relatedCount: 0,
+    formas: [],
+    substitutedBy: null,
+    substitutes: [],
   };
 }
 
