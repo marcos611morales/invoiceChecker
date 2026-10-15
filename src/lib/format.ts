@@ -1,13 +1,18 @@
 /**
- * es-MX value formatting (dates, money, folios).
+ * es-MX value formatting (dates, months, money, folios, labels).
  *
  * No Spanish sentences live here (see `messages.ts`/`es.ts`). `formatTotal`
  * formats one XML amount as stated; `formatMoney` formats an already computed
- * exact decimal (the one shared money formatter of Phase 2, D-26). Nothing here
- * adds amounts together: sums live in `src/domain/accounting`.
+ * exact decimal (the one shared money formatter of Phase 2, D-26). Month names
+ * come from static Spanish arrays and string slicing, never from a Date object
+ * (REGLA-05). Nothing here adds amounts together: sums live in
+ * `src/domain/accounting`.
  */
 import type Big from "big.js";
 import { toMoneyString } from "@/domain/accounting/decimal";
+import { PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
+import type { MonthKey } from "@/domain/accounting/months";
+import { formaPagoName } from "@/domain/cfdi/catalogs";
 
 const MISSING_VALUE = "—";
 
@@ -81,4 +86,93 @@ export function formatMoney(value: Big): string {
 /** Folio as the XML states it, "—" when the attribute is absent. */
 export function formatFolio(folio: string | null): string {
   return folio === null || folio === "" ? MISSING_VALUE : folio;
+}
+
+const MONTHS_SHORT: readonly string[] = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+];
+
+const MONTHS_LONG: readonly string[] = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+const MONTH_KEY = /^(\d{4})-(0[1-9]|1[0-2])$/;
+
+/** Year and zero-based month index of a YYYY-MM key, or null when malformed. */
+function splitMonthKey(key: MonthKey): { year: string; index: number } | null {
+  const match = MONTH_KEY.exec(key);
+  if (match === null) return null;
+  const [, year, month] = match;
+  if (year === undefined || month === undefined) return null;
+  return { year, index: Number(month) - 1 };
+}
+
+/** "ene" for "2025-01"; a malformed key is returned unchanged. */
+export function monthShortLabel(key: MonthKey): string {
+  const parts = splitMonthKey(key);
+  if (parts === null) return key;
+  return MONTHS_SHORT[parts.index] ?? key;
+}
+
+/** "ene 2025" for "2025-01"; a malformed key is returned unchanged. */
+export function monthYearLabel(key: MonthKey): string {
+  const parts = splitMonthKey(key);
+  if (parts === null) return key;
+  const name = MONTHS_SHORT[parts.index];
+  return name === undefined ? key : `${name} ${parts.year}`;
+}
+
+/** "mayo 2025" for "2025-05"; a malformed key is returned unchanged. */
+export function monthLongLabel(key: MonthKey): string {
+  const parts = splitMonthKey(key);
+  if (parts === null) return key;
+  const name = MONTHS_LONG[parts.index];
+  return name === undefined ? key : `${name} ${parts.year}`;
+}
+
+/** One month as its long label, otherwise "ene 2025 \u2013 dic 2025" (spaced en dash). */
+export function rangeText(from: MonthKey, to: MonthKey): string {
+  if (from === to) return monthLongLabel(from);
+  return `${monthYearLabel(from)} \u2013 ${monthYearLabel(to)}`;
+}
+
+/**
+ * Label of a forma de pago code: the SAT catalog name, never the bare code
+ * (D-14). An unknown code reads "Forma de pago {código}" and the PPD sentinel
+ * reads "Por definir (sin complemento de pago)" (D-16).
+ */
+export function formaPagoLabel(code: string): string {
+  if (code === PPD_SIN_COMPLEMENTO) return "Por definir (sin complemento de pago)";
+  return formaPagoName(code) ?? `Forma de pago ${code}`;
+}
+
+/** Search key: lowercase, accents removed, trimmed (D-43). */
+export function normalizeSearch(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .trim();
 }
