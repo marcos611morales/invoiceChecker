@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { kpiDeltas, kpis } from "@/domain/accounting/aggregate";
+import { kpiDeltas, kpis, monthlySeries, supplierRanking } from "@/domain/accounting/aggregate";
 import {
   applyFilters,
   loadedSpan,
@@ -18,6 +18,8 @@ import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { FilterBar } from "./FilterBar";
 import { KpiRow } from "./KpiRow";
+import { SupplierRanking } from "./SupplierRanking";
+import { TrendChart } from "./TrendChart";
 
 /**
  * Dashboard panel. The ledger is built from the session invoices plus the manual
@@ -58,6 +60,8 @@ export function DashboardTab() {
   );
   const deltas = useMemo(() => kpiDeltas(current, previous), [current, previous]);
   const previousLabel = prevRange === null ? "" : periodLabel(prevRange.from, prevRange.to);
+  const series = useMemo(() => monthlySeries(visible, range, ivaMode), [visible, range, ivaMode]);
+  const ranking = useMemo(() => supplierRanking(visible, ivaMode), [visible, ivaMode]);
 
   if (ledger.length === 0) {
     return (
@@ -91,7 +95,18 @@ export function DashboardTab() {
           </EmptyContent>
         </Empty>
       ) : (
-        <KpiRow current={current} deltas={deltas} previousLabel={previousLabel} mode={ivaMode} />
+        <>
+          <KpiRow current={current} deltas={deltas} previousLabel={previousLabel} mode={ivaMode} />
+          <div
+            data-testid="trend-ranking-row"
+            className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
+          >
+            {range === null ? null : (
+              <TrendChart series={series} promedio={current.promedio} range={range} />
+            )}
+            <SupplierRanking rows={ranking} />
+          </div>
+        </>
       )}
     </div>
   );

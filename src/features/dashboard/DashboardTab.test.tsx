@@ -388,7 +388,8 @@ describe("Dashboard tab: filters (FILT-02, FILT-04, FILT-05, D-03, D-07)", () =>
   function pickSupplier(name: string): void {
     fireEvent.click(bar().getByRole("button", { name: "Proveedor" }));
     act(() => {
-      fireEvent.click(screen.getByText(name));
+      // Scoped to the open list: the ranking card also prints the supplier name.
+      fireEvent.click(within(screen.getByRole("listbox")).getByText(name));
     });
     fireEvent.keyDown(screen.getByPlaceholderText("Buscar proveedor"), { key: "Escape" });
   }
@@ -675,5 +676,142 @@ describe("Dashboard tab: KPI row (DASH-01, DASH-06, D-18, D-19, D-20, D-39)", ()
       useSessionStore.getState().setRange({ from: "2025-07", to: "2025-12" });
     });
     expect(deltaText("kpi-gasto-delta")).toBe("Sin datos del periodo anterior");
+  });
+});
+
+describe("Dashboard tab: trend and ranking row (DASH-02, DASH-04, DASH-10, D-22, D-23)", () => {
+  const ABARROTES = { rfc: "AAA010101AAA", nombre: "Abarrotes del Sur" };
+  const CAFE = { rfc: "BBB010101BBB", nombre: "Café Árbol" };
+
+  function sample(): ParsedInvoice[] {
+    return [
+      makeInvoice({
+        emisor: ABARROTES,
+        fecha: "2025-01-15T10:00:00",
+        subTotal: "100.00",
+        total: "116.00",
+      }),
+      makeInvoice({
+        emisor: ABARROTES,
+        fecha: "2025-02-10T10:00:00",
+        subTotal: "300.00",
+        total: "348.00",
+      }),
+      makeInvoice({
+        emisor: CAFE,
+        fecha: "2025-01-20T10:00:00",
+        subTotal: "50.00",
+        total: "58.00",
+      }),
+    ];
+  }
+
+  function rankingRows(): HTMLElement[] {
+    const list = screen.getByRole("list", { name: "Top 10 de proveedores por gasto neto" });
+    return within(list).getAllByRole("listitem");
+  }
+
+  function rankingRow(index: number): HTMLElement {
+    const row = rankingRows()[index];
+    if (row === undefined) throw new Error(`no ranking row at ${index}`);
+    return row;
+  }
+
+  it("renders the trend card and the ranking card side by side from 1024 px, stacked below", () => {
+    load(sample());
+    render(<DashboardTab />);
+    const row = screen.getByTestId("trend-ranking-row");
+    expect(row.className).toContain("grid-cols-1");
+    expect(row.className).toContain("lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]");
+    expect(row.className).toContain("gap-6");
+    expect(row.className).toContain("items-start");
+    const trend = within(row).getByRole("heading", { name: "Gasto por mes" });
+    const ranking = within(row).getByRole("heading", { name: "Gasto por proveedor" });
+    expect(trend.compareDocumentPosition(ranking) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The row sits under the KPI cards.
+    const kpi = screen.getByTestId("kpi-gasto");
+    expect(kpi.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("ranks the suppliers by net spend of the visible set", () => {
+    load(sample());
+    render(<DashboardTab />);
+    expect(rankingRows()).toHaveLength(2);
+    expect(within(rankingRow(0)).getByRole("button", { name: "Abarrotes del Sur" })).toBeInTheDocument();
+    expect(within(rankingRow(0)).getByText("$464.00")).toBeInTheDocument();
+    expect(within(rankingRow(1)).getByRole("button", { name: "Café Árbol" })).toBeInTheDocument();
+    expect(within(rankingRow(1)).getByText("$58.00")).toBeInTheDocument();
+  });
+
+  it("shows neither card when the filters leave no invoice", () => {
+    load(sample());
+    render(<DashboardTab />);
+    act(() => {
+      const store = useSessionStore.getState();
+      store.setSuppliers(new Set([CAFE.rfc]));
+      store.setRange({ from: "2025-02", to: "2025-02" });
+    });
+    expect(screen.getByTestId("dashboard-empty-filtered")).toBeInTheDocument();
+    expect(screen.queryByTestId("trend-ranking-row")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Gasto por mes" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Gasto por proveedor" })).toBeNull();
+  });
+
+  it("updates both cards when the supplier filter changes", () => {
+    load(sample());
+    render(<DashboardTab />);
+    // Two calendar months, 464 + 58 = 522 spent: average 261.
+    expect(screen.getByText("Promedio mensual: $261.00")).toBeInTheDocument();
+    act(() => {
+      useSessionStore.getState().setSuppliers(new Set([CAFE.rfc]));
+    });
+    expect(rankingRows()).toHaveLength(1);
+    expect(screen.getByText("Promedio mensual: $29.00")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Abarrotes del Sur" })).toBeNull();
+  });
+
+  it("follows the IVA mode in both cards", () => {
+    load(sample());
+    render(<DashboardTab />);
+    expect(within(rankingRow(0)).getByText("$464.00")).toBeInTheDocument();
+    act(() => {
+      useSettingsStore.setState({ ivaMode: "sin" });
+    });
+    expect(within(rankingRow(0)).getByText("$400.00")).toBeInTheDocument();
+    expect(screen.getByText("Promedio mensual: $225.00")).toBeInTheDocument();
+  });
+
+  it("lowers a supplier's row by its credit note and keeps the ranking in sync", () => {
+    load([
+      ...sample(),
+      makeInvoice({
+        tipo: "E",
+        emisor: ABARROTES,
+        fecha: "2025-02-20T10:00:00",
+        subTotal: "400.00",
+        total: "400.00",
+      }),
+    ]);
+    render(<DashboardTab />);
+    // Abarrotes nets 464 - 400 = 64, still above Café Árbol (58).
+    expect(within(rankingRow(0)).getByRole("button", { name: "Abarrotes del Sur" })).toBeInTheDocument();
+    expect(within(rankingRow(0)).getByText("$64.00")).toBeInTheDocument();
+    expect(within(rankingRow(1)).getByText("$58.00")).toBeInTheDocument();
+  });
+
+  it("does not group suppliers into an 'Otros' bucket", () => {
+    const many = Array.from({ length: 12 }, (_, index) =>
+      makeInvoice({
+        emisor: { rfc: `ZZ${String(index).padStart(2, "0")}010101AAA`, nombre: `Proveedor ${index}` },
+        fecha: "2025-01-15T10:00:00",
+        subTotal: `${100 + index}.00`,
+        total: `${100 + index}.00`,
+      }),
+    );
+    load(many);
+    render(<DashboardTab />);
+    expect(rankingRows()).toHaveLength(10);
+    expect(screen.getByRole("button", { name: "Ver todos" })).toBeInTheDocument();
+    expect(screen.queryByText(/otros/i)).toBeNull();
   });
 });

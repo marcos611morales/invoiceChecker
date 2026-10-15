@@ -188,3 +188,8 @@ export function trendAriaLabel(from: MonthKey, to: MonthKey): string {
 export function averageLegend(amountText: string): string {
   return `Promedio mensual: ${amountText}`;
 }
+
+/** Caption of a ranking row: share of the total and average ticket, already formatted (D-23). */
+export function rankingCaption(pctText: string, ticketText: string): string {
+  return `${pctText} del total · Ticket promedio ${ticketText}`;
+}

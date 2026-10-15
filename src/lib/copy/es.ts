@@ -171,6 +171,20 @@ export const es = {
     trendLegendBars: "Gasto mensual",
     trendTooltipRow: "Gasto",
     trendTableMonth: "Mes",
+    rankingHeading: "Gasto por proveedor",
+    rankingSub: "Top 10",
+    rankingAria: "Top 10 de proveedores por gasto neto",
+    seeAll: "Ver todos",
+    negativeNet: "Neto negativo: las notas de crédito superan las compras",
+    dialogDescription: "Todos los proveedores del filtro actual, ordenados por gasto neto.",
+    close: "Cerrar",
+    columns: {
+      supplier: "Proveedor",
+      net: "Gasto neto",
+      pct: "% del total",
+      invoices: "Facturas",
+      ticket: "Ticket promedio",
+    },
   },
 
   errors: {
