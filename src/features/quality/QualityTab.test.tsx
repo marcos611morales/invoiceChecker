@@ -198,7 +198,8 @@ describe("QualityTab cards", () => {
     loadRich();
     const { container } = render(<QualityTab />);
     for (const type of INCIDENT_ORDER) ensureOpen(type);
-    expect(container.innerHTML).not.toMatch(/destructive/);
+    // Only unprefixed color classes count: the Button base class carries aria-invalid: variants.
+    expect(container.innerHTML).not.toMatch(/(?:^|[\s"])(?:text|bg|border)-destructive/);
   });
 
   it("shows the import-report counts on the link-only cards", () => {

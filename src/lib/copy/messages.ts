@@ -11,6 +11,7 @@ import type {
   DuplicateFile,
   IgnoredKind,
 } from "@/domain/import/types";
+import { es } from "./es";
 
 /** Spanish reason shown next to a rejected file (D-14, D-15). */
 export function rejectReasonText(
@@ -241,52 +242,92 @@ export function rankingCaption(pctText: string, ticketText: string): string {
   return `${pctText} del total · Ticket promedio ${ticketText}`;
 }
 
-// Calidad de datos row sentences (RED stubs; implemented in the GREEN commit).
+// Calidad de datos: card and accordion titles and the sentence of every incident row (CAL-01).
 
-export function incidentTitle(_type: IncidentType): string {
-  return "";
+/** Card and accordion title of an incident type (D-32, D-35, D-46). */
+export function incidentTitle(type: IncidentType): string {
+  switch (type) {
+    case "nc-sin-relacionada":
+      return es.quality.titles.ncSinRelacionada;
+    case "nc-varias-relacionadas":
+      return es.quality.titles.ncVariasRelacionadas;
+    case "sustituciones":
+      return es.quality.titles.sustituciones;
+    case "moneda-sin-tc":
+      return es.quality.titles.monedaSinTc;
+    case "datos-invalidos":
+      return es.quality.titles.datosInvalidos;
+    case "cero":
+      return es.quality.titles.cero;
+    case "redondeo":
+      return es.quality.titles.redondeo;
+    case "ppd-sin-complemento":
+      return es.quality.titles.ppd;
+    case "excluidas":
+      return es.quality.titles.excluidas;
+    case "sustituidas":
+      return es.quality.titles.sustituidas;
+  }
 }
 
-export function ncSinRelacionadaRow(_monthLabel: string): string {
-  return "";
+/** Credit note without a loaded related invoice: it subtracts in its own month. */
+export function ncSinRelacionadaRow(monthLabel: string): string {
+  return `Se resta en su propia fecha (${monthLabel}) porque la factura relacionada no está cargada.`;
 }
 
-export function ncVariasRelacionadasRow(_monthLabel: string, _n: number): string {
-  return "";
+/** D-46: month of the oldest loaded related invoice and how many loaded ones decide it. */
+export function ncVariasRelacionadasRow(monthLabel: string, n: number): string {
+  return `Aplica a ${monthLabel}: la relacionada más antigua de ${n}`;
 }
 
-export function sustitucionRow(_shortUuid: string, _state: SubstitutionState): string {
-  return "";
+/** Substitution (TipoRelacion 04): the short UUID of the original and what became of it. */
+export function sustitucionRow(shortUuid: string, state: SubstitutionState): string {
+  const head = `Sustituye a la factura ${shortUuid}….`;
+  switch (state) {
+    case "excluida":
+      return `${head} La original quedó excluida.`;
+    case "no-cargada":
+      return `${head} La original no está cargada.`;
+    case "reincluida":
+      return `${head} La original se volvió a incluir.`;
+  }
 }
 
 export function ceroRow(): string {
-  return "";
+  return "Total en $0: no cuenta en el número de facturas ni en los promedios.";
 }
 
-export function redondeoTotalRow(_diffText: string): string {
-  return "";
+export function redondeoTotalRow(diffText: string): string {
+  return `El Total del XML difiere en ${diffText} de Subtotal − Descuento + traslados − retenciones.`;
 }
 
-export function redondeoConceptosRow(_diffText: string): string {
-  return "";
+export function redondeoConceptosRow(diffText: string): string {
+  return `La suma de los conceptos difiere en ${diffText} del Subtotal.`;
 }
 
 export function ppdRow(): string {
-  return "";
+  return 'Pago en parcialidades o diferido sin complemento de pago cargado; en filtros aparece como "Por definir (sin complemento de pago)".';
 }
 
-export function monedaRow(_moneda: string): string {
-  return "";
+export function monedaRow(moneda: string): string {
+  return `${moneda} sin tipo de cambio: no se suma`;
 }
 
-export function datosInvalidosRow(_field: string | null): string {
-  return "";
+/** Field name to its gendered label, built once; a Map so "__proto__" is just an unknown field (D-47). */
+const INVALID_FIELD_LABELS = new Map<string, string>(es.quality.invalidFields);
+
+/** "{label}: no se suma" with the label agreeing in gender with the damaged field (D-35, D-47). */
+export function datosInvalidosRow(field: string | null): string {
+  const label =
+    (field === null ? undefined : INVALID_FIELD_LABELS.get(field)) ??
+    es.quality.invalidFieldFallback;
+  return `${label}: no se suma`;
 }
 
 export function excluidaRow(): string {
-  return "";
+  return "Excluida por ti en esta sesión.";
 }
 
-export function sustituidaRow(_ref: string): string {
-  return "";
+export function sustituidaRow(ref: string): string {
+  return substitutedLine(ref);
 }
