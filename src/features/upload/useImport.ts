@@ -38,7 +38,15 @@ export function useImport(): { run: (files: readonly File[]) => Promise<void> } 
       });
       if (batch !== null) {
         const summary = useSessionStore.getState().applyBatch(batch, generation);
-        if (summary !== null) toast(batchToastText(summary));
+        if (summary !== null) {
+          toast(batchToastText(summary));
+          // Only a finished batch switches the tab (D-44): Dashboard when the session holds
+          // any invoice (even if this batch added none), Importación when it holds none.
+          const loaded = useSessionStore.getState();
+          loaded.setActiveTab(
+            loaded.invoices.length > 0 ? "dashboard" : "importacion",
+          );
+        }
       }
     } catch {
       if (isCurrent()) toast.error(es.errors.importFailed);

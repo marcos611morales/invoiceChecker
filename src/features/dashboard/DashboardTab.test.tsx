@@ -14,6 +14,11 @@ import { AppShell } from "@/features/shell/AppShell";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { readFixture } from "../../../tests/support/cfdiVariants";
+import {
+  clearStoredSettings,
+  readStoredSettings,
+  storeIvaMode,
+} from "../../../tests/support/settingsStorage";
 
 function parseFixture(relPath: string): ParsedInvoice {
   const result = parseCfdi(readFixture(relPath));
@@ -67,7 +72,7 @@ afterEach(() => {
     useSessionStore.getState().clearAll();
     useSettingsStore.setState({ ivaMode: "con" });
   });
-  window.localStorage.clear();
+  clearStoredSettings();
 });
 
 /** Sin IVA of the anonymized Ingreso: Subtotal minus Descuento, no IEPS in the fixture. */
@@ -205,23 +210,18 @@ describe("Dashboard tab: Gasto total follows the IVA mode (REGLA-03, DASH-10)", 
   });
 
   it("shows the stored Sin IVA figure after a reload", () => {
-    window.localStorage.setItem(
-      "invoicechecker:settings",
-      JSON.stringify({ state: { ivaMode: "sin" }, version: 1 }),
-    );
+    storeIvaMode("sin");
     load([ingreso, egreso]);
     render(<AppShell />);
     expect(gastoText()).toBe("$428.74");
     expect(ivaButton("Sin IVA")).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("persists the chosen mode through the settings store", () => {
+  it("persists the chosen mode through the settings store", async () => {
     load([ingreso, egreso]);
     render(<AppShell />);
     fireEvent.click(ivaButton("Sin IVA"));
-    const raw = window.localStorage.getItem("invoicechecker:settings");
-    expect(raw).not.toBeNull();
-    expect(JSON.parse(raw ?? "null")).toEqual({
+    expect(await readStoredSettings()).toEqual({
       state: { ivaMode: "sin" },
       version: 1,
     });

@@ -12,6 +12,10 @@ import {
 import { es } from "@/lib/copy/es";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import {
+  clearStoredSettings,
+  storeIvaMode,
+} from "../../../tests/support/settingsStorage";
 import { IvaToggle } from "./IvaToggle";
 import { TopBar } from "./TopBar";
 
@@ -21,7 +25,7 @@ afterEach(() => {
     useSettingsStore.setState({ ivaMode: "con" });
     useSessionStore.getState().clearAll();
   });
-  window.localStorage.clear();
+  clearStoredSettings();
 });
 
 function bar(): HTMLElement {
@@ -124,10 +128,7 @@ describe("IvaToggle: active state (REGLA-03)", () => {
   });
 
   it("renders Con IVA before the store is rehydrated, then follows the stored mode", () => {
-    window.localStorage.setItem(
-      "invoicechecker:settings",
-      JSON.stringify({ state: { ivaMode: "sin" }, version: 1 }),
-    );
+    storeIvaMode("sin");
     render(<IvaToggle variant="bar" />);
     expect(
       within(bar()).getByRole("button", { name: "Con IVA" }),
