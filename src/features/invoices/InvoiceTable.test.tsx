@@ -338,8 +338,12 @@ describe("InvoiceTable rows that do not sum or are special", () => {
     act(() => {
       useSessionStore.getState().excludeInvoice("U1");
     });
-    const body = document.querySelector("tbody");
-    expect(body?.innerHTML).not.toMatch(/opacity-/);
+    // The shared Button carries a disabled-only opacity; rows and cells must carry none.
+    const surfaces = document.querySelectorAll("tbody tr, tbody td, tbody td span, tbody td div");
+    expect(surfaces.length).toBeGreaterThan(0);
+    for (const element of surfaces) {
+      expect(element.className).not.toMatch(/opacity-/);
+    }
   });
 
   it("shows a converted foreign invoice with the MXN amount and the original line", () => {

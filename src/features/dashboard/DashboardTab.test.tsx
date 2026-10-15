@@ -469,7 +469,8 @@ describe("Dashboard tab: filters (FILT-02, FILT-04, FILT-05, D-03, D-07)", () =>
     render(<DashboardTab />);
     fireEvent.click(bar().getByRole("button", { name: "Forma de pago" }));
     act(() => {
-      fireEvent.click(screen.getByText("Por definir (sin complemento de pago)"));
+      // The Facturas table shows the same name, so pick the filter option.
+      fireEvent.click(screen.getByRole("option", { name: /^Por definir \(sin complemento de pago\)/ }));
     });
     expect(gastoText()).toBe("$464.00");
     expect(
@@ -643,7 +644,10 @@ describe("Dashboard tab: KPI row (DASH-01, DASH-06, D-18, D-19, D-20, D-39)", ()
   it("shows no credit-note sub-label when the range has none", () => {
     load(monthly(FIRST_HALF, "100.00"));
     render(<DashboardTab />);
-    expect(screen.queryByText(/nota de crédito|notas de crédito/)).toBeNull();
+    // The Facturas table note also names credit notes, so look inside the card.
+    expect(
+      within(screen.getByTestId("kpi-facturas")).queryByText(/nota de crédito|notas de crédito/),
+    ).toBeNull();
   });
 
   it("shows a dash for the ticket when only credit notes count (D-39)", () => {
@@ -813,5 +817,57 @@ describe("Dashboard tab: trend and ranking row (DASH-02, DASH-04, DASH-10, D-22,
     expect(rankingRows()).toHaveLength(10);
     expect(screen.getByRole("button", { name: "Ver todos" })).toBeInTheDocument();
     expect(screen.queryByText(/otros/i)).toBeNull();
+  });
+});
+
+describe("Dashboard tab: Facturas table (DASH-09, REGLA-08, D-24, D-27, D-28)", () => {
+  function tableRow(label: string): HTMLElement {
+    const row = Array.from(document.querySelectorAll<HTMLElement>("tr[data-row-id]")).find(
+      (candidate) => within(candidate).queryByText(label) !== null,
+    );
+    if (row === undefined) throw new Error(`no table row with ${label}`);
+    return row;
+  }
+
+  it("ends the Dashboard with every row, summing or not, after the trend and ranking row", () => {
+    load([ingreso, egreso, pago]);
+    render(<DashboardTab />);
+    expect(screen.getByRole("heading", { name: "Facturas (3)" })).toBeInTheDocument();
+    const trend = screen.getByTestId("trend-ranking-row");
+    const heading = screen.getByRole("heading", { name: "Facturas (3)" });
+    expect(trend.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(tableRow("Pago")).getByText("No suma")).toBeInTheDocument();
+    expect(within(tableRow("Nota de crédito")).getByText(/^−\$1,000\.00$/)).toBeInTheDocument();
+  });
+
+  it("counts the rows left by the filters and shows the filtered empty state instead of the table", () => {
+    load([ingreso, egreso, pago]);
+    render(<DashboardTab />);
+    act(() => {
+      useSessionStore.getState().setRange({ from: "1999-01", to: "1999-01" });
+    });
+    expect(screen.getByTestId("dashboard-empty-filtered")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /^Facturas \(/ })).toBeNull();
+  });
+
+  it("recomputes the Gasto total when an invoice is excluded from its row menu", async () => {
+    load([ingreso, egreso, pago]);
+    render(<DashboardTab />);
+    expect(gastoText()).toBe("$345.98");
+    const row = tableRow("Ingreso");
+    fireEvent.click(within(row).getByRole("button", { name: /^Acciones de la factura/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Excluir factura" }));
+    expect(gastoText()).toBe("−$1,000.00");
+    expect(within(tableRow("Ingreso")).getByText("Excluida")).toBeInTheDocument();
+  });
+
+  it("shows the table amounts in the active IVA mode", () => {
+    load([ingreso, egreso, pago]);
+    render(<DashboardTab />);
+    expect(within(tableRow("Ingreso")).getByText("$1,345.98")).toBeInTheDocument();
+    act(() => {
+      useSettingsStore.setState({ ivaMode: "sin" });
+    });
+    expect(within(tableRow("Ingreso")).getByText("$1,290.81")).toBeInTheDocument();
   });
 });

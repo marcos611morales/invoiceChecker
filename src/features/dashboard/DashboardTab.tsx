@@ -12,6 +12,7 @@ import {
 } from "@/domain/accounting/filters";
 import { buildLedger } from "@/domain/accounting/ledger";
 import { previousPeriod } from "@/domain/accounting/months";
+import { InvoiceTable } from "@/features/invoices/InvoiceTable";
 import { es } from "@/lib/copy/es";
 import { periodLabel } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -106,6 +107,7 @@ export function DashboardTab() {
             )}
             <SupplierRanking rows={ranking} />
           </div>
+          <InvoiceTable rows={visible} ledger={ledger} mode={ivaMode} />
         </>
       )}
     </div>
