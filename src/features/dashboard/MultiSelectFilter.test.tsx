@@ -74,13 +74,12 @@ describe("MultiSelectFilter rows", () => {
     ]);
   });
 
-  it("marks the checkbox of each selected option and no other", () => {
+  it("marks each selected option as checked and no other", () => {
     renderFilter(OPTIONS, new Set(["BBB010101BBB"]));
     openPopover();
-    const states = screen
-      .getAllByRole("option")
-      .map((row) => within(row).getByRole("checkbox").getAttribute("aria-checked"));
+    const states = screen.getAllByRole("option").map((row) => row.getAttribute("aria-checked"));
     expect(states).toEqual(["false", "true", "false", "false"]);
+    expect(screen.getByRole("listbox")).toHaveAttribute("aria-multiselectable", "true");
   });
 
   it("keeps checked rows where they are (they do not jump to the top)", () => {
