@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DuplicateFile } from "@/domain/import/types";
 import {
+  averageLegend,
   batchToastText,
   chipText,
   deltaLine,
@@ -23,6 +24,7 @@ import {
   removeChipAria,
   tipoLabel,
   trasladoNominaSubLabel,
+  trendAriaLabel,
 } from "./messages";
 
 describe("rejectReasonText", () => {
@@ -219,5 +221,16 @@ describe("KPI sub-labels and delta line (D-18, D-20, DASH-06)", () => {
 
   it("joins the signed percent and the previous period", () => {
     expect(deltaLine("+12.4 %", "ene\u2013jun 2025")).toBe("+12.4 % vs. ene\u2013jun 2025");
+  });
+});
+
+describe("trend chart texts (D-21)", () => {
+  it("names the chart by its first and last month", () => {
+    expect(trendAriaLabel("2025-01", "2025-12")).toBe("Gasto por mes de ene 2025 a dic 2025");
+    expect(trendAriaLabel("2024-11", "2025-02")).toBe("Gasto por mes de nov 2024 a feb 2025");
+  });
+
+  it("states the average with its exact amount", () => {
+    expect(averageLegend("$1,500.00")).toBe("Promedio mensual: $1,500.00");
   });
 });

@@ -166,6 +166,13 @@ export const es = {
       "Revisa los archivos rechazados en Importación y vuelve a soltarlos.",
   },
 
+  charts: {
+    trendHeading: "Gasto por mes",
+    trendLegendBars: "Gasto mensual",
+    trendTooltipRow: "Gasto",
+    trendTableMonth: "Mes",
+  },
+
   errors: {
     importFailed:
       "No se pudieron procesar los archivos. Recarga la página y vuelve a intentarlo.",

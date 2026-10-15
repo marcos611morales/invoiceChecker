@@ -2,6 +2,8 @@
  * Interpolated es-MX sentences and labels. Static strings live in `es.ts` and
  * value formatting (dates, money, folios) in `src/lib/format.ts`.
  */
+import { monthYearLabel } from "@/lib/format";
+import type { MonthKey } from "@/domain/accounting/months";
 import type { RejectReason, TipoComprobante } from "@/domain/cfdi/types";
 import type {
   BatchSummary,
@@ -175,4 +177,14 @@ export function monthsSubLabel(n: number): string {
 /** Delta line of a KPI card: the signed percent against the previous period (D-20). */
 export function deltaLine(percent: string, period: string): string {
   return `${percent} vs. ${period}`;
+}
+
+/** Accessible name of the monthly trend chart (D-21). */
+export function trendAriaLabel(from: MonthKey, to: MonthKey): string {
+  return `Gasto por mes de ${monthYearLabel(from)} a ${monthYearLabel(to)}`;
+}
+
+/** Legend entry of the dashed average line, with the exact amount text (D-21). */
+export function averageLegend(amountText: string): string {
+  return `Promedio mensual: ${amountText}`;
 }
