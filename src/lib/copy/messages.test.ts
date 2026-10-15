@@ -20,6 +20,7 @@ import {
   paginationRangeText,
   processingText,
   receptorDistintoText,
+  rankingCaption,
   rejectReasonText,
   removeChipAria,
   tipoLabel,
@@ -232,5 +233,15 @@ describe("trend chart texts (D-21)", () => {
 
   it("states the average with its exact amount", () => {
     expect(averageLegend("$1,500.00")).toBe("Promedio mensual: $1,500.00");
+  });
+});
+
+describe("ranking caption (D-23)", () => {
+  it("joins the share of the total and the average ticket", () => {
+    expect(rankingCaption("25.0 %", "$500.00")).toBe("25.0 % del total · Ticket promedio $500.00");
+  });
+
+  it("keeps the dashes it is given for a missing share or ticket", () => {
+    expect(rankingCaption("—", "—")).toBe("— del total · Ticket promedio —");
   });
 });
