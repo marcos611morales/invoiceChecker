@@ -126,8 +126,10 @@ describe("settingsStore", () => {
       const fresh = await import("./settingsStore");
       expect(fresh.useSettingsStore.getState().ivaMode).toBe("con");
       expect(() => fresh.useSettingsStore.getState().setIvaMode("sin")).not.toThrow();
-      await fresh.useSettingsStore.persist.rehydrate();
       expect(fresh.useSettingsStore.getState().ivaMode).toBe("sin");
+      // Nothing can be read without a window, so rehydrating falls back to Con IVA.
+      await fresh.useSettingsStore.persist.rehydrate();
+      expect(fresh.useSettingsStore.getState().ivaMode).toBe("con");
     } finally {
       vi.unstubAllGlobals();
     }
