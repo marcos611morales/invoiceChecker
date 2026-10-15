@@ -502,16 +502,15 @@ describe("Dashboard tab: filters (FILT-02, FILT-04, FILT-05, D-03, D-07)", () =>
     expect(gastoText()).toBe("$870.00");
   });
 
-  it("keeps the filters in memory only, never in browser storage", () => {
+  it("keeps the filters out of the persisted settings (memory only)", async () => {
     load(filterable());
     render(<DashboardTab />);
     act(() => {
+      useSettingsStore.setState({ ivaMode: "sin" });
       useSessionStore.getState().setSuppliers(new Set([ABARROTES.rfc]));
     });
-    expect(window.localStorage.getItem("invoicechecker:filters")).toBeNull();
-    for (let index = 0; index < window.localStorage.length; index += 1) {
-      const key = window.localStorage.key(index);
-      expect(window.localStorage.getItem(key ?? "") ?? "").not.toContain(ABARROTES.rfc);
-    }
+    const stored = await readStoredSettings();
+    expect(stored).toEqual({ state: { ivaMode: "sin" }, version: 1 });
+    expect(JSON.stringify(stored)).not.toContain(ABARROTES.rfc);
   });
 });
