@@ -190,6 +190,6 @@ export function averageLegend(amountText: string): string {
 }
 
 /** Caption of a ranking row: share of the total and average ticket, already formatted (D-23). */
-export function rankingCaption(_pctText: string, _ticketText: string): string {
-  return "";
+export function rankingCaption(pctText: string, ticketText: string): string {
+  return `${pctText} del total · Ticket promedio ${ticketText}`;
 }

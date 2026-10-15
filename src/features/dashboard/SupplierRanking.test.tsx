@@ -259,7 +259,11 @@ describe("SupplierDialog: the sortable table (DASH-04, D-22, E6)", () => {
 
   it("compares money as decimals, not as text: 900 sorts before 1,000 ascending", () => {
     const dialog = renderDialog(mixed());
-    fireEvent.click(within(header(dialog, "Gasto neto")).getByRole("button"));
+    const click = () => fireEvent.click(within(header(dialog, "Gasto neto")).getByRole("button"));
+    // The default order is already descending: the next click removes it, the one after sorts ascending.
+    click();
+    expect(header(dialog, "Gasto neto")).toHaveAttribute("aria-sort", "none");
+    click();
     expect(header(dialog, "Gasto neto")).toHaveAttribute("aria-sort", "ascending");
     expect(bodyNames(dialog)).toEqual(["Abarrotes", "Mercado", "Árbol", "Zeta"]);
   });

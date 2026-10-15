@@ -388,7 +388,8 @@ describe("Dashboard tab: filters (FILT-02, FILT-04, FILT-05, D-03, D-07)", () =>
   function pickSupplier(name: string): void {
     fireEvent.click(bar().getByRole("button", { name: "Proveedor" }));
     act(() => {
-      fireEvent.click(screen.getByText(name));
+      // Scoped to the open list: the ranking card also prints the supplier name.
+      fireEvent.click(within(screen.getByRole("listbox")).getByText(name));
     });
     fireEvent.keyDown(screen.getByPlaceholderText("Buscar proveedor"), { key: "Escape" });
   }

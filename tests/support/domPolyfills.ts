@@ -14,3 +14,11 @@ if (typeof globalThis.ResizeObserver === "undefined") {
 if (typeof Element !== "undefined" && typeof Element.prototype.scrollIntoView !== "function") {
   Element.prototype.scrollIntoView = function scrollIntoView(): void {};
 }
+
+// Base UI (scroll area, dialog transitions) asks the element for its running
+// animations; jsdom has no Web Animations API, so report none.
+if (typeof Element !== "undefined" && typeof Element.prototype.getAnimations !== "function") {
+  Element.prototype.getAnimations = function getAnimations(): Animation[] {
+    return [];
+  };
+}
