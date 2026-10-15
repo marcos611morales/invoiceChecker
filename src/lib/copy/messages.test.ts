@@ -2,16 +2,22 @@ import { describe, expect, it } from "vitest";
 import type { DuplicateFile } from "@/domain/import/types";
 import {
   batchToastText,
+  chipText,
   duplicateRowText,
   facturasCargadasHeading,
+  filtersButtonText,
   groupTriggerText,
   ignoradosSubLabel,
   ignoredReasonText,
+  noFormaMatch,
+  noSupplierMatch,
+  optionLabel,
   paginationPageText,
   paginationRangeText,
   processingText,
   receptorDistintoText,
   rejectReasonText,
+  removeChipAria,
   tipoLabel,
   trasladoNominaSubLabel,
 } from "./messages";
@@ -153,5 +159,46 @@ describe("pagination texts", () => {
 
   it("formats the page indicator", () => {
     expect(paginationPageText(2, 3)).toBe("Página 2 de 3");
+  });
+});
+
+describe("filter messages", () => {
+  it("explains an empty supplier search", () => {
+    expect(noSupplierMatch("xyz")).toBe(
+      "Ningún proveedor coincide con «xyz». Revisa la búsqueda.",
+    );
+  });
+
+  it("explains an empty forma de pago search", () => {
+    expect(noFormaMatch("xyz")).toBe(
+      "Ninguna forma de pago coincide con «xyz». Revisa la búsqueda.",
+    );
+  });
+
+  it("appends the invoice count to an option", () => {
+    expect(optionLabel("Nueva Wal-Mart de México", 39)).toBe(
+      "Nueva Wal-Mart de México (39)",
+    );
+  });
+
+  it("shows the first names of a chip and counts the rest", () => {
+    expect(chipText("Proveedor", ["A", "B", "C", "D"], 2)).toBe("Proveedor: A, B +2");
+    expect(chipText("Forma de pago", ["Efectivo", "Tarjeta"], 1)).toBe(
+      "Forma de pago: Efectivo +1",
+    );
+  });
+
+  it("has no plus part when every name fits", () => {
+    expect(chipText("Proveedor", ["A"], 2)).toBe("Proveedor: A");
+    expect(chipText("Proveedor", ["A", "B"], 2)).toBe("Proveedor: A, B");
+  });
+
+  it("names the filter in the remove-chip label", () => {
+    expect(removeChipAria("Fechas")).toBe("Quitar filtro Fechas");
+  });
+
+  it("counts the active filters on the mobile button", () => {
+    expect(filtersButtonText(0)).toBe("Filtros");
+    expect(filtersButtonText(2)).toBe("Filtros \u00b7 2");
   });
 });

@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { formatFechaIso, formatFolio, formatTotal } from "./format";
+import { PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
+import {
+  formaPagoLabel,
+  formatFechaIso,
+  formatFolio,
+  formatTotal,
+  monthLongLabel,
+  monthShortLabel,
+  monthYearLabel,
+  normalizeSearch,
+  rangeText,
+} from "./format";
 
 describe("formatFechaIso", () => {
   it("slices the literal ISO string into dd/mm/yyyy", () => {
@@ -46,5 +57,74 @@ describe("formatFolio", () => {
 
   it("returns the folio as is", () => {
     expect(formatFolio("A-12")).toBe("A-12");
+  });
+});
+
+describe("month labels", () => {
+  it("gives the short Spanish name of the month", () => {
+    expect(monthShortLabel("2025-01")).toBe("ene");
+    expect(monthShortLabel("2025-12")).toBe("dic");
+  });
+
+  it("gives month and year", () => {
+    expect(monthYearLabel("2025-05")).toBe("may 2025");
+    expect(monthYearLabel("2025-01")).toBe("ene 2025");
+  });
+
+  it("gives the long name with the year", () => {
+    expect(monthLongLabel("2025-05")).toBe("mayo 2025");
+    expect(monthLongLabel("2025-12")).toBe("diciembre 2025");
+  });
+
+  it("returns a malformed key unchanged", () => {
+    for (const bad of ["", "2025", "2025-13", "2025-00", "abcd-ef", "2025-5", "__proto__"]) {
+      expect(monthShortLabel(bad)).toBe(bad);
+      expect(monthYearLabel(bad)).toBe(bad);
+      expect(monthLongLabel(bad)).toBe(bad);
+    }
+  });
+});
+
+describe("rangeText", () => {
+  it("joins two months with a spaced en dash", () => {
+    expect(rangeText("2025-01", "2025-12")).toBe("ene 2025 \u2013 dic 2025");
+  });
+
+  it("shows the long label for a single month", () => {
+    expect(rangeText("2025-05", "2025-05")).toBe("mayo 2025");
+  });
+
+  it("keeps malformed keys as they are", () => {
+    expect(rangeText("x", "y")).toBe("x \u2013 y");
+  });
+});
+
+describe("formaPagoLabel", () => {
+  it("gives the SAT catalog name", () => {
+    expect(formaPagoLabel("28")).toBe("Tarjeta de débito");
+  });
+
+  it("never shows a bare code for an unknown code", () => {
+    expect(formaPagoLabel("77")).toBe("Forma de pago 77");
+  });
+
+  it("treats a hostile code as an unknown code", () => {
+    expect(formaPagoLabel("__proto__")).toBe("Forma de pago __proto__");
+  });
+
+  it("labels the PPD sentinel", () => {
+    expect(formaPagoLabel(PPD_SIN_COMPLEMENTO)).toBe(
+      "Por definir (sin complemento de pago)",
+    );
+  });
+});
+
+describe("normalizeSearch", () => {
+  it("lowercases, strips accents and trims", () => {
+    expect(normalizeSearch("  ÁBACO Ñandú ")).toBe("abaco nandu");
+  });
+
+  it("returns an empty string for blank text", () => {
+    expect(normalizeSearch("   ")).toBe("");
   });
 });
