@@ -89,7 +89,7 @@ Plans:
   4. El usuario marca una factura como "Excluida" y esta deja de contar en todo el análisis; en el panel de calidad de datos ve duplicados, archivos con error, facturas en $0, diferencias de redondeo, sustituciones (TipoRelación 04) y notas de crédito sin factura relacionada.
   5. `pnpm test` pasa las pruebas Vitest del parser y de las reglas de montos sobre XML anonimizados (descuentos, IEPS, facturas a pocas horas de un cambio de mes asignadas al mes de su fecha literal, conversión con TipoCambio y aritmética exacta con big.js), y `Facturas/` está fuera de git.
 
-**Plans:** 11/15 plans executed
+**Plans:** 12/15 plans executed
 
 Plans:
 **Wave 1**
@@ -126,7 +126,7 @@ Plans:
 - [x] 02-11-PLAN.md — Tendencia mensual con Recharts: paquetes con versión fija y gráfica de barras con línea de promedio
 
 **Wave 12** *(blocked on Wave 11 completion)*
-- [ ] 02-12-PLAN.md — Ranking top 10 de proveedores con lista completa, componentes compartidos y fila compuesta con la tendencia
+- [x] 02-12-PLAN.md — Ranking top 10 de proveedores con lista completa, componentes compartidos y fila compuesta con la tendencia
 
 **Wave 13** *(blocked on Wave 12 completion)*
 - [ ] 02-13-PLAN.md — Tabla de facturas con conceptos desplegables, Excluir/Volver a incluir y deshacer
@@ -198,7 +198,7 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
-| 2. Dashboard de gasto confiable | 11/15 | In Progress | - |
+| 2. Dashboard de gasto confiable | 12/15 | In Progress | - |
 | 3. Categorías propias y exportación a Excel | 0/TBD | Not started | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
