@@ -54,8 +54,8 @@ describe("TruncatedText: pointer devices (UI-SPEC decision 9)", () => {
     render(<TruncatedText text={LONG_NAME} />);
     const button = screen.getByRole("button", { name: LONG_NAME });
     fireEvent.focus(button);
-    const tip = await screen.findByRole("tooltip");
-    expect(tip).toHaveTextContent(LONG_NAME);
+    const tip = await screen.findByText(LONG_NAME, { selector: "[data-slot='tooltip-content']" });
+    expect(tip).toBeInTheDocument();
     expect(document.querySelector("[data-slot='popover-content']")).toBeNull();
     // A click on a pointer device opens no popover either.
     fireEvent.click(button);
@@ -97,7 +97,7 @@ describe("TruncatedText: touch devices (UI-SPEC decision 9)", () => {
     fireEvent.click(button);
     const popup = await screen.findByText(LONG_NAME, { selector: "[data-slot='popover-content']" });
     expect(popup).toBeInTheDocument();
-    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(document.querySelector("[data-slot='tooltip-content']")).toBeNull();
   });
 
   it("closes the Popover on Escape", async () => {
