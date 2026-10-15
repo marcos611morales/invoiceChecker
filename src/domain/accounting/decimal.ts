@@ -36,6 +36,12 @@ export function sum(values: Iterable<Big>): Big {
   return total;
 }
 
+/** RED stub of fromInteger. */
+export function fromInteger(n: number): Big {
+  void n;
+  return new Big("-1");
+}
+
 /**
  * Display string such as "1234.50": half-up, 2 decimals, and any zero prints as
  * "0.00" (never "-0.00"). Feed this string to `Intl`, never a number.

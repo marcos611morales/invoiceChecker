@@ -1,6 +1,6 @@
 import Big from "big.js";
 import { describe, expect, it } from "vitest";
-import { ZERO, parseDecimal, sum, toMoneyString } from "./decimal";
+import { ZERO, fromInteger, parseDecimal, sum, toMoneyString } from "./decimal";
 
 // BigInt() calls, not literals: the tsconfig target (ES2017) rejects bigint literals.
 const HUNDRED = BigInt(100);
@@ -85,6 +85,21 @@ describe("toMoneyString (display-only rounding)", () => {
     expect(toMoneyString(bigOf("-1234.5"))).toBe("-1234.50");
     expect(toMoneyString(bigOf("7"))).toBe("7.00");
     expect(toMoneyString(bigOf("-0.005"))).toBe("-0.01");
+  });
+});
+
+describe("fromInteger (strict Big rejects numbers)", () => {
+  it("builds the exact decimal of a safe integer", () => {
+    expect(fromInteger(12).eq(bigOf("12"))).toBe(true);
+    expect(fromInteger(0).eq(ZERO)).toBe(true);
+    expect(fromInteger(-7).eq(bigOf("-7"))).toBe(true);
+    expect(fromInteger(Number.MAX_SAFE_INTEGER).toString()).toBe("9007199254740991");
+  });
+
+  it("gives ZERO for anything that is not a safe integer", () => {
+    for (const value of [1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 2 ** 60]) {
+      expect(fromInteger(value).eq(ZERO), String(value)).toBe(true);
+    }
   });
 });
 
