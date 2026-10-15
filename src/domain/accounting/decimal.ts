@@ -36,10 +36,13 @@ export function sum(values: Iterable<Big>): Big {
   return total;
 }
 
-/** RED stub of fromInteger. */
+/**
+ * Exact decimal of a safe integer such as a count of invoices or months. Strict
+ * Big rejects numbers, so it is built from the integer's decimal string; any
+ * other input (fraction, NaN, infinity, beyond 2^53) gives ZERO.
+ */
 export function fromInteger(n: number): Big {
-  void n;
-  return new Big("-1");
+  return Number.isSafeInteger(n) ? new Big(String(n)) : ZERO;
 }
 
 /**
