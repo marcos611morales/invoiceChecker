@@ -111,9 +111,55 @@ export function trasladoNominaSubLabel(traslado: number, nomina: number): string
   return `Traslado: ${traslado}, Nómina: ${nomina}`;
 }
 
-/** Heading of the loaded invoices table (D-21). */
-export function facturasCargadasHeading(n: number): string {
-  return `Facturas cargadas (${n})`;
+/** Heading of the invoices table: every row after the filters, summing or not (D-24). */
+export function invoicesHeading(n: number): string {
+  return `Facturas (${n})`;
+}
+
+/** Caption under the type badge of a credit note, with the imputation month label (D-15). */
+export function appliesToText(monthLabel: string): string {
+  return `aplica a ${monthLabel}`;
+}
+
+/** Panel line shown only when the concept sum and the invoice amount differ once rounded (D-25). */
+export function roundingLine(amountText: string): string {
+  return `Diferencia de redondeo: ${amountText}`;
+}
+
+/** Panel line of a PPD invoice with a loaded Pago complement (REGLA-09). */
+export function paidLine(dateText: string, formaName: string): string {
+  return `Pagada el ${dateText} con ${formaName}`;
+}
+
+/** Panel line of a substituted original (D-08). */
+export function substitutedLine(ref: string): string {
+  return `Sustituida por la factura ${ref}. No se suma.`;
+}
+
+/** Panel line of a foreign currency invoice that has an exchange rate (D-10). */
+export function originalCurrencyLine(moneda: string, tc: string): string {
+  return `Moneda original: ${moneda} \u00b7 TC ${tc}`;
+}
+
+/** Line under the MXN amount: the original amount, with the rate when there is one (D-10). */
+export function foreignAmountLine(
+  moneda: string,
+  amountText: string,
+  tc: string | null,
+): string {
+  return tc === null
+    ? `${moneda} ${amountText}`
+    : `${moneda} ${amountText} \u00b7 TC ${tc}`;
+}
+
+/** Visible and screen reader title of the concepts panel of one invoice (D-24). */
+export function conceptsPanelTitle(ref: string): string {
+  return `Conceptos de la factura ${ref}`;
+}
+
+/** Accessible name of the row menu trigger of one invoice. */
+export function rowMenuAria(ref: string): string {
+  return `Acciones de la factura ${ref}`;
 }
 
 /** Left side of the table pagination footer: "Mostrando 51–100 de 120" (D-23). */

@@ -1,434 +1,680 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { useMemo } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   act,
   cleanup,
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
-import type { ParsedInvoice, TipoComprobante } from "@/domain/cfdi/types";
-import type { BatchEntry } from "@/domain/import/types";
+import { totalSpend } from "@/domain/accounting/aggregate";
+import type { IvaMode } from "@/domain/accounting/aggregate";
+import { buildLedger } from "@/domain/accounting/ledger";
+import type { LedgerEntry } from "@/domain/accounting/ledger";
+import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
+import { formatMoney } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
+import { readStoredSettings } from "../../../tests/support/settingsStorage";
+import { makeEntry, makeInvoice } from "../../../tests/support/ledgerFactory";
+import "../../../tests/support/domPolyfills";
 import { InvoiceTable } from "./InvoiceTable";
 
-interface InvoiceOverrides {
-  fecha?: string;
-  tipo?: TipoComprobante;
-  emisorNombre?: string | null;
-  emisorRfc?: string;
-  folio?: string | null;
-  total?: string;
-  moneda?: string;
-  conceptos?: number;
+interface ToastOptions {
+  duration?: number;
+  action?: { label: string; onClick: () => void };
 }
 
-function makeInvoice(uuid: string, o: InvoiceOverrides = {}): ParsedInvoice {
-  const conceptoCount = o.conceptos ?? 1;
+const toastMock = vi.hoisted(() => vi.fn<(message: string, options?: ToastOptions) => void>());
+vi.mock("sonner", () => ({ toast: toastMock }));
+
+function concepto(overrides: Partial<Concepto> = {}): Concepto {
   return {
-    uuid,
-    version: "4.0",
-    fecha: o.fecha ?? "2025-01-15T10:00:00",
-    tipo: o.tipo ?? "I",
-    serie: null,
-    folio: o.folio === undefined ? "F-1" : o.folio,
-    moneda: o.moneda ?? "MXN",
-    tipoCambio: null,
-    formaPago: null,
-    metodoPago: null,
-    subTotal: "100.00",
+    claveProdServ: "01010101",
+    noIdentificacion: null,
+    cantidad: "1",
+    claveUnidad: "H87",
+    unidad: null,
+    descripcion: "Concepto",
+    valorUnitario: "100.00",
+    importe: "100.00",
     descuento: null,
-    total: o.total ?? "116.00",
-    totalImpuestosTrasladados: null,
-    totalImpuestosRetenidos: null,
-    impuestos: { traslados: [], retenciones: [] },
-    emisor: {
-      rfc: o.emisorRfc ?? "EMI010101AAA",
-      nombre: o.emisorNombre === undefined ? "Proveedor" : o.emisorNombre,
-    },
-    receptor: { rfc: "CAF010101AAA", nombre: null },
-    conceptos: Array.from({ length: conceptoCount }, (_, i) => ({
-      claveProdServ: "01010101",
-      noIdentificacion: null,
-      cantidad: "1",
-      claveUnidad: "H87",
-      unidad: null,
-      descripcion: `Concepto ${i + 1}`,
-      valorUnitario: "1",
-      importe: "1",
-      descuento: null,
-      objetoImp: null,
-      traslados: [],
-      retenciones: [],
-    })),
-    relacionados: [],
-    pagos: [],
+    objetoImp: null,
+    traslados: [],
+    retenciones: [],
+    ...overrides,
   };
 }
 
-function parsed(uuid: string, o: InvoiceOverrides = {}): BatchEntry {
-  const name = `${uuid}.xml`;
+function iva(importe: string) {
   return {
-    kind: "parsed",
-    file: { name, path: `carpeta/${name}` },
-    result: { ok: true, invoice: makeInvoice(uuid, o) },
+    base: null,
+    impuesto: "002",
+    tipoFactor: "Tasa",
+    tasaOCuota: "0.160000",
+    importe,
   };
 }
 
-function seed(batch: readonly BatchEntry[]): void {
+/** An Ingreso whose folio is its uuid, so every reference in the UI is easy to find. */
+function inv(uuid: string, overrides: Partial<ParsedInvoice> = {}): ParsedInvoice {
+  return makeInvoice({ uuid, folio: uuid, ...overrides });
+}
+
+function seed(invoices: readonly ParsedInvoice[]): void {
   act(() => {
     const store = useSessionStore.getState();
-    store.applyBatch(batch, store.generation);
+    store.applyBatch(
+      invoices.map((invoice, index) => ({
+        kind: "parsed" as const,
+        file: { name: `f${index}-${invoice.uuid}.xml`, path: `f${index}-${invoice.uuid}.xml` },
+        result: { ok: true as const, invoice },
+      })),
+      store.generation,
+    );
   });
+}
+
+/** Builds the ledger from the session store like the Dashboard does. */
+function Harness({
+  mode = "con",
+  only,
+}: {
+  mode?: IvaMode;
+  only?: ReadonlySet<string>;
+}) {
+  const invoices = useSessionStore((s) => s.invoices);
+  const excluded = useSessionStore((s) => s.excluded);
+  const restored = useSessionStore((s) => s.restored);
+  const ledger = useMemo(
+    () => buildLedger(invoices, { excluded, restored }),
+    [invoices, excluded, restored],
+  );
+  const rows = useMemo(
+    () => (only === undefined ? ledger : ledger.filter((e) => only.has(e.uuid))),
+    [ledger, only],
+  );
+  return (
+    <>
+      <p data-testid="gasto">{formatMoney(totalSpend(ledger, mode))}</p>
+      <InvoiceTable rows={rows} ledger={ledger} mode={mode} />
+    </>
+  );
+}
+
+function dataRow(uuid: string): HTMLElement {
+  const row = document.querySelector<HTMLElement>(`tr[data-row-id="${uuid}"]`);
+  if (row === null) throw new Error(`no row ${uuid}`);
+  return row;
+}
+
+function dataRows(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>("tr[data-row-id]"));
+}
+
+function cells(row: HTMLElement): HTMLElement[] {
+  return Array.from(row.querySelectorAll<HTMLElement>("td"));
+}
+
+function cellOf(row: HTMLElement, index: number): HTMLElement {
+  const cell = cells(row)[index];
+  if (cell === undefined) throw new Error(`no cell ${index}`);
+  return cell;
+}
+
+/** Text of one column (0-based, 0 is the chevron) across the data rows in display order. */
+function column(index: number): string[] {
+  return dataRows().map((row) => cells(row)[index]?.textContent ?? "");
 }
 
 function header(name: string): HTMLElement {
   return screen.getByRole("columnheader", { name: new RegExp(`^${name}`) });
 }
 
-function click(name: string): void {
+function clickHeader(name: string): void {
   fireEvent.click(within(header(name)).getByRole("button"));
 }
 
-/** Text of one column (0-based) across the body rows, in display order. */
-function column(index: number): string[] {
-  const rows = document.querySelectorAll("tbody tr");
-  return Array.from(rows).map(
-    (row) => row.querySelectorAll("td")[index]?.textContent ?? "",
-  );
+function chevron(uuid: string): HTMLElement {
+  return screen.getByTestId(`expand-${uuid}`);
 }
+
+async function openMenu(ref: string): Promise<void> {
+  fireEvent.click(screen.getByRole("button", { name: `Acciones de la factura ${ref}` }));
+  await screen.findByRole("menu");
+}
+
+beforeEach(() => {
+  toastMock.mockReset();
+});
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   act(() => {
     useSessionStore.getState().clearAll();
   });
 });
 
-describe("InvoiceTable content", () => {
-  it("renders nothing while there is no report", () => {
-    const { container } = render(<InvoiceTable />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("shows the heading with the count and the always-visible D-22 note", () => {
-    seed([parsed("U1"), parsed("U2")]);
-    render(<InvoiceTable />);
-    expect(
-      screen.getByRole("heading", { name: "Facturas cargadas (2)" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Montos tal como vienen en cada XML; el cálculo de gasto llega después",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("lists the six columns with the formats of D-21", () => {
+describe("InvoiceTable heading, note and default order", () => {
+  it("counts every row in the heading and shows the always-visible note", () => {
     seed([
-      parsed("U1", {
-        fecha: "2025-05-28T17:38:18",
-        emisorNombre: "Papelería Uno",
-        tipo: "E",
-        folio: "A-12",
-        total: "1234.5",
-        conceptos: 3,
-      }),
+      inv("U1"),
+      inv("U2", { tipo: "E" }),
+      inv("U3", { tipo: "P", moneda: "XXX", total: "0", subTotal: "0" }),
+      inv("U4", { total: "0.00", subTotal: "0.00" }),
     ]);
-    render(<InvoiceTable />);
-    for (const name of [
-      "Fecha",
-      "Proveedor",
-      "Tipo",
-      "Folio",
-      "Total",
-      "Conceptos",
-    ]) {
+    render(<Harness />);
+    expect(screen.getByRole("heading", { name: "Facturas (4)" })).toBeInTheDocument();
+    const note = screen.getByRole("note");
+    expect(note).toHaveTextContent(
+      "Incluye notas de crédito y facturas que no suman (atenuadas). El monto sigue el modo Con IVA / Sin IVA.",
+    );
+    expect(dataRows()).toHaveLength(4);
+  });
+
+  it("shows the headers of the spec and sorts newest Fecha first by default", () => {
+    seed([
+      inv("U1", { fecha: "2025-01-10T10:00:00" }),
+      inv("U2", { fecha: "2025-03-10T10:00:00" }),
+      inv("U3", { fecha: "2025-02-10T10:00:00" }),
+    ]);
+    render(<Harness />);
+    for (const name of ["Fecha", "Proveedor", "Folio", "Forma de pago", "Tipo", "Monto"]) {
       expect(header(name)).toBeInTheDocument();
     }
-    expect(column(0)).toEqual(["28/05/2025"]);
-    expect(column(1)).toEqual(["Papelería Uno"]);
-    expect(column(2)).toEqual(["Egreso"]);
-    expect(column(3)).toEqual(["A-12"]);
-    expect(column(4)).toEqual(["$1,234.50"]);
-    expect(column(5)).toEqual(["3"]);
+    expect(screen.getByRole("columnheader", { name: "Conceptos" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Acciones" })).toBeInTheDocument();
+    expect(column(1)).toEqual(["10/03/2025", "10/02/2025", "10/01/2025"]);
+    expect(header("Fecha")).toHaveAttribute("aria-sort", "descending");
   });
 
-  it("falls back to the issuer RFC when the name is absent", () => {
-    seed([parsed("U1", { emisorNombre: null, emisorRfc: "XAXX010101000" })]);
-    render(<InvoiceTable />);
-    expect(column(1)).toEqual(["XAXX010101000"]);
-  });
-
-  it("shows a dash for a missing folio and for a Pago in XXX, never dropping the row", () => {
-    seed([
-      parsed("U1", { folio: null, total: "100.00" }),
-      parsed("U2", { tipo: "P", moneda: "XXX", total: "0", folio: "P-1" }),
-    ]);
-    render(<InvoiceTable />);
-    expect(document.querySelectorAll("tbody tr")).toHaveLength(2);
-    expect(column(3).sort()).toEqual(["P-1", "—"].sort());
-    expect(column(4)).toContain("—");
-  });
-
-  it("has no footer row and no sum of amounts", () => {
-    seed([
-      parsed("U1", { total: "100.00" }),
-      parsed("U2", { total: "200.00" }),
-    ]);
-    const { container } = render(<InvoiceTable />);
-    expect(container.querySelector("tfoot")).toBeNull();
-    expect(container.textContent).not.toContain("300");
-    expect(screen.queryByText(/total general|suma|promedio/i)).toBeNull();
-  });
-
-  it("truncates a 90-character provider name inside a 280 px cell", () => {
-    const longName = "P".repeat(90);
-    seed([parsed("U1", { emisorNombre: longName })]);
-    render(<InvoiceTable />);
-    const trigger = screen.getByText(longName);
-    expect(trigger.className).toContain("truncate");
-    expect(trigger.closest("td")?.className).toContain("max-w-[280px]");
-  });
-
-  it("keeps the scrolling inside the table container", () => {
-    seed([parsed("U1")]);
-    const { container } = render(<InvoiceTable />);
-    const wrapper = container.querySelector('[data-slot="table-container"]');
-    expect(wrapper?.className).toContain("overflow-x-auto");
+  it("cycles aria-sort ascending, descending, none on a header", () => {
+    seed([inv("U1"), inv("U2")]);
+    render(<Harness />);
+    clickHeader("Proveedor");
+    expect(header("Proveedor")).toHaveAttribute("aria-sort", "ascending");
+    clickHeader("Proveedor");
+    expect(header("Proveedor")).toHaveAttribute("aria-sort", "descending");
+    clickHeader("Proveedor");
+    expect(header("Proveedor")).toHaveAttribute("aria-sort", "none");
   });
 });
 
 describe("InvoiceTable sorting", () => {
-  it("sorts Fecha descending by default using the literal ISO string", () => {
+  it("sorts Monto on the signed displayed value with the dash last in both directions", () => {
     seed([
-      parsed("U1", { fecha: "2025-01-10T09:00:00" }),
-      parsed("U2", { fecha: "2025-03-05T08:00:00" }),
-      parsed("U3", { fecha: "2025-02-20T23:59:59" }),
+      inv("U1", { total: "345.98", subTotal: "345.98" }),
+      inv("U2", { tipo: "E", total: "1000.00", subTotal: "1000.00" }),
+      inv("U3", { tipo: "P", moneda: "XXX", total: "0", subTotal: "0" }),
+      inv("U4", { total: "0.00", subTotal: "0.00" }),
     ]);
-    render(<InvoiceTable />);
-    expect(header("Fecha")).toHaveAttribute("aria-sort", "descending");
-    expect(column(0)).toEqual(["05/03/2025", "20/02/2025", "10/01/2025"]);
-    expect(header("Total")).toHaveAttribute("aria-sort", "none");
+    render(<Harness />);
+    clickHeader("Monto");
+    expect(column(6)).toEqual(["−$1,000.00", "$0.00", "$345.98", "—"]);
+    clickHeader("Monto");
+    expect(column(6)).toEqual(["$345.98", "$0.00", "−$1,000.00", "—"]);
   });
 
-  it("cycles Total ascending, descending, none, ordered numerically", () => {
+  it("sorts Fecha by the literal ISO string, Folio as text and Proveedor in Spanish order", () => {
     seed([
-      parsed("U1", { total: "9.00", fecha: "2025-01-01T00:00:00" }),
-      parsed("U2", { total: "100.00", fecha: "2025-01-02T00:00:00" }),
-      parsed("U3", { total: "20.00", fecha: "2025-01-03T00:00:00" }),
+      inv("U1", { folio: "10", fecha: "2025-01-01T10:00:00", emisor: { rfc: "AAA010101AAA", nombre: "Árbol" } }),
+      inv("U2", { folio: "9", fecha: "2025-02-01T10:00:00", emisor: { rfc: "BBB010101BBB", nombre: "Abeja" } }),
+      inv("U3", { folio: null, fecha: "2025-03-01T10:00:00", emisor: { rfc: "CCC010101CCC", nombre: "zeta" } }),
     ]);
-    render(<InvoiceTable />);
-    click("Total");
-    expect(header("Total")).toHaveAttribute("aria-sort", "ascending");
-    expect(column(4)).toEqual(["$9.00", "$20.00", "$100.00"]);
-    expect(header("Fecha")).toHaveAttribute("aria-sort", "none");
-    click("Total");
-    expect(header("Total")).toHaveAttribute("aria-sort", "descending");
-    expect(column(4)).toEqual(["$100.00", "$20.00", "$9.00"]);
-    click("Total");
-    expect(header("Total")).toHaveAttribute("aria-sort", "none");
-  });
-
-  it("sorts Proveedor with es collation", () => {
-    seed([
-      parsed("U1", { emisorNombre: "Ñandú" }),
-      parsed("U2", { emisorNombre: "Nube" }),
-      parsed("U3", { emisorNombre: "Ábaco" }),
-      parsed("U4", { emisorNombre: "Banco" }),
-    ]);
-    render(<InvoiceTable />);
-    click("Proveedor");
-    expect(column(1)).toEqual(["Ábaco", "Banco", "Nube", "Ñandú"]);
-    click("Proveedor");
-    expect(column(1)).toEqual(["Ñandú", "Nube", "Banco", "Ábaco"]);
-  });
-
-  it("sorts a missing Folio last in both directions", () => {
-    seed([
-      parsed("U1", { folio: null }),
-      parsed("U2", { folio: "B-2" }),
-      parsed("U3", { folio: "A-1" }),
-    ]);
-    render(<InvoiceTable />);
-    click("Folio");
-    expect(column(3)).toEqual(["A-1", "B-2", "—"]);
-    click("Folio");
-    expect(column(3)).toEqual(["B-2", "A-1", "—"]);
-  });
-
-  it("sorts Conceptos numerically and Tipo with es collation", () => {
-    seed([
-      parsed("U1", { conceptos: 10, tipo: "P" }),
-      parsed("U2", { conceptos: 2, tipo: "E" }),
-      parsed("U3", { conceptos: 5, tipo: "I" }),
-    ]);
-    render(<InvoiceTable />);
-    click("Conceptos");
-    expect(column(5)).toEqual(["2", "5", "10"]);
-    click("Tipo");
-    expect(column(2)).toEqual(["Egreso", "Ingreso", "Pago"]);
+    render(<Harness />);
+    // Starts descending: the first click removes the sort, the second sorts ascending.
+    clickHeader("Fecha");
+    clickHeader("Fecha");
+    expect(header("Fecha")).toHaveAttribute("aria-sort", "ascending");
+    expect(column(1)).toEqual(["01/01/2025", "01/02/2025", "01/03/2025"]);
+    clickHeader("Folio");
+    expect(column(3)).toEqual(["10", "9", "—"]);
+    clickHeader("Folio");
+    expect(column(3)).toEqual(["9", "10", "—"]);
+    clickHeader("Proveedor");
+    expect(column(2)).toEqual(["Abeja", "Árbol", "zeta"]);
   });
 });
 
-/** `count` valid invoices with distinct, ordered dates (U001 is the oldest). */
-function many(count: number): BatchEntry[] {
-  return Array.from({ length: count }, (_, i) => {
-    const n = String(i + 1).padStart(3, "0");
-    const day = String((i % 28) + 1).padStart(2, "0");
-    const month = String(Math.floor(i / 28) + 1).padStart(2, "0");
-    return parsed(`U${n}`, {
-      fecha: `2025-${month}-${day}T10:00:00`,
-      total: String(i + 1),
-    });
-  });
-}
-
 describe("InvoiceTable pagination", () => {
-  it("shows no footer with a single page", () => {
-    seed(many(10));
-    render(<InvoiceTable />);
-    expect(screen.queryByText(/^Mostrando/)).toBeNull();
-    expect(screen.queryByText(/^Página/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Siguiente" })).toBeNull();
-    expect(document.querySelectorAll("tbody tr")).toHaveLength(10);
-  });
+  function many(count: number): ParsedInvoice[] {
+    return Array.from({ length: count }, (_, i) =>
+      inv(`P${String(i).padStart(3, "0")}`, {
+        fecha: `2025-01-01T00:${String(Math.floor(i / 60)).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}`,
+      }),
+    );
+  }
 
-  it("pages 120 rows in three pages of at most 50", () => {
+  it("shows 50 rows per page with the range and page footer", () => {
     seed(many(120));
-    render(<InvoiceTable />);
-    expect(document.querySelectorAll("tbody tr")).toHaveLength(50);
+    render(<Harness />);
+    expect(dataRows()).toHaveLength(50);
     expect(screen.getByText("Mostrando 1–50 de 120")).toBeInTheDocument();
     expect(screen.getByText("Página 1 de 3")).toBeInTheDocument();
-    const previous = screen.getByRole("button", { name: "Anterior" });
-    const next = screen.getByRole("button", { name: "Siguiente" });
-    expect(previous).toBeDisabled();
-    expect(next).toBeEnabled();
-
-    fireEvent.click(next);
-    expect(screen.getByText("Mostrando 51–100 de 120")).toBeInTheDocument();
-    expect(screen.getByText("Página 2 de 3")).toBeInTheDocument();
-    expect(previous).toBeEnabled();
-
-    fireEvent.click(next);
-    expect(screen.getByText("Mostrando 101–120 de 120")).toBeInTheDocument();
-    expect(document.querySelectorAll("tbody tr")).toHaveLength(20);
-    expect(next).toBeDisabled();
-
-    fireEvent.click(previous);
-    expect(screen.getByText("Página 2 de 3")).toBeInTheDocument();
-  });
-
-  it("uses the singular range when the last page holds one row", () => {
-    seed(many(51));
-    render(<InvoiceTable />);
     fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
-    expect(screen.getByText("Mostrando 51 de 51")).toBeInTheDocument();
+    expect(screen.getByText("Mostrando 51–100 de 120")).toBeInTheDocument();
   });
 
-  it("keeps the page when sorting", () => {
+  it("keeps a page that still exists after sorting and falls back when it vanishes", () => {
     seed(many(120));
-    render(<InvoiceTable />);
-    const next = screen.getByRole("button", { name: "Siguiente" });
-    fireEvent.click(next);
-    fireEvent.click(next);
-    expect(screen.getByText("Página 3 de 3")).toBeInTheDocument();
-    click("Total");
-    expect(header("Total")).toHaveAttribute("aria-sort", "ascending");
-    expect(screen.getByText("Página 3 de 3")).toBeInTheDocument();
-    expect(screen.getByText("Mostrando 101–120 de 120")).toBeInTheDocument();
+    const { rerender } = render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    clickHeader("Folio");
+    expect(screen.getByText("Página 2 de 3")).toBeInTheDocument();
+
+    const sixty = new Set(many(60).map((i) => i.uuid));
+    rerender(<Harness only={sixty} />);
+    expect(screen.getByText("Página 2 de 2")).toBeInTheDocument();
+
+    const forty = new Set(many(40).map((i) => i.uuid));
+    rerender(<Harness only={forty} />);
+    expect(screen.queryByText(/^Página/)).toBeNull();
+    expect(dataRows()).toHaveLength(40);
   });
 
-  it("goes back to page 1 when a new, smaller batch leaves the old page without rows", () => {
-    seed(many(120));
-    render(<InvoiceTable />);
-    const next = screen.getByRole("button", { name: "Siguiente" });
-    fireEvent.click(next);
-    fireEvent.click(next);
-    expect(screen.getByText("Página 3 de 3")).toBeInTheDocument();
+  it("shows no footer for a single page", () => {
+    seed([inv("U1")]);
+    render(<Harness />);
+    expect(screen.getByRole("heading", { name: "Facturas (1)" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Siguiente" })).toBeNull();
+    expect(screen.queryByText(/^Mostrando/)).toBeNull();
+  });
+});
 
+describe("InvoiceTable rows that do not sum or are special", () => {
+  it("shows a credit note negative with its badge and the month it applies to", () => {
+    seed([
+      inv("O1", { fecha: "2025-06-10T10:00:00" }),
+      inv("E1", {
+        tipo: "E",
+        fecha: "2025-08-01T10:00:00",
+        total: "1000.00",
+        subTotal: "1000.00",
+        relacionados: [{ tipoRelacion: "01", uuids: ["O1"] }],
+      }),
+      inv("E2", { tipo: "E", fecha: "2025-09-01T10:00:00", total: "50.00", subTotal: "50.00" }),
+    ]);
+    render(<Harness />);
+    const credit = dataRow("E1");
+    expect(within(credit).getByText("Nota de crédito")).toBeInTheDocument();
+    expect(within(credit).getByText("aplica a jun 2025")).toBeInTheDocument();
+    expect(cellOf(credit, 6).textContent).toBe("−$1,000.00");
+    expect(within(dataRow("E2")).getByText("sin factura relacionada")).toBeInTheDocument();
+  });
+
+  it("keeps a Pago in muted text with No suma, a dash amount and no menu but a cell", () => {
+    seed([inv("U1"), inv("PG", { tipo: "P", moneda: "XXX", total: "0", subTotal: "0", folio: null })]);
+    render(<Harness />);
+    const pago = dataRow("PG");
+    expect(within(pago).getByText("Pago")).toBeInTheDocument();
+    expect(within(pago).getByText("No suma")).toBeInTheDocument();
+    expect(cellOf(pago, 3).textContent).toBe("—");
+    expect(cellOf(pago, 6).textContent).toBe("—");
+    expect(pago.className).toContain("text-muted-foreground");
+    expect(within(pago).queryByRole("button", { name: /^Acciones de la factura/ })).toBeNull();
+    expect(cells(pago)).toHaveLength(8);
+    expect(cellOf(pago, 7)).toBeInTheDocument();
+  });
+
+  it("shows a $0 Ingreso as $0.00 with No suma", () => {
+    seed([inv("Z0", { total: "0.00", subTotal: "0.00" })]);
+    render(<Harness />);
+    const zero = dataRow("Z0");
+    expect(cellOf(zero, 6).textContent).toBe("$0.00");
+    expect(within(zero).getByText("No suma")).toBeInTheDocument();
+    expect(within(zero).queryByRole("button", { name: /^Acciones de la factura/ })).toBeNull();
+  });
+
+  it("never reduces opacity of a row", () => {
+    seed([
+      inv("U1"),
+      inv("PG", { tipo: "P", moneda: "XXX", total: "0", subTotal: "0" }),
+      inv("Z0", { total: "0.00", subTotal: "0.00" }),
+    ]);
+    render(<Harness />);
+    act(() => {
+      useSessionStore.getState().excludeInvoice("U1");
+    });
+    // The shared Button carries a disabled-only opacity; rows and cells must carry none.
+    const surfaces = document.querySelectorAll("tbody tr, tbody td, tbody td span, tbody td div");
+    expect(surfaces.length).toBeGreaterThan(0);
+    for (const element of surfaces) {
+      expect(element.className).not.toMatch(/opacity-/);
+    }
+  });
+
+  it("shows a converted foreign invoice with the MXN amount and the original line", () => {
+    seed([inv("US", { moneda: "USD", tipoCambio: "18.20", total: "100.00", subTotal: "100.00" })]);
+    render(<Harness />);
+    const row = dataRow("US");
+    expect(cellOf(row, 6).textContent).toContain("$1,820.00");
+    expect(within(row).getByText("USD 100.00 · TC 18.20")).toBeInTheDocument();
+    expect(within(row).queryByText("No suma")).toBeNull();
+  });
+
+  it("shows a foreign invoice without rate with a dash, the original and No suma", () => {
+    seed([inv("US", { moneda: "USD", tipoCambio: null, total: "100.00", subTotal: "100.00" })]);
+    render(<Harness />);
+    const row = dataRow("US");
+    expect(cellOf(row, 6).textContent).toContain("—");
+    expect(within(row).getByText("USD 100.00")).toBeInTheDocument();
+    expect(within(row).getByText("No suma")).toBeInTheDocument();
+  });
+
+  it("makes the original amount follow the IVA mode", () => {
+    seed([inv("US", { moneda: "USD", tipoCambio: "18.20", total: "116.00", subTotal: "100.00" })]);
+    const { rerender } = render(<Harness mode="con" />);
+    expect(within(dataRow("US")).getByText("USD 116.00 · TC 18.20")).toBeInTheDocument();
+    rerender(<Harness mode="sin" />);
+    expect(within(dataRow("US")).getByText("USD 100.00 · TC 18.20")).toBeInTheDocument();
+    expect(cellOf(dataRow("US"), 6).textContent).toContain("$1,820.00");
+  });
+
+  it("shows the SAT names of the formas de pago and the PPD sentinel", () => {
+    const ppd = inv("PP", { metodoPago: "PPD", formaPago: "99" });
+    seed([ppd]);
+    render(<Harness />);
+    expect(within(dataRow("PP")).getByText("Por definir (sin complemento de pago)")).toBeInTheDocument();
+  });
+});
+
+describe("InvoiceTable concept panels", () => {
+  const rich = (): ParsedInvoice =>
+    inv("F1", {
+      subTotal: "300.00",
+      total: "348.00",
+      conceptos: [
+        concepto({
+          descripcion: "Café molido",
+          cantidad: "2.000000",
+          unidad: "Pieza",
+          valorUnitario: "100.000000",
+          importe: "200.00",
+          traslados: [iva("32.00")],
+        }),
+        concepto({
+          descripcion: "Leche",
+          cantidad: "1.500000",
+          claveUnidad: "LTR",
+          valorUnitario: "66.666667",
+          importe: "100.00",
+          traslados: [iva("16.00")],
+        }),
+      ],
+    });
+
+  it("opens only from the chevron with aria-expanded and aria-controls and lists the concepts", () => {
+    seed([rich()]);
+    render(<Harness />);
+    const button = chevron("F1");
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(button).toHaveAccessibleName("Ver conceptos");
+    fireEvent.click(cellOf(dataRow("F1"), 1));
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    expect(button).toHaveAccessibleName("Ocultar conceptos");
+    const panelId = button.getAttribute("aria-controls");
+    if (panelId === null) throw new Error("no aria-controls");
+    const panel = document.getElementById(panelId);
+    if (panel === null) throw new Error("no panel");
+    const view = within(panel);
+    expect(view.getByText("Conceptos de la factura F1")).toBeInTheDocument();
+    for (const name of ["Descripción", "Cantidad", "Unidad", "Precio unitario", "Monto"]) {
+      expect(view.getByRole("columnheader", { name })).toBeInTheDocument();
+    }
+    expect(view.getByText("Café molido")).toBeInTheDocument();
+    expect(view.getByText("2")).toBeInTheDocument();
+    expect(view.getByText("1.5")).toBeInTheDocument();
+    expect(view.getByText("Pieza")).toBeInTheDocument();
+    expect(view.getByText("LTR").className).toContain("font-mono");
+    expect(view.getByText("$100.00")).toBeInTheDocument();
+    expect(view.getByText("$66.666667")).toBeInTheDocument();
+    expect(view.getByText("$232.00")).toBeInTheDocument();
+    expect(view.getByText("$116.00")).toBeInTheDocument();
+    expect(view.queryByText(/Diferencia de redondeo/)).toBeNull();
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(document.getElementById(panelId)).toBeNull();
+  });
+
+  it("titles the panel with the short uuid when there is no folio", () => {
+    seed([inv("ABCDEF12-0000", { folio: null })]);
+    render(<Harness />);
+    fireEvent.click(chevron("ABCDEF12-0000"));
+    expect(screen.getByText("Conceptos de la factura ABCDEF12")).toBeInTheDocument();
+  });
+
+  it("shows the rounding line only when the rounded sums differ and follows the mode", () => {
+    seed([{ ...rich(), total: "348.01" }]);
+    const { rerender } = render(<Harness mode="con" />);
+    fireEvent.click(chevron("F1"));
+    expect(screen.getByText("Diferencia de redondeo: $0.01")).toBeInTheDocument();
+    rerender(<Harness mode="sin" />);
+    expect(screen.queryByText(/Diferencia de redondeo/)).toBeNull();
+  });
+
+  it("lets several panels be open and keeps them open across sorting, paging and filtering", () => {
+    seed([
+      { ...rich(), fecha: "2025-01-01T10:00:00" },
+      inv("F2", { fecha: "2025-02-01T10:00:00", conceptos: [concepto({ descripcion: "Otro" })] }),
+      inv("F3", { fecha: "2025-03-01T10:00:00" }),
+    ]);
+    const { rerender } = render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    fireEvent.click(chevron("F2"));
+    expect(chevron("F1")).toHaveAttribute("aria-expanded", "true");
+    expect(chevron("F2")).toHaveAttribute("aria-expanded", "true");
+    clickHeader("Fecha");
+    clickHeader("Proveedor");
+    expect(chevron("F1")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Café molido")).toBeInTheDocument();
+    rerender(<Harness only={new Set(["F1", "F3"])} />);
+    expect(screen.queryByText("Conceptos de la factura F2")).toBeNull();
+    expect(chevron("F1")).toHaveAttribute("aria-expanded", "true");
+    rerender(<Harness />);
+    expect(chevron("F2")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Conceptos de la factura F2")).toBeInTheDocument();
+  });
+
+  it("shows the original currency line for a converted invoice", () => {
+    seed([inv("US", { moneda: "USD", tipoCambio: "18.20", total: "100.00", subTotal: "100.00" })]);
+    render(<Harness />);
+    fireEvent.click(chevron("US"));
+    expect(screen.getByText("Moneda original: USD · TC 18.20")).toBeInTheDocument();
+  });
+
+  it("shows when a PPD invoice was paid, once per loaded payment", () => {
+    const ppd = inv("PP", { metodoPago: "PPD", formaPago: "99" });
+    const pago = inv("PG", {
+      tipo: "P",
+      moneda: "XXX",
+      total: "0",
+      subTotal: "0",
+      pagos: [
+        {
+          fechaPago: "2025-03-15T12:00:00",
+          formaDePagoP: "04",
+          monedaP: "MXN",
+          monto: "116.00",
+          doctos: [{ idDocumento: "PP", monedaDR: "MXN", impPagado: "116.00" }],
+        },
+      ],
+    });
+    seed([ppd, pago]);
+    render(<Harness />);
+    expect(within(dataRow("PP")).getByText("Tarjeta de crédito")).toBeInTheDocument();
+    fireEvent.click(chevron("PP"));
+    expect(screen.getByText("Pagada el 15/03/2025 con Tarjeta de crédito")).toBeInTheDocument();
+  });
+
+  it("explains a substituted original", () => {
+    seed([
+      inv("OR", { folio: "O-1" }),
+      inv("RE", { folio: "R-1", relacionados: [{ tipoRelacion: "04", uuids: ["OR"] }] }),
+    ]);
+    render(<Harness />);
+    const original = dataRow("OR");
+    expect(within(original).getByText("Sustituida")).toBeInTheDocument();
+    fireEvent.click(chevron("OR"));
+    expect(screen.getByText("Sustituida por la factura R-1. No se suma.")).toBeInTheDocument();
+  });
+});
+
+describe("InvoiceTable exclusion", () => {
+  it("excludes at once with no dialog, marks the row, recomputes and toasts with undo", async () => {
+    seed([inv("U1", { total: "100.00", subTotal: "100.00" }), inv("U2", { total: "50.00", subTotal: "50.00" })]);
+    render(<Harness />);
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$150.00");
+    await openMenu("U1");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excluir factura" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(useSessionStore.getState().excluded.has("U1")).toBe(true);
+    const row = dataRow("U1");
+    expect(within(row).getByText("Excluida")).toBeInTheDocument();
+    expect(within(row).getByText("$100.00").className).toContain("line-through");
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$50.00");
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    const [message, options] = toastMock.mock.calls[0] ?? [];
+    expect(message).toBe("Factura excluida");
+    expect(options?.duration).toBe(6000);
+    expect(options?.action?.label).toBe("Deshacer exclusión");
+  });
+
+  it("undoes the exclusion from the toast action", async () => {
+    seed([inv("U1", { total: "100.00", subTotal: "100.00" })]);
+    render(<Harness />);
+    await openMenu("U1");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excluir factura" }));
+    const [, options] = toastMock.mock.calls[0] ?? [];
+    const undo = options?.action?.onClick;
+    if (undo === undefined) throw new Error("no undo action");
+    act(() => {
+      undo();
+    });
+    expect(useSessionStore.getState().excluded.has("U1")).toBe(false);
+    expect(useSessionStore.getState().restored.has("U1")).toBe(true);
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$100.00");
+    expect(within(dataRow("U1")).queryByText("Excluida")).toBeNull();
+  });
+
+  it("offers Volver a incluir on an excluded row and toasts the reinclusion", async () => {
+    seed([inv("U1", { total: "100.00", subTotal: "100.00" })]);
+    render(<Harness />);
+    act(() => {
+      useSessionStore.getState().excludeInvoice("U1");
+    });
+    await openMenu("U1");
+    expect(screen.queryByRole("menuitem", { name: "Excluir factura" })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Volver a incluir" }));
+    expect(useSessionStore.getState().excluded.has("U1")).toBe(false);
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$100.00");
+    expect(toastMock).toHaveBeenCalledWith("Factura incluida de nuevo", expect.objectContaining({ duration: 6000 }));
+  });
+
+  it("brings a substituted original back with Volver a incluir", async () => {
+    seed([
+      inv("OR", { folio: "O-1", total: "100.00", subTotal: "100.00" }),
+      inv("RE", { folio: "R-1", total: "100.00", subTotal: "100.00", relacionados: [{ tipoRelacion: "04", uuids: ["OR"] }] }),
+    ]);
+    render(<Harness />);
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$100.00");
+    await openMenu("O-1");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Volver a incluir" }));
+    expect(useSessionStore.getState().restored.has("OR")).toBe(true);
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$200.00");
+    expect(within(dataRow("OR")).queryByText("Sustituida")).toBeNull();
+  });
+
+  it("lasts only the session and writes nothing to the browser storage", async () => {
+    const write = vi.spyOn(Storage.prototype, "setItem");
+    seed([inv("U1")]);
+    render(<Harness />);
+    await openMenu("U1");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excluir factura" }));
+    expect(write).not.toHaveBeenCalled();
+    expect(await readStoredSettings()).toBeNull();
+    cleanup();
     act(() => {
       useSessionStore.getState().clearAll();
     });
-    seed(many(10));
-    expect(document.querySelectorAll("tbody tr")).toHaveLength(10);
-    expect(screen.queryByText(/^Página/)).toBeNull();
-
-    // Growing again must start from page 1, not from the forgotten page 3.
-    seed(
-      Array.from({ length: 110 }, (_, i) =>
-        parsed(`V${String(i + 1).padStart(3, "0")}`),
-      ),
-    );
-    expect(screen.getByText("Página 1 de 3")).toBeInTheDocument();
-    expect(screen.getByText("Mostrando 1–50 de 120")).toBeInTheDocument();
+    seed([inv("U1")]);
+    render(<Harness />);
+    expect(within(dataRow("U1")).queryByText("Excluida")).toBeNull();
+    expect(useSessionStore.getState().excluded.size).toBe(0);
   });
 
-  it("keeps the current page when it still exists after a new batch", () => {
-    seed(many(120));
-    render(<InvoiceTable />);
-    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
-    expect(screen.getByText("Página 2 de 3")).toBeInTheDocument();
-    seed(
-      Array.from({ length: 5 }, (_, i) =>
-        parsed(`W${String(i + 1).padStart(3, "0")}`),
-      ),
-    );
-    expect(screen.getByText("Página 2 de 3")).toBeInTheDocument();
-    expect(screen.getByText("Mostrando 51–100 de 125")).toBeInTheDocument();
+  it("returns focus to the menu trigger after choosing an item", async () => {
+    seed([inv("U1")]);
+    render(<Harness />);
+    await openMenu("U1");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excluir factura" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Acciones de la factura U1" })).toHaveFocus();
+    });
   });
 });
 
-describe("InvoiceTable presentation (D-21, D-22) and empty state", () => {
-  it("shows Tipo as an outline badge", () => {
-    seed([parsed("U1", { tipo: "I" })]);
-    render(<InvoiceTable />);
-    const cell = document.querySelectorAll("tbody tr td")[2];
-    const badge = cell?.querySelector('[data-slot="badge"]');
-    expect(badge).not.toBeNull();
-    expect(badge?.textContent).toBe("Ingreso");
+describe("InvoiceTable layout, long text and untrusted text", () => {
+  it("scrolls horizontally inside its container with a 960 px minimum width", () => {
+    seed([inv("U1")]);
+    render(<Harness />);
+    const table = screen.getByRole("table");
+    expect(table.className).toContain("min-w-[960px]");
+    expect(table.parentElement?.className).toContain("overflow-x-auto");
   });
 
-  it("presents the D-22 note in an inline Alert with the note role", () => {
-    seed([parsed("U1")]);
-    render(<InvoiceTable />);
-    const alert = document.querySelector('[data-slot="alert"]');
-    expect(alert).not.toBeNull();
-    expect(alert).toHaveAttribute("role", "note");
-    expect(screen.queryByRole("alert")).toBeNull();
-    expect(alert?.textContent).toBe(
-      "Montos tal como vienen en cada XML; el cálculo de gasto llega después",
-    );
+  it("truncates long supplier and forma de pago text but wraps concept descriptions", () => {
+    const longName = "Comercializadora-Integral-de-Servicios-Especializados-".repeat(2).slice(0, 90);
+    const longDescription = "x".repeat(200);
+    const entry = makeEntry({
+      formas: ["01", "03", "04"],
+      supplierName: longName,
+      invoice: makeInvoice({
+        uuid: "LT",
+        folio: "LT",
+        conceptos: [concepto({ descripcion: longDescription })],
+      }),
+    });
+    render(<InvoiceTable rows={[entry]} ledger={[entry]} mode="con" />);
+    const supplier = screen.getByRole("button", { name: longName });
+    expect(supplier.className).toContain("truncate");
+    const formas = screen.getByRole("button", {
+      name: "Efectivo, Transferencia electrónica de fondos, Tarjeta de crédito",
+    });
+    expect(formas.className).toContain("truncate");
+    fireEvent.click(chevron("LT"));
+    const description = screen.getByText(longDescription);
+    expect(description.className).toContain("wrap-anywhere");
+    expect(description.className).not.toContain("truncate");
   });
 
-  it("explains the empty table when files were processed but none is valid", () => {
+  it("renders markup-like text as text and never injects elements", () => {
+    const hostile = "<img src=x onerror=alert(1)>";
     seed([
-      {
-        kind: "unreadable",
-        file: { name: "roto.xml", path: "carpeta/roto.xml" },
-      },
+      inv("XS", {
+        emisor: { rfc: "AAA010101AAA", nombre: hostile },
+        folio: hostile,
+        conceptos: [concepto({ descripcion: hostile })],
+      }),
     ]);
-    const { container } = render(<InvoiceTable />);
-    expect(screen.getByText("Ninguna factura válida")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Revisa los archivos rechazados arriba y vuelve a soltarlos.",
-      ),
-    ).toBeInTheDocument();
-    expect(container.querySelector("table")).toBeNull();
-    expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
+    render(<Harness />);
+    fireEvent.click(chevron("XS"));
+    expect(document.querySelector("img")).toBeNull();
+    expect(screen.getAllByText(hostile).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: `Acciones de la factura ${hostile}` })).toBeInTheDocument();
   });
+});
 
-  it("keeps the section out of the page when nothing was processed", () => {
-    const { container } = render(<InvoiceTable />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("still has no footer row and no sum with the new presentation", () => {
-    seed([parsed("U1", { total: "100.00" }), parsed("U2", { total: "200.00" })]);
-    const { container } = render(<InvoiceTable />);
-    expect(container.querySelector("tfoot")).toBeNull();
-    expect(container.textContent).not.toContain("300");
+describe("InvoiceTable with prebuilt entries", () => {
+  it("renders a row per entry it receives", () => {
+    const a: LedgerEntry = makeEntry({ invoice: makeInvoice({ uuid: "A", folio: "A" }) });
+    const b: LedgerEntry = makeEntry({ invoice: makeInvoice({ uuid: "B", folio: "B" }) });
+    render(<InvoiceTable rows={[a, b]} ledger={[a, b]} mode="con" />);
+    expect(dataRows()).toHaveLength(2);
   });
 });

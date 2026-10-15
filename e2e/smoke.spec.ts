@@ -159,6 +159,8 @@ test("carpeta sintética: reporte correcto, ningún XML sale del navegador, reca
   // report assertions after the reload steps still hold.
   await page.getByRole("tab", { name: "Dashboard" }).click();
   await expect(page.getByTestId("kpi-gasto")).toBeVisible();
+  // The Facturas table lists every row of the synthetic folder (2 Ingreso, 1 Egreso, 1 Pago).
+  await expect(page.getByText("Facturas (4)")).toBeVisible();
   await page.getByRole("tab", { name: "Importación" }).click();
   await expect(page.getByText("Reporte de importación")).toBeVisible();
 
