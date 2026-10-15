@@ -22,6 +22,7 @@
     "@tanstack/react-table": "9.3.1",
     "big.js": "7.0.1",
     "class-variance-authority": "^0.7.1",
+    "cmdk": "1.1.1",
     "cn": "^0.4.0",
     "jose": "6.2.12",
     "lucide-react": "^1.56.0",
