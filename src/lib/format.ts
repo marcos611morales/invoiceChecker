@@ -9,7 +9,7 @@
  * `src/domain/accounting`.
  */
 import Big from "big.js";
-import { ZERO, toMoneyString } from "@/domain/accounting/decimal";
+import { ZERO, parseDecimal, toMoneyString } from "@/domain/accounting/decimal";
 import { PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
 import type { MonthKey } from "@/domain/accounting/months";
 import { formaPagoName } from "@/domain/cfdi/catalogs";
@@ -81,6 +81,61 @@ export function formatMoney(value: Big): string {
     }
   }
   return text.startsWith("-") ? `${TRUE_MINUS}${text.slice(1)}` : text;
+}
+
+/**
+ * A concept quantity as a decimal without trailing zeros (D-25): "1.500000" gives
+ * "1.5", "2.000000" gives "2". Rounds half-up to at most 6 decimals and never
+ * prints an exponent. Text that is not a valid decimal is returned unchanged.
+ */
+export function formatQuantity(raw: string): string {
+  const value = parseDecimal(raw);
+  if (value === null) return raw;
+  const rounded = value.round(6, Big.roundHalfUp);
+  return rounded.eq(ZERO) ? "0" : rounded.toFixed();
+}
+
+/**
+ * A unit price in MXN with 2 to 6 fraction digits, because ValorUnitario carries
+ * up to 6 decimals (D-25). "—" when there is no price. The decimal string goes to
+ * Intl as a string, so no float is involved.
+ */
+export function formatUnitPrice(value: Big | null): string {
+  if (value === null) return MISSING_VALUE;
+  const decimal = value.toFixed();
+  let text = decimal;
+  if (isNumericLiteral(decimal)) {
+    try {
+      text = new Intl.NumberFormat("es-MX", {
+        style: "currency",
+        currency: "MXN",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 6,
+      }).format(decimal);
+    } catch {
+      text = decimal;
+    }
+  }
+  return text.startsWith("-") ? `${TRUE_MINUS}${text.slice(1)}` : text;
+}
+
+/**
+ * An exchange rate (TipoCambio) as plain decimal text with at least 2 and at
+ * most 6 decimals: "18.2" gives "18.20" (D-10). Rounds half-up only here.
+ */
+export function formatExchangeRate(value: Big): string {
+  const [integer = "0", fraction = ""] = value.round(6, Big.roundHalfUp).toFixed().split(".");
+  return `${integer}.${fraction.padEnd(2, "0")}`;
+}
+
+/** First 8 characters of a UUID, the short reference shown to the user. */
+export function shortUuid(uuid: string): string {
+  return uuid.slice(0, 8);
+}
+
+/** How an invoice is named in the interface: its folio, else the short UUID. */
+export function invoiceRef(folio: string | null, uuid: string): string {
+  return folio === null || folio === "" ? shortUuid(uuid) : folio;
 }
 
 /** Folio as the XML states it, "—" when the attribute is absent. */

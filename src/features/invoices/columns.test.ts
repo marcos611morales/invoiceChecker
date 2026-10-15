@@ -1,5 +1,7 @@
+// @vitest-environment jsdom
 import Big from "big.js";
-import { constructTable } from "@tanstack/react-table";
+import { renderHook } from "@testing-library/react";
+import { useTable } from "@tanstack/react-table";
 import type { SortingState } from "@tanstack/react-table";
 import { describe, expect, it } from "vitest";
 import { buildLedger, EMPTY_OVERRIDES, PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
@@ -338,6 +340,20 @@ describe("buildPaymentIndex", () => {
 });
 
 describe("module-scope features and columns", () => {
+  /** The displayed rows of a real useTable instance sorted as asked. */
+  function sortedRows(data: InvoiceRow[], sorting: SortingState): InvoiceRow[] {
+    const { result } = renderHook(() =>
+      useTable({
+        features,
+        columns,
+        data,
+        getRowId: (row) => row.id,
+        state: { sorting },
+      }),
+    );
+    return result.current.getSortedRowModel().rows.map((r) => r.original);
+  }
+
   const entries = [
     makeEntry({ conIva: new Big("345.98"), invoice: makeInvoice({ fecha: "2025-02-01T10:00:00" }) }),
     makeEntry({ conIva: new Big("-1000"), invoice: makeInvoice({ fecha: "2025-03-01T10:00:00" }) }),
@@ -351,32 +367,17 @@ describe("module-scope features and columns", () => {
     }),
     makeEntry({ conIva: new Big("0"), invoice: makeInvoice({ fecha: "2025-04-01T10:00:00" }) }),
   ];
-
-  function sortedAmounts(sorting: SortingState): (string | undefined)[] {
-    const table = constructTable({
-      features,
-      columns,
-      data: toInvoiceRows(entries, "con"),
-      getRowId: (row) => row.id,
-      state: { sorting },
-    });
-    return table.getSortedRowModel().rows.map((r) => r.original.amount?.toString());
-  }
+  const rows = toInvoiceRows(entries, "con");
 
   it("sorts Monto numerically on the signed value with undefined last in both directions", () => {
-    expect(sortedAmounts([{ id: "amount", desc: false }])).toEqual(["-1000", "0", "345.98", undefined]);
-    expect(sortedAmounts([{ id: "amount", desc: true }])).toEqual(["345.98", "0", "-1000", undefined]);
+    const amounts = (desc: boolean) =>
+      sortedRows(rows, [{ id: "amount", desc }]).map((r) => r.amount?.toString());
+    expect(amounts(false)).toEqual(["-1000", "0", "345.98", undefined]);
+    expect(amounts(true)).toEqual(["345.98", "0", "-1000", undefined]);
   });
 
   it("sorts Fecha by the literal ISO string", () => {
-    const table = constructTable({
-      features,
-      columns,
-      data: toInvoiceRows(entries, "con"),
-      getRowId: (row) => row.id,
-      state: { sorting: [{ id: "fecha", desc: true }] },
-    });
-    expect(table.getSortedRowModel().rows.map((r) => r.original.fecha)).toEqual([
+    expect(sortedRows(rows, [{ id: "fecha", desc: true }]).map((r) => r.fecha)).toEqual([
       "2025-04-01T10:00:00",
       "2025-03-01T10:00:00",
       "2025-02-01T10:00:00",
@@ -385,7 +386,7 @@ describe("module-scope features and columns", () => {
   });
 
   it("sorts text columns with the Spanish collation and Folio as text, missing folio last", () => {
-    const rows = ["Árbol", "zeta", "Abeja", "Zona"].map((name, i) =>
+    const named = ["Árbol", "zeta", "Abeja", "Zona"].map((name, i) =>
       firstRow(
         makeEntry({
           supplierName: name,
@@ -393,18 +394,11 @@ describe("module-scope features and columns", () => {
         }),
       ),
     );
-    const sort = (id: string, desc: boolean): string[] =>
-      constructTable({
-        features,
-        columns,
-        data: rows,
-        getRowId: (row) => row.id,
-        state: { sorting: [{ id, desc }] },
-      })
-        .getSortedRowModel()
-        .rows.map((r) => (id === "proveedor" ? r.original.proveedor : (r.original.folio ?? "—")));
-    expect(sort("proveedor", false)).toEqual(["Abeja", "Árbol", "zeta", "Zona"]);
-    expect(sort("folio", false)).toEqual(["10", "2", "9", "—"]);
-    expect(sort("folio", true)).toEqual(["9", "2", "10", "—"]);
+    const names = sortedRows(named, [{ id: "proveedor", desc: false }]).map((r) => r.proveedor);
+    expect(names).toEqual(["Abeja", "Árbol", "zeta", "Zona"]);
+    const folios = (desc: boolean) =>
+      sortedRows(named, [{ id: "folio", desc }]).map((r) => r.folio ?? "—");
+    expect(folios(false)).toEqual(["10", "2", "9", "—"]);
+    expect(folios(true)).toEqual(["9", "2", "10", "—"]);
   });
 });

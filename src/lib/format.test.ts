@@ -5,6 +5,7 @@ import {
   formaPagoLabel,
   formatCount,
   formatDelta,
+  formatExchangeRate,
   formatFechaIso,
   formatFolio,
   formatPercent,
@@ -247,5 +248,14 @@ describe("shortUuid and invoiceRef", () => {
     expect(invoiceRef("A-12", uuid)).toBe("A-12");
     expect(invoiceRef(null, uuid)).toBe("ABCDEF12");
     expect(invoiceRef("", uuid)).toBe("ABCDEF12");
+  });
+});
+
+describe("formatExchangeRate", () => {
+  it("shows at least 2 and at most 6 decimals", () => {
+    expect(formatExchangeRate(new Big("18.2"))).toBe("18.20");
+    expect(formatExchangeRate(new Big("18"))).toBe("18.00");
+    expect(formatExchangeRate(new Big("18.123400"))).toBe("18.1234");
+    expect(formatExchangeRate(new Big("0.0525"))).toBe("0.0525");
   });
 });
