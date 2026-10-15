@@ -187,6 +187,39 @@ export const es = {
       "Revisa los archivos rechazados en Importación y vuelve a soltarlos.",
   },
 
+  quality: {
+    heading: "Calidad de datos",
+    intro: "Revisa las facturas que pueden cambiar o limitar el análisis.",
+    emptyHeading: "Sin incidencias",
+    emptyBody: "No encontramos nada que revisar en las facturas cargadas.",
+    seeInvoice: "Ver factura",
+    reinclude: "Volver a incluir",
+    seeInImport: "Ver en Importación",
+    titles: {
+      ncSinRelacionada: "Notas de crédito sin factura relacionada",
+      ncVariasRelacionadas: "Notas de crédito con varias relacionadas",
+      sustituciones: "Sustituciones",
+      monedaSinTc: "Moneda sin tipo de cambio",
+      datosInvalidos: "Datos inválidos",
+      cero: "Facturas en $0",
+      redondeo: "Diferencias de redondeo",
+      ppd: "PPD sin complemento de pago",
+      excluidas: "Excluidas",
+      sustituidas: "Sustituidas",
+      duplicados: "Duplicados",
+      rechazados: "Archivos con error",
+    },
+    // Each label already carries the gender of its field (D-47): "Fecha inválida", "Total inválido".
+    invalidFields: [
+      ["Total", "Total inválido"],
+      ["SubTotal", "SubTotal inválido"],
+      ["Descuento", "Descuento inválido"],
+      ["Importe", "Importe inválido"],
+      ["Fecha", "Fecha inválida"],
+    ],
+    invalidFieldFallback: "Dato inválido",
+  },
+
   charts: {
     trendHeading: "Gasto por mes",
     trendLegendBars: "Gasto mensual",

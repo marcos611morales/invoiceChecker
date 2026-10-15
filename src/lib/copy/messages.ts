@@ -4,6 +4,7 @@
  */
 import { monthYearLabel } from "@/lib/format";
 import type { MonthKey } from "@/domain/accounting/months";
+import type { IncidentType, SubstitutionState } from "@/domain/accounting/quality";
 import type { RejectReason, TipoComprobante } from "@/domain/cfdi/types";
 import type {
   BatchSummary,
@@ -238,4 +239,54 @@ export function averageLegend(amountText: string): string {
 /** Caption of a ranking row: share of the total and average ticket, already formatted (D-23). */
 export function rankingCaption(pctText: string, ticketText: string): string {
   return `${pctText} del total · Ticket promedio ${ticketText}`;
+}
+
+// Calidad de datos row sentences (RED stubs; implemented in the GREEN commit).
+
+export function incidentTitle(_type: IncidentType): string {
+  return "";
+}
+
+export function ncSinRelacionadaRow(_monthLabel: string): string {
+  return "";
+}
+
+export function ncVariasRelacionadasRow(_monthLabel: string, _n: number): string {
+  return "";
+}
+
+export function sustitucionRow(_shortUuid: string, _state: SubstitutionState): string {
+  return "";
+}
+
+export function ceroRow(): string {
+  return "";
+}
+
+export function redondeoTotalRow(_diffText: string): string {
+  return "";
+}
+
+export function redondeoConceptosRow(_diffText: string): string {
+  return "";
+}
+
+export function ppdRow(): string {
+  return "";
+}
+
+export function monedaRow(_moneda: string): string {
+  return "";
+}
+
+export function datosInvalidosRow(_field: string | null): string {
+  return "";
+}
+
+export function excluidaRow(): string {
+  return "";
+}
+
+export function sustituidaRow(_ref: string): string {
+  return "";
 }

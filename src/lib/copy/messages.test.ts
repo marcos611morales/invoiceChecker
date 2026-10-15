@@ -1,13 +1,27 @@
 import { describe, expect, it } from "vitest";
 import type { DuplicateFile } from "@/domain/import/types";
+import { INCIDENT_ORDER } from "@/domain/accounting/quality";
+import { es } from "./es";
 import {
+  incidentTitle,
   appliesToText,
   averageLegend,
   batchToastText,
+  ceroRow,
   chipText,
   conceptsPanelTitle,
+  datosInvalidosRow,
   deltaLine,
   duplicateRowText,
+  excluidaRow,
+  monedaRow,
+  ncSinRelacionadaRow,
+  ncVariasRelacionadasRow,
+  ppdRow,
+  redondeoConceptosRow,
+  redondeoTotalRow,
+  sustitucionRow,
+  sustituidaRow,
   filtersButtonText,
   foreignAmountLine,
   groupTriggerText,
@@ -274,5 +288,96 @@ describe("invoice table texts", () => {
 
   it("formats the accessible name of the row menu", () => {
     expect(rowMenuAria("A-1")).toBe("Acciones de la factura A-1");
+  });
+});
+
+describe("incidentTitle", () => {
+  it("names the ten incident types in the order of INCIDENT_ORDER", () => {
+    expect(INCIDENT_ORDER.map((type) => incidentTitle(type))).toEqual([
+      "Notas de crédito sin factura relacionada",
+      "Notas de crédito con varias relacionadas",
+      "Sustituciones",
+      "Moneda sin tipo de cambio",
+      "Datos inválidos",
+      "Facturas en $0",
+      "Diferencias de redondeo",
+      "PPD sin complemento de pago",
+      "Excluidas",
+      "Sustituidas",
+    ]);
+  });
+});
+
+describe("Calidad de datos row sentences", () => {
+  it("explains a credit note without a loaded related invoice", () => {
+    expect(ncSinRelacionadaRow("jun 2025")).toBe(
+      "Se resta en su propia fecha (jun 2025) porque la factura relacionada no está cargada.",
+    );
+  });
+
+  it("explains the oldest-related rule exactly as D-46 words it", () => {
+    expect(ncVariasRelacionadasRow("may 2025", 2)).toBe(
+      "Aplica a may 2025: la relacionada más antigua de 2",
+    );
+    expect(ncVariasRelacionadasRow("jun 2025", 3)).toBe(
+      "Aplica a jun 2025: la relacionada más antigua de 3",
+    );
+  });
+
+  it("says what happened to the original of a substitution", () => {
+    expect(sustitucionRow("0A1B2C3D", "excluida")).toBe(
+      "Sustituye a la factura 0A1B2C3D…. La original quedó excluida.",
+    );
+    expect(sustitucionRow("0A1B2C3D", "no-cargada")).toBe(
+      "Sustituye a la factura 0A1B2C3D…. La original no está cargada.",
+    );
+    expect(sustitucionRow("0A1B2C3D", "reincluida")).toBe(
+      "Sustituye a la factura 0A1B2C3D…. La original se volvió a incluir.",
+    );
+  });
+
+  it("formats the $0, rounding, PPD, currency, excluded and substituted rows", () => {
+    expect(ceroRow()).toBe(
+      "Total en $0: no cuenta en el número de facturas ni en los promedios.",
+    );
+    expect(redondeoTotalRow("$0.02")).toBe(
+      "El Total del XML difiere en $0.02 de Subtotal − Descuento + traslados − retenciones.",
+    );
+    expect(redondeoConceptosRow("$0.02")).toBe(
+      "La suma de los conceptos difiere en $0.02 del Subtotal.",
+    );
+    expect(ppdRow()).toBe(
+      'Pago en parcialidades o diferido sin complemento de pago cargado; en filtros aparece como "Por definir (sin complemento de pago)".',
+    );
+    expect(monedaRow("USD")).toBe("USD sin tipo de cambio: no se suma");
+    expect(excluidaRow()).toBe("Excluida por ti en esta sesión.");
+    expect(sustituidaRow("A-1")).toBe("Sustituida por la factura A-1. No se suma.");
+  });
+});
+
+describe("datosInvalidosRow (D-35, D-47)", () => {
+  it("agrees in gender with every field of the copy table", () => {
+    expect(es.quality.invalidFields.length).toBe(5);
+    for (const [field, label] of es.quality.invalidFields) {
+      expect(datosInvalidosRow(field)).toBe(`${label}: no se suma`);
+    }
+  });
+
+  it("writes the five full sentences", () => {
+    expect(datosInvalidosRow("Total")).toBe("Total inválido: no se suma");
+    expect(datosInvalidosRow("SubTotal")).toBe("SubTotal inválido: no se suma");
+    expect(datosInvalidosRow("Descuento")).toBe("Descuento inválido: no se suma");
+    expect(datosInvalidosRow("Importe")).toBe("Importe inválido: no se suma");
+    expect(datosInvalidosRow("Fecha")).toBe("Fecha inválida: no se suma");
+  });
+
+  it("falls back to the neutral wording for a missing or unknown field", () => {
+    expect(datosInvalidosRow(null)).toBe("Dato inválido: no se suma");
+    expect(datosInvalidosRow("Folio")).toBe("Dato inválido: no se suma");
+  });
+
+  it("does not treat inherited object keys as fields", () => {
+    expect(datosInvalidosRow("__proto__")).toBe("Dato inválido: no se suma");
+    expect(datosInvalidosRow("constructor")).toBe("Dato inválido: no se suma");
   });
 });
