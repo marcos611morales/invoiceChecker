@@ -514,3 +514,166 @@ describe("Dashboard tab: filters (FILT-02, FILT-04, FILT-05, D-03, D-07)", () =>
     expect(JSON.stringify(stored)).not.toContain(ABARROTES.rfc);
   });
 });
+
+describe("Dashboard tab: KPI row (DASH-01, DASH-06, D-18, D-19, D-20, D-39)", () => {
+  const PROVEEDOR_A = { rfc: "AAA010101AAA", nombre: "Abarrotes del Sur" };
+  const PROVEEDOR_B = { rfc: "BBB010101BBB", nombre: "Café Árbol" };
+
+  /** One Ingreso per listed month of 2025 (1-based month numbers). */
+  function monthly(
+    months: readonly number[],
+    total: string,
+    emisor = PROVEEDOR_A,
+    overrides: Partial<ParsedInvoice> = {},
+  ): ParsedInvoice[] {
+    return months.map((month) =>
+      makeInvoice({
+        emisor,
+        fecha: `2025-${String(month).padStart(2, "0")}-15T10:00:00`,
+        subTotal: total,
+        total,
+        ...overrides,
+      }),
+    );
+  }
+
+  function notaCredito(amount: string, month: string): ParsedInvoice {
+    return makeInvoice({
+      tipo: "E",
+      emisor: PROVEEDOR_A,
+      fecha: `2025-${month}-20T10:00:00`,
+      subTotal: amount,
+      total: amount,
+    });
+  }
+
+  /** Percent of two integer-cent amounts as "+12.4 %": tenths of a percent, half-up, in BigInt. */
+  function expectedDelta(currentCents: bigint, previousCents: bigint): string {
+    const diff = currentCents - previousCents;
+    const tenths = (diff * BigInt(2000) + previousCents) / (previousCents * BigInt(2));
+    const digits = tenths.toString().padStart(2, "0");
+    return `+${digits.slice(0, -1)}.${digits.slice(-1)} %`;
+  }
+
+  const FIRST_HALF = [1, 2, 3, 4, 5, 6];
+  const SECOND_HALF = [7, 8, 9, 10, 11, 12];
+  const deltaText = (id: string) => screen.getByTestId(id).textContent;
+
+  it("shows 'Sin datos del periodo anterior' on all four cards for the 2025 sample case", () => {
+    load(monthly(FIRST_HALF, "100.00"));
+    render(<DashboardTab />);
+    for (const id of ["kpi-gasto-delta", "kpi-facturas-delta", "kpi-ticket-delta", "kpi-promedio-delta"]) {
+      expect(screen.getByTestId(id)).toHaveTextContent("Sin datos del periodo anterior");
+    }
+    expect(screen.getByTestId("kpi-promedio-delta").textContent).not.toMatch(/%/);
+  });
+
+  it("shows the four cards with counts, ticket and the stated divisor of the default range", () => {
+    load(monthly(FIRST_HALF, "100.00"));
+    render(<DashboardTab />);
+    expect(screen.getByTestId("kpi-gasto")).toHaveTextContent("$600.00");
+    expect(screen.getByTestId("kpi-facturas")).toHaveTextContent("6");
+    expect(screen.getByTestId("kpi-ticket")).toHaveTextContent("$100.00");
+    expect(screen.getByTestId("kpi-promedio")).toHaveTextContent("$100.00");
+    expect(screen.getByText("Entre 6 meses del calendario")).toBeInTheDocument();
+  });
+
+  it("divides by the calendar months of the range even when some have no invoices (DASH-06)", () => {
+    load([...monthly([1], "100.00"), ...monthly([12], "100.00")]);
+    render(<DashboardTab />);
+    expect(screen.getByText("Entre 12 meses del calendario")).toBeInTheDocument();
+    // 200.00 over 12 months = 16.666... shown as $16.67.
+    expect(screen.getByTestId("kpi-promedio")).toHaveTextContent("$16.67");
+  });
+
+  it("compares against the previous period of equal length: +12.4 % vs. ene–jun 2025", () => {
+    load([...monthly(FIRST_HALF, "100.00"), ...monthly(SECOND_HALF, "112.40")]);
+    render(<DashboardTab />);
+    act(() => {
+      useSessionStore.getState().setRange({ from: "2025-07", to: "2025-12" });
+    });
+    const current = BigInt(6) * toCents("112.40");
+    const previous = BigInt(6) * toCents("100.00");
+    expect(current).toBe(BigInt(67440));
+    expect(screen.getByTestId("kpi-gasto")).toHaveTextContent("$674.40");
+    const expected = expectedDelta(current, previous);
+    expect(expected).toBe("+12.4 %");
+    expect(deltaText("kpi-gasto-delta")).toContain(`${expected} vs. ene–jun 2025`);
+    expect(deltaText("kpi-gasto-delta")).toContain("subió");
+    expect(deltaText("kpi-ticket-delta")).toContain("+12.4 % vs. ene–jun 2025");
+    expect(deltaText("kpi-promedio-delta")).toContain("+12.4 % vs. ene–jun 2025");
+    // Same number of invoices in both periods.
+    expect(deltaText("kpi-facturas-delta")).toContain("0.0 % vs. ene–jun 2025");
+  });
+
+  it("applies the supplier filter to the current and the previous period alike (D-20)", () => {
+    load([
+      ...monthly(FIRST_HALF, "100.00", PROVEEDOR_A),
+      ...monthly(SECOND_HALF, "112.40", PROVEEDOR_A),
+      ...monthly(FIRST_HALF, "50.00", PROVEEDOR_B),
+      ...monthly(SECOND_HALF, "50.00", PROVEEDOR_B),
+    ]);
+    render(<DashboardTab />);
+    act(() => {
+      useSessionStore.getState().setRange({ from: "2025-07", to: "2025-12" });
+    });
+    const allCurrent = BigInt(6) * (toCents("112.40") + toCents("50.00"));
+    const allPrevious = BigInt(6) * (toCents("100.00") + toCents("50.00"));
+    expect(expectedDelta(allCurrent, allPrevious)).toBe("+8.3 %");
+    expect(deltaText("kpi-gasto-delta")).toContain("+8.3 % vs. ene–jun 2025");
+
+    act(() => {
+      useSessionStore.getState().setSuppliers(new Set([PROVEEDOR_A.rfc]));
+    });
+    expect(screen.getByTestId("kpi-gasto")).toHaveTextContent("$674.40");
+    expect(deltaText("kpi-gasto-delta")).toContain("+12.4 % vs. ene–jun 2025");
+  });
+
+  it("counts only Ingreso invoices and reports credit notes apart (D-18)", () => {
+    load([...monthly(FIRST_HALF, "100.00"), notaCredito("40.00", "03")]);
+    render(<DashboardTab />);
+    expect(screen.getByTestId("kpi-facturas")).toHaveTextContent("6");
+    expect(screen.getByText("+1 nota de crédito")).toBeInTheDocument();
+    // Net spend 600 - 40 = 560 over 6 invoices.
+    expect(screen.getByTestId("kpi-gasto")).toHaveTextContent("$560.00");
+    expect(screen.getByTestId("kpi-ticket")).toHaveTextContent("$93.33");
+  });
+
+  it("shows no credit-note sub-label when the range has none", () => {
+    load(monthly(FIRST_HALF, "100.00"));
+    render(<DashboardTab />);
+    expect(screen.queryByText(/nota de crédito|notas de crédito/)).toBeNull();
+  });
+
+  it("shows a dash for the ticket when only credit notes count (D-39)", () => {
+    load([notaCredito("40.00", "03")]);
+    render(<DashboardTab />);
+    expect(screen.getByTestId("kpi-ticket")).toHaveTextContent("—");
+    expect(screen.getByTestId("kpi-facturas")).toHaveTextContent("0");
+    expect(screen.getByTestId("kpi-gasto")).toHaveTextContent("−$40.00");
+  });
+
+  it("changes the money figures but not the Facturas count in Sin IVA", () => {
+    load(monthly(FIRST_HALF, "116.00", PROVEEDOR_A, { subTotal: "100.00" }));
+    render(<DashboardTab />);
+    expect(screen.getByTestId("kpi-gasto")).toHaveTextContent("$696.00");
+    expect(screen.getByTestId("kpi-facturas")).toHaveTextContent("6");
+    act(() => {
+      useSettingsStore.setState({ ivaMode: "sin" });
+    });
+    expect(screen.getByTestId("kpi-gasto")).toHaveTextContent("$600.00");
+    expect(screen.getByTestId("kpi-ticket")).toHaveTextContent("$100.00");
+    expect(screen.getByTestId("kpi-promedio")).toHaveTextContent("$100.00");
+    expect(screen.getByTestId("kpi-facturas")).toHaveTextContent("6");
+  });
+
+  it("never renders a percentage when the previous period net spend is not positive", () => {
+    // The previous period holds only a credit note: net spend is negative, so no change is computed.
+    load([...monthly(SECOND_HALF, "100.00"), notaCredito("30.00", "02")]);
+    render(<DashboardTab />);
+    act(() => {
+      useSessionStore.getState().setRange({ from: "2025-07", to: "2025-12" });
+    });
+    expect(deltaText("kpi-gasto-delta")).toBe("Sin datos del periodo anterior");
+  });
+});
