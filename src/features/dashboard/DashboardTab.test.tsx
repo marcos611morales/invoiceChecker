@@ -1,17 +1,24 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   act,
   cleanup,
   fireEvent,
   render,
   screen,
+  within,
 } from "@testing-library/react";
 import { parseCfdi } from "@/domain/cfdi/parseCfdi";
 import type { ParsedInvoice } from "@/domain/cfdi/types";
 import { AppShell } from "@/features/shell/AppShell";
 import { useSessionStore } from "@/stores/sessionStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { readFixture } from "../../../tests/support/cfdiVariants";
+import {
+  clearStoredSettings,
+  readStoredSettings,
+  storeIvaMode,
+} from "../../../tests/support/settingsStorage";
 
 function parseFixture(relPath: string): ParsedInvoice {
   const result = parseCfdi(readFixture(relPath));
@@ -60,10 +67,22 @@ function gastoText(): string {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   act(() => {
     useSessionStore.getState().clearAll();
+    useSettingsStore.setState({ ivaMode: "con" });
   });
+  clearStoredSettings();
 });
+
+/** Sin IVA of the anonymized Ingreso: Subtotal minus Descuento, no IEPS in the fixture. */
+const ingresoSinCents = toCents(ingreso.subTotal) - toCents(ingreso.descuento ?? "0");
+/** Sin IVA of the anonymized Egreso: its Subtotal (no Descuento, no IEPS). */
+const egresoSinCents = toCents(egreso.subTotal) - toCents(egreso.descuento ?? "0");
+
+function ivaButton(name: "Con IVA" | "Sin IVA"): HTMLElement {
+  return within(screen.getByTestId("iva-toggle-bar")).getByRole("button", { name });
+}
 
 describe("Dashboard tab: Gasto total (REGLA-01, REGLA-04, DASH-10)", () => {
   it("fixtures carry the expected types and totals", () => {
@@ -165,5 +184,159 @@ describe("Dashboard tab: Gasto total (REGLA-01, REGLA-04, DASH-10)", () => {
     expect(screen.queryByText("Facturas cargadas")).toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "Importación" }));
     expect(screen.queryByText("Facturas cargadas")).toBeNull();
+  });
+});
+
+describe("Dashboard tab: Gasto total follows the IVA mode (REGLA-03, DASH-10)", () => {
+  it("reads Sin IVA as Ingreso minus Egreso from Subtotal minus Descuento", () => {
+    expect(ingresoSinCents).toBe(BigInt(129081));
+    expect(egresoSinCents).toBe(BigInt(86207));
+    expect(ingresoSinCents - egresoSinCents).toBe(BigInt(42874));
+  });
+
+  it("starts in Con IVA and switching the control changes the card at once", () => {
+    load([ingreso, egreso, pago]);
+    render(<AppShell />);
+    expect(gastoText()).toBe("$345.98");
+    expect(ivaButton("Con IVA")).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(ivaButton("Sin IVA"));
+    expect(gastoText()).toBe(`$${centsToPlain(ingresoSinCents - egresoSinCents)}`);
+    expect(gastoText()).toBe("$428.74");
+    expect(ivaButton("Sin IVA")).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(ivaButton("Con IVA"));
+    expect(gastoText()).toBe("$345.98");
+  });
+
+  it("shows the stored Sin IVA figure after a reload", () => {
+    storeIvaMode("sin");
+    load([ingreso, egreso]);
+    render(<AppShell />);
+    expect(gastoText()).toBe("$428.74");
+    expect(ivaButton("Sin IVA")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("persists the chosen mode through the settings store", async () => {
+    load([ingreso, egreso]);
+    render(<AppShell />);
+    fireEvent.click(ivaButton("Sin IVA"));
+    expect(await readStoredSettings()).toEqual({
+      state: { ivaMode: "sin" },
+      version: 1,
+    });
+  });
+});
+
+describe("Dashboard tab: Gasto total follows the exclusions (REGLA-08)", () => {
+  it("removes an excluded Ingreso from the total and brings it back when reincluded", () => {
+    load([ingreso, egreso]);
+    render(<AppShell />);
+    expect(gastoText()).toBe("$345.98");
+
+    act(() => {
+      useSessionStore.getState().excludeInvoice(ingreso.uuid);
+    });
+    expect(gastoText()).toBe("−$1,000.00");
+
+    act(() => {
+      useSessionStore.getState().reincludeInvoice(ingreso.uuid);
+    });
+    expect(gastoText()).toBe("$345.98");
+  });
+
+  it("applies the exclusion in Sin IVA as well", () => {
+    load([ingreso, egreso]);
+    render(<AppShell />);
+    fireEvent.click(ivaButton("Sin IVA"));
+    act(() => {
+      useSessionStore.getState().excludeInvoice(ingreso.uuid);
+    });
+    expect(gastoText()).toBe("−$862.07");
+  });
+});
+
+describe("AppShell: shell wiring (D-01, D-05, UI Considerations E1 and E2)", () => {
+  it("rehydrates the settings store once on mount and not on re-render", () => {
+    const rehydrate = vi.spyOn(useSettingsStore.persist, "rehydrate");
+    load([ingreso, egreso]);
+    const view = render(<AppShell />);
+    expect(rehydrate).toHaveBeenCalledTimes(1);
+    view.rerender(<AppShell />);
+    fireEvent.click(ivaButton("Sin IVA"));
+    expect(rehydrate).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the IVA control (both variants) only on the loaded screen", () => {
+    render(<AppShell />);
+    expect(screen.queryByTestId("iva-toggle-bar")).toBeNull();
+    expect(screen.queryByTestId("iva-toggle-subbar")).toBeNull();
+    cleanup();
+
+    load([ingreso, egreso]);
+    render(<AppShell />);
+    expect(screen.getByTestId("iva-toggle-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("iva-toggle-subbar")).toBeInTheDocument();
+  });
+
+  it("renders the tabs controlled by the store's activeTab", () => {
+    load([ingreso, egreso]);
+    act(() => {
+      useSessionStore.getState().setActiveTab("importacion");
+    });
+    render(<AppShell />);
+    expect(screen.getByRole("tab", { name: "Importación" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("Reporte de importación")).toBeInTheDocument();
+
+    act(() => {
+      useSessionStore.getState().setActiveTab("dashboard");
+    });
+    expect(screen.getByRole("tab", { name: "Dashboard" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("writes a clicked tab to the store", () => {
+    load([ingreso, egreso]);
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole("tab", { name: "Importación" }));
+    expect(useSessionStore.getState().activeTab).toBe("importacion");
+    fireEvent.click(screen.getByRole("tab", { name: "Dashboard" }));
+    expect(useSessionStore.getState().activeTab).toBe("dashboard");
+  });
+
+  it("lists Dashboard and Importación for now (Calidad arrives in Plan 02-15)", () => {
+    load([ingreso, egreso]);
+    render(<AppShell />);
+    const names = screen.getAllByRole("tab").map((tab) => tab.textContent);
+    expect(names).toEqual(["Dashboard", "Importación"]);
+  });
+
+  it("styles the tab list per UI-SPEC: 40 px list, 44 px touch height, 16 px padding, primary underline", () => {
+    load([ingreso, egreso]);
+    render(<AppShell />);
+    const list = screen.getByRole("tablist");
+    expect(list.className).toContain("h-10");
+    expect(list.className).toContain("max-sm:group-data-horizontal/tabs:h-11");
+    const trigger = screen.getByRole("tab", { name: "Dashboard" });
+    expect(trigger.className).toContain("px-4");
+    expect(trigger.className).toContain("font-semibold");
+    expect(trigger.className).toContain("after:bg-primary");
+    expect(trigger.className).toContain("max-sm:group-data-horizontal/tabs:h-11");
+  });
+
+  it("collapses 'Agregar facturas' to icon-only below 768 px and keeps its aria-label", () => {
+    load([ingreso, egreso]);
+    render(<AppShell />);
+    const button = screen.getByRole("button", { name: "Agregar facturas" });
+    expect(button.className).toContain("max-md:size-9");
+    expect(button.className).toContain("max-sm:size-11");
+    const label = within(button).getByText("Agregar facturas");
+    expect(label.className).toContain("max-md:sr-only");
+    expect(label.className).not.toContain("max-sm:sr-only");
   });
 });

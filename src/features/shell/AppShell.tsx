@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, type ComponentType } from "react";
 import { ShieldCheck, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,7 +11,8 @@ import { EmptyDropzone } from "@/features/upload/EmptyDropzone";
 import { ProcessingIndicator } from "@/features/upload/ProcessingIndicator";
 import { UploadRoot, useUpload } from "@/features/upload/UploadRoot";
 import { es } from "@/lib/copy/es";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useSessionStore, type AppTab } from "@/stores/sessionStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { TopBar } from "./TopBar";
 import { useBeforeUnload } from "./useBeforeUnload";
 
@@ -22,43 +24,67 @@ function AddInvoicesButton() {
       type="button"
       disabled={processing}
       onClick={openFiles}
-      className="h-9 max-sm:size-11 max-sm:px-0"
+      className="h-9 max-md:size-9 max-md:px-0 max-sm:size-11"
       aria-label={es.global.addInvoices}
     >
       <Upload className="size-4" aria-hidden="true" />
-      <span className="max-sm:sr-only">{es.global.addInvoices}</span>
+      <span className="max-md:sr-only">{es.global.addInvoices}</span>
     </Button>
   );
 }
 
 const TRIGGER_CLASS =
-  "group-data-horizontal/tabs:h-10 flex-none px-4 text-sm font-semibold hover:bg-secondary";
+  "group-data-horizontal/tabs:h-10 max-sm:group-data-horizontal/tabs:h-11 flex-none px-4 text-sm font-semibold text-muted-foreground after:bg-primary hover:bg-secondary";
+
+/** Accepts only the tab values the store knows; anything else is ignored (no cast). */
+function isAppTab(value: unknown): value is AppTab {
+  return value === "dashboard" || value === "calidad" || value === "importacion";
+}
+
+interface TabDefinition {
+  value: AppTab;
+  label: string;
+  Panel: ComponentType;
+}
+
+/** Module scope so Plan 02-15 adds the Calidad entry without touching the structure below. */
+const TABS: readonly TabDefinition[] = [
+  { value: "dashboard", label: es.tabs.dashboard, Panel: DashboardTab },
+  { value: "importacion", label: es.tabs.import, Panel: ImportReport },
+];
 
 /**
- * Loaded screen (D-01): Dashboard and Importación. The Phase 1 invoices table
- * is no longer rendered here (D-02).
+ * Loaded screen (D-01): the tabs are controlled by the session store, so a finished
+ * batch (D-44) and the "Ver factura" requests can switch them. The Phase 1 invoices
+ * table is no longer rendered here (D-02).
  */
 function LoadedTabs() {
+  const activeTab = useSessionStore((s) => s.activeTab);
+  const setActiveTab = useSessionStore((s) => s.setActiveTab);
   return (
-    <Tabs defaultValue="dashboard" className="gap-8">
+    <Tabs
+      value={activeTab}
+      onValueChange={(value: unknown) => {
+        if (isAppTab(value)) setActiveTab(value);
+      }}
+      className="gap-8"
+    >
       <TabsList
         variant="line"
         aria-label={es.tabs.ariaLabel}
-        className="group-data-horizontal/tabs:h-10 gap-2 p-0"
+        className="group-data-horizontal/tabs:h-10 max-sm:group-data-horizontal/tabs:h-11 gap-2 p-0"
       >
-        <TabsTrigger value="dashboard" className={TRIGGER_CLASS}>
-          {es.tabs.dashboard}
-        </TabsTrigger>
-        <TabsTrigger value="import" className={TRIGGER_CLASS}>
-          {es.tabs.import}
-        </TabsTrigger>
+        {TABS.map(({ value, label }) => (
+          <TabsTrigger key={value} value={value} className={TRIGGER_CLASS}>
+            {label}
+          </TabsTrigger>
+        ))}
       </TabsList>
-      <TabsContent value="dashboard">
-        <DashboardTab />
-      </TabsContent>
-      <TabsContent value="import">
-        <ImportReport />
-      </TabsContent>
+      {TABS.map(({ value, Panel }) => (
+        <TabsContent key={value} value={value}>
+          <Panel />
+        </TabsContent>
+      ))}
     </Tabs>
   );
 }
@@ -69,9 +95,18 @@ export function AppShell() {
   // The unload warning keys on loaded invoices, not on the report (D-07b).
   const hasInvoices = useSessionStore((s) => s.invoices.length > 0);
   useBeforeUnload(hasInvoices);
+  // The settings store is created with skipHydration, so the stored IVA mode is read once
+  // here (external-store sync, no React state). Before that the control shows Con IVA, the
+  // same markup the server renders.
+  useEffect(() => {
+    void useSettingsStore.persist.rehydrate();
+  }, []);
   return (
     <UploadRoot>
-      <TopBar actions={reportVisible ? <AddInvoicesButton /> : null} />
+      <TopBar
+        showIva={reportVisible}
+        actions={reportVisible ? <AddInvoicesButton /> : null}
+      />
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 pt-8 pb-16">
         <ProcessingIndicator />
         {reportVisible ? <LoadedTabs /> : <EmptyDropzone />}

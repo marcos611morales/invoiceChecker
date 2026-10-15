@@ -119,6 +119,18 @@ export const es = {
     import: "Importación",
   },
 
+  iva: {
+    groupLabel: "Montos con o sin IVA",
+    con: "Con IVA",
+    sin: "Sin IVA",
+    conShort: "c/IVA",
+    sinShort: "s/IVA",
+    conTooltip: "Total de cada factura",
+    sinTooltip: "Subtotal − Descuento + IEPS (quita solo el IVA)",
+    captionCon: "Montos con IVA (Total de cada factura)",
+    captionSin: "Montos sin IVA (Subtotal − Descuento + IEPS)",
+  },
+
   dashboard: {
     kpis: {
       gasto: "Gasto total",

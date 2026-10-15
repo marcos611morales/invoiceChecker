@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
+import { parseCfdi } from "@/domain/cfdi/parseCfdi";
 import type { BatchEntry } from "@/domain/import/types";
 import { es } from "@/lib/copy/es";
 import { useSessionStore } from "@/stores/sessionStore";
+import { readFixture } from "../../../tests/support/cfdiVariants";
 
 const toastMock = vi.hoisted(() => {
   const fn = vi.fn();
@@ -17,6 +19,22 @@ vi.mock("@/lib/client/ingest", () => ({ ingest: ingestMock }));
 import { useImport } from "./useImport";
 
 const pdfFile = new File(["x"], "a.pdf", { type: "application/pdf" });
+
+function parsedEntry(relPath: string, name: string): BatchEntry {
+  const result = parseCfdi(readFixture(relPath));
+  if (!result.ok) {
+    throw new Error(`fixture ${relPath} did not parse: ${result.reason}`);
+  }
+  return {
+    kind: "parsed",
+    file: { name, path: name },
+    result: { ok: true, invoice: result.invoice },
+  };
+}
+
+const ingresoBatch: BatchEntry[] = [
+  parsedEntry("anon/anon-ingreso-descuento.xml", "ingreso.xml"),
+];
 
 const ignoredBatch: BatchEntry[] = [
   {
@@ -90,5 +108,131 @@ describe("useImport", () => {
 
     expect(toastMock).not.toHaveBeenCalled();
     expect(useSessionStore.getState().ignored).toEqual([]);
+  });
+});
+
+describe("useImport: tab after a finished batch (D-01, D-44)", () => {
+  beforeEach(() => {
+    useSessionStore.getState().clearAll();
+    toastMock.mockReset();
+    toastMock.error.mockReset();
+    ingestMock.mockReset();
+  });
+
+  afterEach(() => {
+    useSessionStore.getState().clearAll();
+  });
+
+  it("opens Dashboard when the batch added an invoice", async () => {
+    ingestMock.mockResolvedValue(ingresoBatch);
+    useSessionStore.getState().setActiveTab("importacion");
+    const { result } = renderHook(() => useImport());
+
+    await act(async () => {
+      await result.current.run([pdfFile]);
+    });
+
+    expect(useSessionStore.getState().invoices).toHaveLength(1);
+    expect(useSessionStore.getState().activeTab).toBe("dashboard");
+  });
+
+  it("opens Dashboard even when the batch added nothing but the session already has an invoice", async () => {
+    ingestMock.mockResolvedValueOnce(ingresoBatch);
+    const { result } = renderHook(() => useImport());
+    await act(async () => {
+      await result.current.run([pdfFile]);
+    });
+    useSessionStore.getState().setActiveTab("importacion");
+
+    ingestMock.mockResolvedValueOnce(ignoredBatch);
+    await act(async () => {
+      await result.current.run([pdfFile]);
+    });
+
+    expect(useSessionStore.getState().invoices).toHaveLength(1);
+    expect(useSessionStore.getState().lastSummary?.added).toBe(0);
+    expect(useSessionStore.getState().activeTab).toBe("dashboard");
+  });
+
+  it("opens Importación when the session has no invoice at all", async () => {
+    ingestMock.mockResolvedValue(ignoredBatch);
+    useSessionStore.getState().setActiveTab("dashboard");
+    const { result } = renderHook(() => useImport());
+
+    await act(async () => {
+      await result.current.run([pdfFile]);
+    });
+
+    expect(useSessionStore.getState().invoices).toHaveLength(0);
+    expect(useSessionStore.getState().activeTab).toBe("importacion");
+  });
+
+  it("respects the tab the user picked while the batch is still parsing", async () => {
+    let finish: (batch: BatchEntry[]) => void = () => {};
+    ingestMock.mockImplementation(
+      () =>
+        new Promise<BatchEntry[]>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { result } = renderHook(() => useImport());
+
+    let running: Promise<void> = Promise.resolve();
+    act(() => {
+      running = result.current.run([pdfFile]);
+    });
+    expect(useSessionStore.getState().progress.phase).not.toBe("idle");
+
+    act(() => {
+      useSessionStore.getState().setActiveTab("importacion");
+    });
+    expect(useSessionStore.getState().activeTab).toBe("importacion");
+
+    await act(async () => {
+      finish(ingresoBatch);
+      await running;
+    });
+
+    expect(useSessionStore.getState().activeTab).toBe("dashboard");
+  });
+
+  it("does not touch the tab when the batch failed", async () => {
+    ingestMock.mockRejectedValue(new Error("boom"));
+    useSessionStore.getState().setActiveTab("importacion");
+    const { result } = renderHook(() => useImport());
+
+    await act(async () => {
+      await result.current.run([pdfFile]);
+    });
+
+    expect(useSessionStore.getState().activeTab).toBe("importacion");
+  });
+
+  it("does not touch the tab when the batch was cancelled", async () => {
+    ingestMock.mockResolvedValue(null);
+    useSessionStore.getState().setActiveTab("importacion");
+    const { result } = renderHook(() => useImport());
+
+    await act(async () => {
+      await result.current.run([pdfFile]);
+    });
+
+    expect(useSessionStore.getState().activeTab).toBe("importacion");
+  });
+
+  it("does not touch the tab when the session was cleared while the batch ran", async () => {
+    ingestMock.mockImplementation(async () => {
+      useSessionStore.getState().clearAll();
+      useSessionStore.getState().setActiveTab("importacion");
+      return ingresoBatch;
+    });
+    const { result } = renderHook(() => useImport());
+
+    await act(async () => {
+      await result.current.run([pdfFile]);
+    });
+
+    expect(useSessionStore.getState().invoices).toHaveLength(0);
+    expect(useSessionStore.getState().activeTab).toBe("importacion");
   });
 });
