@@ -37,6 +37,15 @@ export function sum(values: Iterable<Big>): Big {
 }
 
 /**
+ * Exact decimal of a safe integer such as a count of invoices or months. Strict
+ * Big rejects numbers, so it is built from the integer's decimal string; any
+ * other input (fraction, NaN, infinity, beyond 2^53) gives ZERO.
+ */
+export function fromInteger(n: number): Big {
+  return Number.isSafeInteger(n) ? new Big(String(n)) : ZERO;
+}
+
+/**
  * Display string such as "1234.50": half-up, 2 decimals, and any zero prints as
  * "0.00" (never "-0.00"). Feed this string to `Intl`, never a number.
  */
