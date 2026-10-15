@@ -71,7 +71,10 @@ function openSelect(label: string): string[] {
 
 function chooseOption(label: string, optionText: string): void {
   openSelect(label);
-  fireEvent.click(screen.getByRole("option", { name: optionText }));
+  const option = screen.getByRole("option", { name: optionText });
+  // Base UI commits a mouse selection only when the pointer went down on the item.
+  fireEvent.pointerDown(option);
+  fireEvent.click(option);
 }
 
 describe("DateRangeFilter trigger", () => {
@@ -94,8 +97,9 @@ describe("DateRangeFilter popover", () => {
   it("shows the Desde and Hasta values before any list opens", () => {
     renderFilter({ from: "2025-03", to: "2025-05" });
     openPopover();
-    expect(screen.getByRole("combobox", { name: "Desde" }).textContent).toBe("mar 2025");
-    expect(screen.getByRole("combobox", { name: "Hasta" }).textContent).toBe("may 2025");
+    // The trigger also carries the chevron icon, so the text is matched by inclusion.
+    expect(screen.getByRole("combobox", { name: "Desde" }).textContent).toContain("mar 2025");
+    expect(screen.getByRole("combobox", { name: "Hasta" }).textContent).toContain("may 2025");
   });
 
   it("shows the helper line and the three shortcuts", () => {
