@@ -1,14 +1,19 @@
+import Big from "big.js";
 import { describe, expect, it } from "vitest";
 import { PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
 import {
   formaPagoLabel,
+  formatCount,
+  formatDelta,
   formatFechaIso,
   formatFolio,
+  formatPercent,
   formatTotal,
   monthLongLabel,
   monthShortLabel,
   monthYearLabel,
   normalizeSearch,
+  periodLabel,
   rangeText,
 } from "./format";
 
@@ -126,5 +131,69 @@ describe("normalizeSearch", () => {
 
   it("returns an empty string for blank text", () => {
     expect(normalizeSearch("   ")).toBe("");
+  });
+});
+
+describe("formatPercent (D-40, REGLA-04)", () => {
+  it("writes a fraction as a spaced percent with one decimal", () => {
+    expect(formatPercent(new Big("0.124"))).toBe("12.4 %");
+  });
+
+  it("rounds half-up to one decimal only at display", () => {
+    expect(formatPercent(new Big("0.12449"))).toBe("12.4 %");
+    expect(formatPercent(new Big("0.1245"))).toBe("12.5 %");
+  });
+
+  it("uses the true minus sign U+2212 for negatives", () => {
+    const text = formatPercent(new Big("-0.08"));
+    expect(text).toBe("\u22128.0 %");
+    expect(text.charCodeAt(0)).toBe(0x2212);
+  });
+
+  it("never prints a negative zero", () => {
+    expect(formatPercent(new Big("0.0004"))).toBe("0.0 %");
+    expect(formatPercent(new Big("-0.0004"))).toBe("0.0 %");
+    expect(formatPercent(new Big("0"))).toBe("0.0 %");
+  });
+
+  it("groups thousands in es-MX", () => {
+    expect(formatPercent(new Big("12.5"))).toBe("1,250.0 %");
+  });
+});
+
+describe("formatDelta (D-20)", () => {
+  it("signs an increase and points up", () => {
+    expect(formatDelta(new Big("0.124"))).toEqual({ text: "+12.4 %", direction: "up" });
+  });
+
+  it("signs a decrease with the true minus and points down", () => {
+    expect(formatDelta(new Big("-0.08"))).toEqual({ text: "\u22128.0 %", direction: "down" });
+  });
+
+  it("is flat when the rounded value is zero", () => {
+    expect(formatDelta(new Big("0.0004"))).toEqual({ text: "0.0 %", direction: "flat" });
+    expect(formatDelta(new Big("-0.0004"))).toEqual({ text: "0.0 %", direction: "flat" });
+    expect(formatDelta(new Big("0"))).toEqual({ text: "0.0 %", direction: "flat" });
+  });
+});
+
+describe("periodLabel (D-20)", () => {
+  it("names a single month with its year", () => {
+    expect(periodLabel("2025-05", "2025-05")).toBe("may 2025");
+  });
+
+  it("joins two months of one year with an unspaced en dash", () => {
+    expect(periodLabel("2025-01", "2025-06")).toBe("ene\u2013jun 2025");
+  });
+
+  it("names both years when the period crosses a year", () => {
+    expect(periodLabel("2024-12", "2025-02")).toBe("dic 2024\u2013feb 2025");
+  });
+});
+
+describe("formatCount", () => {
+  it("groups thousands in es-MX", () => {
+    expect(formatCount(1234)).toBe("1,234");
+    expect(formatCount(0)).toBe("0");
   });
 });

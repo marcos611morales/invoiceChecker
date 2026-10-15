@@ -8,8 +8,8 @@
  * (REGLA-05). Nothing here adds amounts together: sums live in
  * `src/domain/accounting`.
  */
-import type Big from "big.js";
-import { toMoneyString } from "@/domain/accounting/decimal";
+import Big from "big.js";
+import { ZERO, toMoneyString } from "@/domain/accounting/decimal";
 import { PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
 import type { MonthKey } from "@/domain/accounting/months";
 import { formaPagoName } from "@/domain/cfdi/catalogs";
@@ -175,4 +175,63 @@ export function normalizeSearch(text: string): string {
     .replace(/\p{M}/gu, "")
     .toLowerCase()
     .trim();
+}
+
+/** Fraction (0.124) as a percentage rounded half-up to one decimal; display-time only (REGLA-04). */
+function roundedPercent(fraction: Big): Big {
+  return fraction.times("100").round(1, Big.roundHalfUp);
+}
+
+/**
+ * A fraction as a percent with a space: 0.124 gives "12.4 %" (D-40). Rounds
+ * half-up to one decimal here and nowhere else, uses the true minus sign for
+ * negatives and prints "0.0 %" for anything that rounds to zero. Composed by
+ * hand because `Intl` percent style writes no space (Pitfall 10).
+ */
+export function formatPercent(fraction: Big): string {
+  const rounded = roundedPercent(fraction);
+  const magnitude = rounded.abs().toFixed(1);
+  let text = magnitude;
+  if (isNumericLiteral(magnitude)) {
+    try {
+      text = new Intl.NumberFormat("es-MX", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }).format(magnitude);
+    } catch {
+      text = magnitude;
+    }
+  }
+  const sign = rounded.lt(ZERO) ? TRUE_MINUS : "";
+  return `${sign}${text} %`;
+}
+
+export type DeltaDirection = "up" | "down" | "flat";
+
+/**
+ * Signed delta text and its direction, both derived from the rounded value so
+ * "+0.0 %" or "−0.0 %" never appear (D-20).
+ */
+export function formatDelta(fraction: Big): { text: string; direction: DeltaDirection } {
+  const rounded = roundedPercent(fraction);
+  if (rounded.gt(ZERO)) return { text: `+${formatPercent(fraction)}`, direction: "up" };
+  if (rounded.lt(ZERO)) return { text: formatPercent(fraction), direction: "down" };
+  return { text: formatPercent(ZERO), direction: "flat" };
+}
+
+/**
+ * Label of a period: "may 2025", "ene\u2013jun 2025" within a year and
+ * "dic 2024\u2013feb 2025" across years (unspaced en dash).
+ */
+export function periodLabel(from: MonthKey, to: MonthKey): string {
+  if (from === to) return monthYearLabel(from);
+  if (from.slice(0, 4) === to.slice(0, 4)) {
+    return `${monthShortLabel(from)}\u2013${monthYearLabel(to)}`;
+  }
+  return `${monthYearLabel(from)}\u2013${monthYearLabel(to)}`;
+}
+
+/** A whole count with es-MX grouping. */
+export function formatCount(n: number): string {
+  return new Intl.NumberFormat("es-MX").format(n);
 }

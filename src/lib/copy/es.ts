@@ -152,6 +152,12 @@ export const es = {
   dashboard: {
     kpis: {
       gasto: "Gasto total",
+      facturas: "Facturas",
+      ticket: "Ticket promedio",
+      promedio: "Promedio mensual",
+      noPrevious: "Sin datos del periodo anterior",
+      increased: "subió",
+      decreased: "bajó",
     },
     emptyFilteredHeading: "Ninguna factura coincide con los filtros",
     emptyFilteredBody: "Cambia o quita los filtros para ver el gasto.",

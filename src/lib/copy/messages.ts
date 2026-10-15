@@ -161,3 +161,18 @@ export function removeChipAria(label: string): string {
 export function filtersButtonText(activeCount: number): string {
   return activeCount > 0 ? `Filtros \u00b7 ${activeCount}` : "Filtros";
 }
+
+/** Sub-label of the Facturas card: credit notes counted apart (D-18). */
+export function notasSubLabel(n: number): string {
+  return n === 1 ? "+1 nota de crédito" : `+${n} notas de crédito`;
+}
+
+/** Sub-label of the Promedio mensual card: the stated divisor (DASH-06). */
+export function monthsSubLabel(n: number): string {
+  return n === 1 ? "Entre 1 mes del calendario" : `Entre ${n} meses del calendario`;
+}
+
+/** Delta line of a KPI card: the signed percent against the previous period (D-20). */
+export function deltaLine(percent: string, period: string): string {
+  return `${percent} vs. ${period}`;
+}

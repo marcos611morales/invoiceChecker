@@ -3,10 +3,17 @@
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { totalSpend } from "@/domain/accounting/aggregate";
-import { applyFilters, loadedSpan } from "@/domain/accounting/filters";
+import { kpiDeltas, kpis } from "@/domain/accounting/aggregate";
+import {
+  applyFilters,
+  loadedSpan,
+  previousFilters,
+  resolveRange,
+} from "@/domain/accounting/filters";
 import { buildLedger } from "@/domain/accounting/ledger";
+import { previousPeriod } from "@/domain/accounting/months";
 import { es } from "@/lib/copy/es";
+import { periodLabel } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { FilterBar } from "./FilterBar";
@@ -16,9 +23,10 @@ import { KpiRow } from "./KpiRow";
  * Dashboard panel. The ledger is built from the session invoices plus the manual
  * exclusions and restorations (REGLA-08). One visible set is computed with
  * `applyFilters` and everything below the filter bar reads it (FILT-05), in the
- * order of D-03: filter bar, mode caption, content. The Gasto total is read in the
- * IVA mode of the settings store (REGLA-03). Switching the mode only picks the
- * other stored amount; it never rebuilds the ledger.
+ * order of D-03: filter bar, mode caption, content. The KPIs are read in the IVA
+ * mode of the settings store (REGLA-03) and compared with the previous period of
+ * equal length under the same supplier and forma filters (D-20). Switching the
+ * mode only picks the other stored amount; it never rebuilds the ledger.
  */
 export function DashboardTab() {
   const invoices = useSessionStore((s) => s.invoices);
@@ -33,7 +41,23 @@ export function DashboardTab() {
   );
   const span = useMemo(() => loadedSpan(ledger), [ledger]);
   const visible = useMemo(() => applyFilters(ledger, filters, span), [ledger, filters, span]);
-  const gasto = useMemo(() => totalSpend(visible, ivaMode), [visible, ivaMode]);
+  const range = useMemo(() => resolveRange(filters, span), [filters, span]);
+  const current = useMemo(() => kpis(visible, range, ivaMode), [visible, range, ivaMode]);
+  const prevRange = useMemo(
+    () => (range === null ? null : previousPeriod(range.from, range.to)),
+    [range],
+  );
+  const previousVisible = useMemo(
+    () =>
+      range === null ? [] : applyFilters(ledger, previousFilters(filters, range), span),
+    [ledger, filters, range, span],
+  );
+  const previous = useMemo(
+    () => kpis(previousVisible, prevRange, ivaMode),
+    [previousVisible, prevRange, ivaMode],
+  );
+  const deltas = useMemo(() => kpiDeltas(current, previous), [current, previous]);
+  const previousLabel = prevRange === null ? "" : periodLabel(prevRange.from, prevRange.to);
 
   if (ledger.length === 0) {
     return (
@@ -67,7 +91,7 @@ export function DashboardTab() {
           </EmptyContent>
         </Empty>
       ) : (
-        <KpiRow gasto={gasto} />
+        <KpiRow current={current} deltas={deltas} previousLabel={previousLabel} mode={ivaMode} />
       )}
     </div>
   );

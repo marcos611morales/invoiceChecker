@@ -3,14 +3,17 @@ import type { DuplicateFile } from "@/domain/import/types";
 import {
   batchToastText,
   chipText,
+  deltaLine,
   duplicateRowText,
   facturasCargadasHeading,
   filtersButtonText,
   groupTriggerText,
   ignoradosSubLabel,
   ignoredReasonText,
+  monthsSubLabel,
   noFormaMatch,
   noSupplierMatch,
+  notasSubLabel,
   optionLabel,
   paginationPageText,
   paginationRangeText,
@@ -200,5 +203,21 @@ describe("filter messages", () => {
   it("counts the active filters on the mobile button", () => {
     expect(filtersButtonText(0)).toBe("Filtros");
     expect(filtersButtonText(2)).toBe("Filtros \u00b7 2");
+  });
+});
+
+describe("KPI sub-labels and delta line (D-18, D-20, DASH-06)", () => {
+  it("counts credit notes in singular and plural", () => {
+    expect(notasSubLabel(1)).toBe("+1 nota de crédito");
+    expect(notasSubLabel(3)).toBe("+3 notas de crédito");
+  });
+
+  it("states the calendar months used as the divisor", () => {
+    expect(monthsSubLabel(1)).toBe("Entre 1 mes del calendario");
+    expect(monthsSubLabel(12)).toBe("Entre 12 meses del calendario");
+  });
+
+  it("joins the signed percent and the previous period", () => {
+    expect(deltaLine("+12.4 %", "ene\u2013jun 2025")).toBe("+12.4 % vs. ene\u2013jun 2025");
   });
 });
