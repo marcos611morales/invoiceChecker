@@ -8,13 +8,17 @@ import {
   formatFechaIso,
   formatFolio,
   formatPercent,
+  formatQuantity,
   formatTotal,
+  formatUnitPrice,
+  invoiceRef,
   monthLongLabel,
   monthShortLabel,
   monthYearLabel,
   normalizeSearch,
   periodLabel,
   rangeText,
+  shortUuid,
 } from "./format";
 
 describe("formatFechaIso", () => {
@@ -195,5 +199,53 @@ describe("formatCount", () => {
   it("groups thousands in es-MX", () => {
     expect(formatCount(1234)).toBe("1,234");
     expect(formatCount(0)).toBe("0");
+  });
+});
+
+describe("formatQuantity", () => {
+  it("trims trailing zeros of the decimal text", () => {
+    expect(formatQuantity("1.500000")).toBe("1.5");
+    expect(formatQuantity("2.000000")).toBe("2");
+    expect(formatQuantity("10")).toBe("10");
+  });
+
+  it("never prints an exponent", () => {
+    expect(formatQuantity("0.000001")).toBe("0.000001");
+    expect(formatQuantity("123456789012.5")).toBe("123456789012.5");
+  });
+
+  it("rounds to at most 6 decimals", () => {
+    expect(formatQuantity("1.1234565")).toBe("1.123457");
+  });
+
+  it("returns the raw text when it is not a valid decimal", () => {
+    expect(formatQuantity("abc")).toBe("abc");
+    expect(formatQuantity("")).toBe("");
+    expect(formatQuantity("1e5")).toBe("1e5");
+  });
+});
+
+describe("formatUnitPrice", () => {
+  it("keeps 2 decimals at least and 6 at most", () => {
+    expect(formatUnitPrice(new Big("12.5"))).toBe("$12.50");
+    expect(formatUnitPrice(new Big("0.123456"))).toBe("$0.123456");
+    expect(formatUnitPrice(new Big("1234.5"))).toBe("$1,234.50");
+  });
+
+  it("shows a dash when there is no price", () => {
+    expect(formatUnitPrice(null)).toBe("—");
+  });
+});
+
+describe("shortUuid and invoiceRef", () => {
+  it("takes the first 8 characters of the uuid", () => {
+    expect(shortUuid("ABCDEF12-3456-7890-ABCD-EF1234567890")).toBe("ABCDEF12");
+  });
+
+  it("uses the folio, else the short uuid", () => {
+    const uuid = "ABCDEF12-3456-7890-ABCD-EF1234567890";
+    expect(invoiceRef("A-12", uuid)).toBe("A-12");
+    expect(invoiceRef(null, uuid)).toBe("ABCDEF12");
+    expect(invoiceRef("", uuid)).toBe("ABCDEF12");
   });
 });

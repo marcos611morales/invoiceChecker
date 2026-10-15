@@ -1,21 +1,26 @@
 import { describe, expect, it } from "vitest";
 import type { DuplicateFile } from "@/domain/import/types";
 import {
+  appliesToText,
   averageLegend,
   batchToastText,
   chipText,
+  conceptsPanelTitle,
   deltaLine,
   duplicateRowText,
-  facturasCargadasHeading,
   filtersButtonText,
+  foreignAmountLine,
   groupTriggerText,
   ignoradosSubLabel,
   ignoredReasonText,
+  invoicesHeading,
   monthsSubLabel,
   noFormaMatch,
   noSupplierMatch,
   notasSubLabel,
   optionLabel,
+  originalCurrencyLine,
+  paidLine,
   paginationPageText,
   paginationRangeText,
   processingText,
@@ -23,6 +28,9 @@ import {
   rankingCaption,
   rejectReasonText,
   removeChipAria,
+  roundingLine,
+  rowMenuAria,
+  substitutedLine,
   tipoLabel,
   trasladoNominaSubLabel,
   trendAriaLabel,
@@ -145,13 +153,6 @@ describe("progress and label texts", () => {
   });
 });
 
-describe("facturasCargadasHeading", () => {
-  it("formats the table heading with the invoice count", () => {
-    expect(facturasCargadasHeading(4)).toBe("Facturas cargadas (4)");
-    expect(facturasCargadasHeading(0)).toBe("Facturas cargadas (0)");
-  });
-});
-
 describe("pagination texts", () => {
   it("formats the range with an en dash", () => {
     expect(paginationRangeText(51, 100, 120)).toBe("Mostrando 51–100 de 120");
@@ -243,5 +244,35 @@ describe("ranking caption (D-23)", () => {
 
   it("keeps the dashes it is given for a missing share or ticket", () => {
     expect(rankingCaption("—", "—")).toBe("— del total · Ticket promedio —");
+  });
+});
+
+describe("invoice table texts", () => {
+  it("formats the heading with the count of rows", () => {
+    expect(invoicesHeading(3)).toBe("Facturas (3)");
+    expect(invoicesHeading(0)).toBe("Facturas (0)");
+  });
+
+  it("formats the credit note caption", () => {
+    expect(appliesToText("jun 2025")).toBe("aplica a jun 2025");
+  });
+
+  it("formats the panel lines", () => {
+    expect(roundingLine("$0.01")).toBe("Diferencia de redondeo: $0.01");
+    expect(paidLine("15/03/2025", "Tarjeta de crédito")).toBe(
+      "Pagada el 15/03/2025 con Tarjeta de crédito",
+    );
+    expect(substitutedLine("A-1")).toBe("Sustituida por la factura A-1. No se suma.");
+    expect(originalCurrencyLine("USD", "18.20")).toBe("Moneda original: USD · TC 18.20");
+    expect(conceptsPanelTitle("A-1")).toBe("Conceptos de la factura A-1");
+  });
+
+  it("formats the foreign amount line with and without a rate", () => {
+    expect(foreignAmountLine("USD", "100.00", "18.20")).toBe("USD 100.00 · TC 18.20");
+    expect(foreignAmountLine("USD", "100.00", null)).toBe("USD 100.00");
+  });
+
+  it("formats the accessible name of the row menu", () => {
+    expect(rowMenuAria("A-1")).toBe("Acciones de la factura A-1");
   });
 });
