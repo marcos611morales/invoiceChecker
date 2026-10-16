@@ -7,10 +7,10 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { buildLedger } from "@/domain/accounting/ledger";
 import { qualitySummary } from "@/domain/accounting/quality";
 import { reportCounts } from "@/domain/import/report";
 import { es } from "@/lib/copy/es";
+import { useLedger } from "@/features/dashboard/useLedger";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { QualityAccordions } from "./QualityAccordions";
@@ -29,14 +29,9 @@ export function QualityTab() {
   const duplicates = useSessionStore((s) => s.duplicates);
   const ignored = useSessionStore((s) => s.ignored);
   const firstFileByUuid = useSessionStore((s) => s.firstFileByUuid);
-  const excluded = useSessionStore((s) => s.excluded);
-  const restored = useSessionStore((s) => s.restored);
   const ivaMode = useSettingsStore((s) => s.ivaMode);
 
-  const ledger = useMemo(
-    () => buildLedger(invoices, { excluded, restored }),
-    [invoices, excluded, restored],
-  );
+  const ledger = useLedger();
   const summary = useMemo(() => qualitySummary(ledger), [ledger]);
   const counts = reportCounts({
     invoices,

@@ -314,11 +314,11 @@ describe("AppShell: shell wiring (D-01, D-05, UI Considerations E1 and E2)", () 
     expect(useSessionStore.getState().activeTab).toBe("dashboard");
   });
 
-  it("lists Dashboard and Importación for now (Calidad arrives in Plan 02-15)", () => {
+  it("lists Dashboard, Calidad de datos (with the credit note without related as 1 incident) and Importación", () => {
     load([ingreso, egreso]);
     render(<AppShell />);
     const names = screen.getAllByRole("tab").map((tab) => tab.textContent);
-    expect(names).toEqual(["Dashboard", "Importación"]);
+    expect(names).toEqual(["Dashboard", "Calidad de datos · 1", "Importación"]);
   });
 
   it("styles the tab list per UI-SPEC: 40 px list, 44 px touch height, 16 px padding, primary underline", () => {
