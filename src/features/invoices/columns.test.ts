@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { buildLedger, EMPTY_OVERRIDES, PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
 import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
-import { loaded, makeEntry, makeInvoice } from "../../../tests/support/ledgerFactory";
+import { loaded, makeEntry, makeInvoice, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
 import {
   buildPaymentIndex,
   columns,
@@ -48,7 +48,7 @@ function iva(importe: string) {
 }
 
 function ledgerOf(...invoices: ParsedInvoice[]): LedgerEntry[] {
-  return buildLedger(invoices.map(loaded), EMPTY_OVERRIDES);
+  return buildLedger(invoices.map(loaded), EMPTY_OVERRIDES, TEST_FECHA_CONTEXT);
 }
 
 function firstRow(entry: LedgerEntry, mode: "con" | "sin" = "con"): InvoiceRow {
@@ -131,13 +131,17 @@ describe("toInvoiceRows", () => {
       folio: "R-1",
       relacionados: [{ tipoRelacion: "04", uuids: [original.uuid] }],
     });
-    const entries = buildLedger([loaded(original), loaded(replacement)], EMPTY_OVERRIDES);
+    const entries = buildLedger([loaded(original), loaded(replacement)], EMPTY_OVERRIDES, TEST_FECHA_CONTEXT);
     const states = toInvoiceRows(entries, "con").map((r) => r.state);
     expect(states).toEqual(["sustituida", "normal"]);
-    const excluded = buildLedger([loaded(original), loaded(replacement)], {
-      excluded: new Set([replacement.uuid]),
-      restored: new Set([original.uuid]),
-    });
+    const excluded = buildLedger(
+      [loaded(original), loaded(replacement)],
+      {
+        excluded: new Set([replacement.uuid]),
+        restored: new Set([original.uuid]),
+      },
+      TEST_FECHA_CONTEXT,
+    );
     expect(toInvoiceRows(excluded, "con").map((r) => r.state)).toEqual(["normal", "excluida"]);
   });
 });

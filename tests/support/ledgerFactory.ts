@@ -1,7 +1,14 @@
 import Big from "big.js";
 import type { ParsedInvoice } from "@/domain/cfdi/types";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
+import type { FechaContext } from "@/domain/accounting/months";
 import type { LoadedInvoice } from "@/domain/import/types";
+
+/**
+ * The year every domain test passes to buildLedger and monthOfFecha. It is fixed
+ * (window 2000..2027) so no test depends on the real clock (D-48).
+ */
+export const TEST_FECHA_CONTEXT: FechaContext = { currentYear: 2026 };
 
 let counter = 0;
 

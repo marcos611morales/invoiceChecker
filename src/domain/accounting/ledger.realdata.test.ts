@@ -2,7 +2,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loaded } from "../../../tests/support/ledgerFactory";
+import { loaded, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
 import { parseCfdi } from "../cfdi/parseCfdi";
 import type { ParsedInvoice } from "../cfdi/types";
 import { totalSpend } from "./aggregate";
@@ -51,7 +51,7 @@ describe.skipIf(!hasSample)("ledger sobre la muestra real 2025", () => {
   function sample(): { invoices: ParsedInvoice[]; entries: LedgerEntry[] } {
     if (cache === null) {
       const invoices = loadSample();
-      cache = { invoices, entries: buildLedger(invoices.map(loaded), EMPTY_OVERRIDES) };
+      cache = { invoices, entries: buildLedger(invoices.map(loaded), EMPTY_OVERRIDES, TEST_FECHA_CONTEXT) };
     }
     return cache;
   }

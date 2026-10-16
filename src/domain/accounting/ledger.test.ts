@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loaded, makeEntry, makeInvoice } from "../../../tests/support/ledgerFactory";
+import { loaded, makeEntry, makeInvoice, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
 import type { ParsedInvoice } from "../cfdi/types";
 import {
   EMPTY_OVERRIDES,
@@ -8,12 +8,14 @@ import {
   type LedgerEntry,
   type LedgerOverrides,
 } from "./ledger";
+import type { FechaContext } from "./months";
 
 function ledgerOf(
   invoices: readonly ParsedInvoice[],
   overrides: LedgerOverrides = EMPTY_OVERRIDES,
+  context: FechaContext = TEST_FECHA_CONTEXT,
 ): LedgerEntry[] {
-  return buildLedger(invoices.map(loaded), overrides);
+  return buildLedger(invoices.map(loaded), overrides, context);
 }
 
 function entryFor(entries: readonly LedgerEntry[], invoice: ParsedInvoice): LedgerEntry {
@@ -526,8 +528,8 @@ describe("buildLedger: purity", () => {
     });
     const input = [loaded(original), loaded(note)];
     const snapshot = JSON.stringify(input);
-    const first = buildLedger(input, EMPTY_OVERRIDES);
-    const second = buildLedger(input, EMPTY_OVERRIDES);
+    const first = buildLedger(input, EMPTY_OVERRIDES, TEST_FECHA_CONTEXT);
+    const second = buildLedger(input, EMPTY_OVERRIDES, TEST_FECHA_CONTEXT);
     expect(JSON.stringify(input)).toBe(snapshot);
     expect(second.map((e) => [e.uuid, e.exclusion, e.month])).toEqual(
       first.map((e) => [e.uuid, e.exclusion, e.month]),

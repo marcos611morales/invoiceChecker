@@ -4,10 +4,27 @@
  * is "2025-08"): Fecha has no time zone, so it is never turned into an
  * instant. Month arithmetic is plain integers (year * 12 + month index).
  * Display names of months live with the formatting code, not here.
+ *
+ * A Fecha whose literal year falls outside the plausible window
+ * (MIN_FECHA_YEAR .. currentYear + 1, both ends included) has no month (D-48):
+ * a damaged year such as 0001 or 2205 must neither sum nor stretch the loaded
+ * month span. The domain never reads a clock; the caller injects the year.
  */
 
 /** "YYYY-MM". */
 export type MonthKey = string;
+
+/** First year a CFDI Fecha may carry (D-48); CFDI 4.0 did not exist before it. */
+export const MIN_FECHA_YEAR = 2000;
+
+/**
+ * What the Fecha-to-month conversion needs from the outside world: the
+ * browser's local calendar year, injected by the caller because the domain
+ * never reads a clock (D-48).
+ */
+export interface FechaContext {
+  currentYear: number;
+}
 
 const FECHA_RE =
   /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/;
@@ -19,8 +36,12 @@ function isLeapYear(year: number): boolean {
   return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 }
 
-/** Month of a CFDI Fecha, or null when the Fecha does not have the CFDI shape. */
-export function monthOfFecha(fecha: string): MonthKey | null {
+/**
+ * Month of a CFDI Fecha, or null when the Fecha does not have the CFDI shape or
+ * its literal year is outside MIN_FECHA_YEAR .. the injected year plus one, both
+ * ends included (D-48). The Fecha is never turned into a Date (REGLA-05).
+ */
+export function monthOfFecha(fecha: string, context: FechaContext): MonthKey | null {
   const match = FECHA_RE.exec(fecha);
   if (match === null) return null;
   const [, yearText, monthText, dayText] = match;
@@ -34,6 +55,7 @@ export function monthOfFecha(fecha: string): MonthKey | null {
   const monthDays = DAYS_IN_MONTH[month - 1] ?? 0;
   const maxDay = month === 2 && isLeapYear(year) ? 29 : monthDays;
   if (day < 1 || day > maxDay) return null;
+  if (year < MIN_FECHA_YEAR || year > context.currentYear + 1) return null;
   return `${yearText}-${monthText}`;
 }
 
