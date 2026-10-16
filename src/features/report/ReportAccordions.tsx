@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { receptorDistinto } from "@/domain/import/report";
 import type { LoadedInvoice } from "@/domain/import/types";
@@ -12,7 +12,7 @@ import {
   receptorDistintoText,
   rejectReasonText,
 } from "@/lib/copy/messages";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useSessionStore, type ImportFocus } from "@/stores/sessionStore";
 import {
   Accordion,
   AccordionContent,
@@ -91,10 +91,30 @@ export function ReportAccordions() {
   const rejected = useSessionStore((s) => s.rejected);
   const duplicates = useSessionStore((s) => s.duplicates);
   const ignored = useSessionStore((s) => s.ignored);
+  const importFocus = useSessionStore((s) => s.importFocus);
+  const clearImportFocus = useSessionStore((s) => s.clearImportFocus);
 
   const [openOthers, setOpenOthers] = useState<string[]>([]);
   // Rejected count at which the user last closed Rechazados; 0 = never closed.
   const [dismissedAt, setDismissedAt] = useState(0);
+
+  // "Ver en Importación" (D-32): the request is applied once through derived state during
+  // render, guarded by the last request seen, and cleared from an effect. Sections the
+  // user opened or closed before stay as they are.
+  const [handledFocus, setHandledFocus] = useState<ImportFocus | null>(null);
+  if (importFocus !== handledFocus) {
+    setHandledFocus(importFocus);
+    if (importFocus === REJECTED_ID) {
+      setDismissedAt(0);
+    } else if (importFocus === "duplicados") {
+      setOpenOthers((current) =>
+        current.includes("duplicados") ? current : [...current, "duplicados"],
+      );
+    }
+  }
+  useEffect(() => {
+    if (importFocus !== null) clearImportFocus();
+  }, [importFocus, clearImportFocus]);
 
   const rejectedCount = rejected.length;
   // Derived during render: open while there are rejections the user has not dismissed.
