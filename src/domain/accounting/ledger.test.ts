@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loaded, makeEntry, makeInvoice } from "../../../tests/support/ledgerFactory";
+import { loaded, makeEntry, makeInvoice, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
 import type { ParsedInvoice } from "../cfdi/types";
 import {
   EMPTY_OVERRIDES,
@@ -8,12 +8,17 @@ import {
   type LedgerEntry,
   type LedgerOverrides,
 } from "./ledger";
+import { kpis, monthlySeries } from "./aggregate";
+import { EMPTY_FILTERS, applyFilters, loadedSpan } from "./filters";
+import { previousPeriod, type FechaContext } from "./months";
+import { qualityIncidents, qualitySummary } from "./quality";
 
 function ledgerOf(
   invoices: readonly ParsedInvoice[],
   overrides: LedgerOverrides = EMPTY_OVERRIDES,
+  context: FechaContext = TEST_FECHA_CONTEXT,
 ): LedgerEntry[] {
-  return buildLedger(invoices.map(loaded), overrides);
+  return buildLedger(invoices.map(loaded), overrides, context);
 }
 
 function entryFor(entries: readonly LedgerEntry[], invoice: ParsedInvoice): LedgerEntry {
@@ -526,8 +531,8 @@ describe("buildLedger: purity", () => {
     });
     const input = [loaded(original), loaded(note)];
     const snapshot = JSON.stringify(input);
-    const first = buildLedger(input, EMPTY_OVERRIDES);
-    const second = buildLedger(input, EMPTY_OVERRIDES);
+    const first = buildLedger(input, EMPTY_OVERRIDES, TEST_FECHA_CONTEXT);
+    const second = buildLedger(input, EMPTY_OVERRIDES, TEST_FECHA_CONTEXT);
     expect(JSON.stringify(input)).toBe(snapshot);
     expect(second.map((e) => [e.uuid, e.exclusion, e.month])).toEqual(
       first.map((e) => [e.uuid, e.exclusion, e.month]),
@@ -540,6 +545,123 @@ describe("buildLedger: purity", () => {
     expect(entry.conIva).not.toBeNull();
     expect(entry.sinIva).not.toBeNull();
     expect(entry.counted).toBe(true);
+  });
+});
+
+describe("buildLedger: Fecha year window (WR-03, D-48)", () => {
+  const FAR = "2205-01-01T10:00:00";
+  const OLD = "0001-03-01T10:00:00";
+
+  it("flags an Ingreso dated 0001 as invalido/Fecha with no month, uncounted, amounts kept", () => {
+    const invoice = makeInvoice({ fecha: OLD });
+    const entry = entryFor(ledgerOf([invoice]), invoice);
+    expect(entry.noSuma).toBe("invalido");
+    expect(entry.invalidField).toBe("Fecha");
+    expect(entry.ownMonth).toBeNull();
+    expect(entry.month).toBeNull();
+    expect(entry.counted).toBe(false);
+    expect(entry.conIva?.toString()).toBe("116");
+  });
+
+  it("flags an Egreso dated 2205 with no relacionados the same way", () => {
+    const invoice = makeInvoice({ tipo: "E", fecha: FAR });
+    const entry = entryFor(ledgerOf([invoice]), invoice);
+    expect(entry.noSuma).toBe("invalido");
+    expect(entry.invalidField).toBe("Fecha");
+    expect(entry.ownMonth).toBeNull();
+    expect(entry.month).toBeNull();
+    expect(entry.counted).toBe(false);
+  });
+
+  it("keeps the invalid amount ahead of the out-of-window Fecha in the precedence", () => {
+    const invoice = makeInvoice({ total: "abc", fecha: OLD });
+    const entry = entryFor(ledgerOf([invoice]), invoice);
+    expect(entry.noSuma).toBe("invalido");
+    expect(entry.invalidField).toBe("Total");
+  });
+
+  it("keeps Pago, Traslado and Nomina with a 2205 Fecha as tipo, with no month and no invalid field", () => {
+    for (const tipo of ["P", "T", "N"] as const) {
+      const invoice = makeInvoice({ tipo, fecha: FAR });
+      const entry = entryFor(ledgerOf([invoice]), invoice);
+      expect(entry.noSuma).toBe("tipo");
+      expect(entry.invalidField).toBeNull();
+      expect(entry.ownMonth).toBeNull();
+      expect(entry.month).toBeNull();
+      expect(entry.counted).toBe(false);
+    }
+  });
+
+  it("imputes a credit note to its own month when its only related invoice is out of the window", () => {
+    const far = makeInvoice({ fecha: FAR });
+    const note = makeInvoice({
+      tipo: "E",
+      fecha: "2025-07-10T10:00:00",
+      relacionados: [{ tipoRelacion: "01", uuids: [far.uuid] }],
+    });
+    const entry = entryFor(ledgerOf([far, note]), note);
+    expect(entry.month).toBe("2025-07");
+    expect(entry.relatedLoaded).toEqual([far.uuid]);
+    expect(entry.counted).toBe(true);
+  });
+
+  it("skips an out-of-window related invoice and imputes to the next valid one", () => {
+    const old = makeInvoice({ fecha: OLD });
+    const may = makeInvoice({ fecha: "2025-05-20T10:00:00" });
+    const note = makeInvoice({
+      tipo: "E",
+      fecha: "2025-07-10T10:00:00",
+      relacionados: [{ tipoRelacion: "01", uuids: [may.uuid, old.uuid] }],
+    });
+    const entry = entryFor(ledgerOf([may, old, note]), note);
+    // The 0001 Fecha sorts first as text, so the fallback has to walk past it.
+    expect(entry.relatedLoaded).toEqual([old.uuid, may.uuid]);
+    expect(entry.month).toBe("2025-05");
+  });
+
+  it("follows the injected year: 2028 is invalid in 2026 and counts in 2027", () => {
+    const invoice = makeInvoice({ fecha: "2028-01-15T10:00:00" });
+    const in2026 = entryFor(ledgerOf([invoice], EMPTY_OVERRIDES, { currentYear: 2026 }), invoice);
+    expect(in2026.noSuma).toBe("invalido");
+    expect(in2026.invalidField).toBe("Fecha");
+    const in2027 = entryFor(ledgerOf([invoice], EMPTY_OVERRIDES, { currentYear: 2027 }), invoice);
+    expect(in2027.counted).toBe(true);
+    expect(in2027.month).toBe("2028-01");
+  });
+
+  it("keeps the span, the KPIs, the series and the incidents bounded by the in-window invoices", () => {
+    const june = makeInvoice({ fecha: "2025-06-15T10:00:00" });
+    const old = makeInvoice({ fecha: OLD });
+    const far = makeInvoice({ fecha: FAR });
+    const farPago = makeInvoice({ tipo: "P", fecha: FAR });
+    const note = makeInvoice({
+      tipo: "E",
+      fecha: "2025-07-10T10:00:00",
+      subTotal: "50.00",
+      total: "58.00",
+      totalImpuestosTrasladados: "8.00",
+      relacionados: [{ tipoRelacion: "01", uuids: [far.uuid] }],
+    });
+    const ledger = ledgerOf([june, old, far, farPago, note]);
+
+    const span = loadedSpan(ledger);
+    expect(span).toEqual({ from: "2025-06", to: "2025-07" });
+    if (span === null) throw new Error("the loaded span must exist");
+    const visible = applyFilters(ledger, EMPTY_FILTERS, span);
+    const result = kpis(visible, span, "con");
+    expect(result.months).toBe(2);
+    expect(result.facturas).toBe(1);
+    expect(result.gasto.toString()).toBe("58");
+    expect(monthlySeries(visible, span, "con")).toHaveLength(2);
+
+    const invalid = qualityIncidents(ledger).filter((i) => i.type === "datos-invalidos");
+    expect(invalid.map((i) => i.entry.uuid).sort()).toEqual([old.uuid, far.uuid].sort());
+    for (const incident of invalid) {
+      expect(incident.detail).toEqual({ kind: "datos-invalidos", field: "Fecha" });
+    }
+    expect(invalid.some((i) => i.entry.uuid === farPago.uuid)).toBe(false);
+    expect(qualitySummary(ledger).amountChanging).toBe(true);
+    expect(previousPeriod(span.from, span.to)).toEqual({ from: "2025-04", to: "2025-05" });
   });
 });
 

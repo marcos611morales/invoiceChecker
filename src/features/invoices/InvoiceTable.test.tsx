@@ -19,7 +19,7 @@ import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
 import { formatMoney } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
 import { readStoredSettings } from "../../../tests/support/settingsStorage";
-import { makeEntry, makeInvoice } from "../../../tests/support/ledgerFactory";
+import { makeEntry, makeInvoice, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
 import { InvoiceTable } from "./InvoiceTable";
 
@@ -90,7 +90,7 @@ function Harness({
   const excluded = useSessionStore((s) => s.excluded);
   const restored = useSessionStore((s) => s.restored);
   const ledger = useMemo(
-    () => buildLedger(invoices, { excluded, restored }),
+    () => buildLedger(invoices, { excluded, restored }, TEST_FECHA_CONTEXT),
     [invoices, excluded, restored],
   );
   const rows = useMemo(

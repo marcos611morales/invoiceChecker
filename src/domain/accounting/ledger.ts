@@ -14,7 +14,7 @@ import type { ParsedInvoice, TipoComprobante } from "../cfdi/types";
 import type { LoadedInvoice } from "../import/types";
 import { invoiceAmounts } from "./amounts";
 import { ZERO } from "./decimal";
-import { monthOfFecha, type MonthKey } from "./months";
+import { monthOfFecha, type FechaContext, type MonthKey } from "./months";
 
 /** Form-of-payment sentinel of a PPD invoice with no loaded Pago complement (D-17). */
 export const PPD_SIN_COMPLEMENTO = "PPD_SIN_COMPLEMENTO";
@@ -59,7 +59,7 @@ export interface LedgerEntry {
   supplierRfc: string;
   /** Most frequent Nombre of that RFC among the loaded invoices; the RFC when none. */
   supplierName: string;
-  /** Month of the invoice's own Fecha; null only when the Fecha is malformed. */
+  /** Month of the invoice's own Fecha; null when the Fecha is malformed or its year is outside the window (D-48). */
   ownMonth: MonthKey | null;
   /** Imputation month: ownMonth, except credit notes with a loaded related invoice (D-34). */
   month: MonthKey | null;
@@ -210,13 +210,15 @@ interface Imputation {
 /**
  * Imputation month (REGLA-02, D-34): a credit note goes to the month of its
  * loaded related invoice, the one with the oldest literal Fecha when there are
- * several; with none loaded (or none with a usable Fecha) it keeps its own.
+ * several; with none loaded (or none with a usable Fecha, which includes a year
+ * outside the window, D-48) it keeps its own.
  */
 function imputationOf(
   invoice: ParsedInvoice,
   kind: EntryKind,
   ownMonth: MonthKey | null,
   byUuid: Map<string, ParsedInvoice>,
+  context: FechaContext,
 ): Imputation {
   if (kind !== "nota-credito") return { relatedLoaded: [], month: ownMonth };
   const related: ParsedInvoice[] = [];
@@ -227,7 +229,7 @@ function imputationOf(
   related.sort((a, b) => compareText(a.fecha, b.fecha));
   let month = ownMonth;
   for (const candidate of related) {
-    const candidateMonth = monthOfFecha(candidate.fecha);
+    const candidateMonth = monthOfFecha(candidate.fecha, context);
     if (candidateMonth !== null) {
       month = candidateMonth;
       break;
@@ -280,9 +282,15 @@ function amountsOf(
   return { noSuma: null, invalidField: null, conIva, sinIva };
 }
 
+/**
+ * `context` carries the browser's year for the Fecha window (D-48). It is
+ * required, so no caller can forget it, and it reaches both Fecha-to-month
+ * conversions (the own month and the credit-note imputation) so they share one rule.
+ */
 export function buildLedger(
   invoices: readonly LoadedInvoice[],
   overrides: LedgerOverrides,
+  context: FechaContext,
 ): LedgerEntry[] {
   const byUuid = new Map<string, ParsedInvoice>();
   for (const { invoice } of invoices) {
@@ -294,8 +302,8 @@ export function buildLedger(
 
   return invoices.map(({ invoice }) => {
     const kind = kindOf(invoice.tipo);
-    const ownMonth = monthOfFecha(invoice.fecha);
-    const { relatedLoaded, month } = imputationOf(invoice, kind, ownMonth, byUuid);
+    const ownMonth = monthOfFecha(invoice.fecha, context);
+    const { relatedLoaded, month } = imputationOf(invoice, kind, ownMonth, byUuid, context);
     const { noSuma, invalidField, conIva, sinIva } = amountsOf(invoice, kind, ownMonth);
 
     const substitutedBy = substitutions.substitutedBy.get(invoice.uuid) ?? null;

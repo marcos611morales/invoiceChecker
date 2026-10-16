@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   act,
   cleanup,
@@ -600,5 +600,32 @@ describe("QualityTab long and hostile text", () => {
     const { container } = render(<QualityTab />);
     expect(container.querySelector("img")).toBeNull();
     expect(within(rowOf("nc-sin-relacionada", "NC-8")).getByRole("button", { name: hostile })).toBeInTheDocument();
+  });
+});
+
+describe("QualityTab: Fecha year window (WR-03, D-48)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("WR-03: lists Fecha years outside 2000..current year + 1 under Datos inválidos, and only those", () => {
+    // Mid-June 2026 local time: the window is 2000..2027 and the year is read at mount.
+    vi.setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
+    seed([
+      inv("OK-1", { fecha: "2025-01-15T10:00:00" }),
+      inv("OLD-1", { fecha: "0001-03-01T10:00:00" }),
+      inv("LOW-1", { fecha: "1999-12-31T23:59:59" }),
+      inv("FAR-1", { fecha: "2205-01-01T10:00:00" }),
+      inv("EDGE-1", { fecha: "2027-12-31T23:59:59" }),
+      inv("PAGO-FAR", { tipo: "P", fecha: "2205-01-01T10:00:00" }),
+    ]);
+    render(<QualityTab />);
+    expect(screen.getByTestId("quality-datos-invalidos").textContent.replace(/\D/g, "")).toBe("3");
+    ensureOpen("datos-invalidos");
+    for (const uuid of ["OLD-1", "LOW-1", "FAR-1"]) {
+      expect(within(rowOf("datos-invalidos", uuid)).getByText("Fecha inválida: no se suma")).toBeInTheDocument();
+    }
+    expect(screen.queryByTestId("quality-row-datos-invalidos:EDGE-1")).toBeNull();
+    expect(screen.queryByTestId("quality-row-datos-invalidos:PAGO-FAR")).toBeNull();
   });
 });

@@ -12,7 +12,7 @@ import {
   withTipoRelacion,
   withUuid,
 } from "../../../tests/support/cfdiVariants";
-import { loaded } from "../../../tests/support/ledgerFactory";
+import { loaded, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
 import { parseCfdi } from "../cfdi/parseCfdi";
 import type { ParsedInvoice } from "../cfdi/types";
 import {
@@ -50,7 +50,11 @@ function ledgerOf(
   documents: readonly string[],
   overrides: LedgerOverrides = EMPTY_OVERRIDES,
 ): LedgerEntry[] {
-  return buildLedger(documents.map((xml) => loaded(parseOk(xml))), overrides);
+  return buildLedger(
+    documents.map((xml) => loaded(parseOk(xml))),
+    overrides,
+    TEST_FECHA_CONTEXT,
+  );
 }
 
 function entryOf(entries: readonly LedgerEntry[], xml: string): LedgerEntry {

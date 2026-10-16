@@ -9,7 +9,7 @@ import {
   qualitySummary,
 } from "./quality";
 import type { Incident, IncidentType } from "./quality";
-import { loaded, makeEntry, makeInvoice } from "../../../tests/support/ledgerFactory";
+import { loaded, makeEntry, makeInvoice, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
 
 function concepto(importe: string): Concepto {
   return {
@@ -272,7 +272,7 @@ describe("nc-varias-relacionadas (D-34, D-46)", () => {
       fecha: "2025-08-02T10:00:00",
       relacionados: [{ tipoRelacion: "01", uuids: [julio.uuid, mayo.uuid] }],
     });
-    const ledger = buildLedger([loaded(julio), loaded(mayo), loaded(note)], EMPTY_OVERRIDES);
+    const ledger = buildLedger([loaded(julio), loaded(mayo), loaded(note)], EMPTY_OVERRIDES, TEST_FECHA_CONTEXT);
     const incidents = qualityIncidents(ledger);
     expect(typesOf(incidents)).toEqual(["nc-varias-relacionadas"]);
     expect(incidents[0]?.detail).toEqual({

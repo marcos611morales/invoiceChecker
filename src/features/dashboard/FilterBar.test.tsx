@@ -5,7 +5,7 @@ import { isDefaultFilters, loadedSpan } from "@/domain/accounting/filters";
 import { EMPTY_OVERRIDES, PPD_SIN_COMPLEMENTO, buildLedger } from "@/domain/accounting/ledger";
 import type { ParsedInvoice } from "@/domain/cfdi/types";
 import { useSessionStore } from "@/stores/sessionStore";
-import { loaded, makeInvoice } from "../../../tests/support/ledgerFactory";
+import { loaded, makeInvoice, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
 import { FilterBar } from "./FilterBar";
 
@@ -35,7 +35,7 @@ function sample(): ParsedInvoice[] {
 }
 
 function renderBar(invoices: readonly ParsedInvoice[] = sample()) {
-  const ledger = buildLedger(invoices.map(loaded), EMPTY_OVERRIDES);
+  const ledger = buildLedger(invoices.map(loaded), EMPTY_OVERRIDES, TEST_FECHA_CONTEXT);
   return render(<FilterBar ledger={ledger} span={loadedSpan(ledger)} />);
 }
 
