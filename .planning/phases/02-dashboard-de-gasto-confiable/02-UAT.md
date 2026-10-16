@@ -1,19 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 02-dashboard-de-gasto-confiable
 source: [02-VERIFICATION.md]
 started: 2026-10-16T01:20:33Z
-updated: 2026-10-16T19:13:23Z
+updated: 2026-10-16T19:15:53.399Z
 ---
 
 ## Current Test
-<!-- OVERWRITE each test - shows where we are -->
 
-number: 11
-name: DECISION on WR-03: what to do with an implausible Fecha year (0001 or 2205) that stretches the loaded month span (D-12/D-41).
-expected: |
-  User defines a plausible-year window or another rule.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -61,14 +56,16 @@ severity: major
 
 ### 11. DECISION on WR-03: what to do with an implausible Fecha year (0001 or 2205) that stretches the loaded month span (D-12/D-41).
 expected: User defines a plausible-year window or another rule.
-result: [pending]
+result: issue
+reported: "Decision: a Fecha whose year is outside 2000..(current year + 1) is reported as datos-invalidos (field Fecha) in Calidad de datos, does not sum, and does not widen the loaded month span."
+severity: major
 
 ## Summary
 
 total: 11
 passed: 9
-issues: 1
-pending: 1
+issues: 2
+pending: 0
 skipped: 0
 blocked: 0
 
@@ -80,5 +77,14 @@ blocked: 0
   reason: "User reported: Decision on WR-01 — fix now (02-REVIEW.md WR-01: undo/re-include of a normal exclusion writes to `restored`, so a later substitute double-counts the original)."
   severity: major
   test: 10
+  artifacts: []
+  missing: []
+
+- gap_id: G-02-11
+  truth: "A Fecha whose year is outside the window 2000..(current year + 1) is reported as datos-invalidos (field Fecha) in Calidad de datos, does not sum, and does not widen the loaded month span (D-12/D-41), so the month list, chart and Promedio mensual stay bounded."
+  status: failed
+  reason: "User reported: Decision on WR-03 — fixed window 2000 to current year + 1; out-of-window Fecha becomes datos-invalidos (02-REVIEW.md WR-03: one damaged Fecha can blow up the month span)."
+  severity: major
+  test: 11
   artifacts: []
   missing: []
