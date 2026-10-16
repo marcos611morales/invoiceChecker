@@ -1170,3 +1170,23 @@ describe("Dashboard tab: Ver factura flow and the hidden-by-filters Alert (FILT-
     expect(useSessionStore.getState().filters).toBe(before);
   });
 });
+
+describe("Dashboard tab: Fecha year window (WR-03, D-48)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("WR-03: an Ingreso dated 2205 is reported, does not sum and does not stretch the month span", () => {
+    // Mid-June 2026 local time: the window is 2000..2027 and the year is read at mount.
+    vi.setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
+    load([
+      inv("OK-ENE", { fecha: "2025-01-15T10:00:00" }),
+      inv("OK-JUN", { fecha: "2025-06-15T10:00:00" }),
+      inv("FAR-1", { fecha: "2205-01-01T10:00:00" }),
+    ]);
+    render(<DashboardTab />);
+    expect(gastoText()).toContain("$232.00");
+    expect(screen.getByText("Entre 6 meses del calendario")).toBeInTheDocument();
+    expect(notice()).toBeInTheDocument();
+  });
+});
