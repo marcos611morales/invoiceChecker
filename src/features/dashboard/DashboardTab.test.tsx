@@ -12,6 +12,7 @@ import {
 import { parseCfdi } from "@/domain/cfdi/parseCfdi";
 import type { ParsedInvoice } from "@/domain/cfdi/types";
 import { AppShell } from "@/features/shell/AppShell";
+import { shortUuid } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { DashboardTab } from "./DashboardTab";
@@ -1030,5 +1031,142 @@ describe("Dashboard tab: amount-changing incidents notice (D-04, D-35, D-46)", (
     if (!(alert instanceof HTMLElement)) return;
     // Node.DOCUMENT_POSITION_FOLLOWING (4): the caption follows the alert in document order.
     expect(alert.compareDocumentPosition(caption) & 4).toBe(4);
+  });
+});
+
+describe("Dashboard tab: Ver factura flow and the hidden-by-filters Alert (FILT-05, D-33)", () => {
+  const JAN = inv("HID-JAN", { fecha: "2025-01-10T10:00:00" });
+  const MAR = inv("SHOWN-MAR", { fecha: "2025-03-10T10:00:00" });
+
+  function hideJan(): void {
+    act(() => {
+      useSessionStore.getState().setRange({ from: "2025-03", to: "2025-03" });
+    });
+  }
+
+  function request(uuid: string): void {
+    act(() => {
+      useSessionStore.getState().requestFocus(uuid);
+    });
+  }
+
+  function hiddenAlert(folio: string): HTMLElement | null {
+    const text = screen.queryByText(`La factura ${folio} no se ve porque los filtros la ocultan.`);
+    const alert = text?.closest('[data-slot="alert"]');
+    return alert instanceof HTMLElement ? alert : null;
+  }
+
+  it("shows the Alert, leaves the filters untouched and moves nothing when the filters hide the invoice", () => {
+    load([JAN, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    const before = useSessionStore.getState().filters;
+    request("HID-JAN");
+    const alert = hiddenAlert("HID-JAN");
+    expect(alert).not.toBeNull();
+    expect(useSessionStore.getState().filters).toBe(before);
+    expect(document.querySelector('tr[data-row-id="HID-JAN"]')).toBeNull();
+    expect(useSessionStore.getState().focusRequest?.uuid).toBe("HID-JAN");
+  });
+
+  it("reveals the row, expanded and focused, after Quitar filtros and then clears the request and the Alert", () => {
+    load([JAN, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    request("HID-JAN");
+    const alert = hiddenAlert("HID-JAN");
+    expect(alert).not.toBeNull();
+    if (alert === null) return;
+    fireEvent.click(within(alert).getByRole("button", { name: "Quitar filtros" }));
+    expect(useSessionStore.getState().filters.range).toBeNull();
+    expect(screen.getByTestId("expand-HID-JAN")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("expand-HID-JAN")).toHaveFocus();
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+    expect(hiddenAlert("HID-JAN")).toBeNull();
+  });
+
+  it("shows the Alert as well when the filters leave no row at all, and reveals the row afterwards", () => {
+    load([JAN]);
+    render(<DashboardTab />);
+    act(() => {
+      useSessionStore.getState().setRange({ from: "2025-03", to: "2025-03" });
+    });
+    expect(screen.getByTestId("dashboard-empty-filtered")).toBeInTheDocument();
+    request("HID-JAN");
+    const alert = hiddenAlert("HID-JAN");
+    expect(alert).not.toBeNull();
+    if (alert === null) return;
+    fireEvent.click(within(alert).getByRole("button", { name: "Quitar filtros" }));
+    expect(screen.getByTestId("expand-HID-JAN")).toHaveAttribute("aria-expanded", "true");
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+  });
+
+  it("clears the request and the Alert when the user edits a filter instead", () => {
+    load([JAN, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    request("HID-JAN");
+    expect(hiddenAlert("HID-JAN")).not.toBeNull();
+    act(() => {
+      useSessionStore.getState().setRange({ from: "2025-02", to: "2025-03" });
+    });
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+    expect(hiddenAlert("HID-JAN")).toBeNull();
+    expect(useSessionStore.getState().filters.range).toEqual({ from: "2025-02", to: "2025-03" });
+  });
+
+  it("names an invoice without folio by its short uuid", () => {
+    const noFolio = makeInvoice({
+      uuid: "abcdef12-0000-4000-8000-000000000001",
+      folio: null,
+      fecha: "2025-01-10T10:00:00",
+    });
+    load([noFolio, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    request(noFolio.uuid);
+    expect(hiddenAlert(shortUuid(noFolio.uuid))).not.toBeNull();
+  });
+
+  it("renders a hostile folio as plain text in the Alert", () => {
+    const hostile = inv("<img src=x onerror=alert(1)>", { fecha: "2025-01-10T10:00:00" });
+    load([hostile, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    request(hostile.uuid);
+    expect(hiddenAlert("<img src=x onerror=alert(1)>")).not.toBeNull();
+    expect(document.querySelector("img")).toBeNull();
+  });
+
+  it("clears a request for a uuid that is not loaded without showing any Alert", () => {
+    load([JAN, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    const before = useSessionStore.getState().filters;
+    request("NOT-LOADED");
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+    expect(screen.queryByText(/no se ve porque los filtros la ocultan/)).toBeNull();
+    expect(useSessionStore.getState().filters).toBe(before);
+  });
+
+  it("switches from Calidad de datos to the Dashboard and the table, mounting afterwards, consumes the request", () => {
+    load([JAN, MAR]);
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole("tab", { name: /^Calidad de datos/ }));
+    expect(useSessionStore.getState().activeTab).toBe("calidad");
+    request("HID-JAN");
+    expect(useSessionStore.getState().activeTab).toBe("dashboard");
+    expect(screen.getByTestId("expand-HID-JAN")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("expand-HID-JAN")).toHaveFocus();
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+  });
+
+  it("never edits a filter by itself: only Quitar filtros changes them", () => {
+    load([JAN, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    const before = useSessionStore.getState().filters;
+    request("HID-JAN");
+    expect(useSessionStore.getState().filters).toBe(before);
   });
 });

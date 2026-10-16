@@ -350,3 +350,59 @@ describe("ImportReport Quitar todas", () => {
     expect(screen.getByRole("button", { name: "Quitar todas" })).toBeDisabled();
   });
 });
+
+describe("ImportReport import focus (D-32)", () => {
+  function requestImport(kind: "duplicados" | "rechazados"): void {
+    act(() => {
+      useSessionStore.getState().requestImportFocus(kind);
+    });
+  }
+
+  it("opens the Duplicados section and clears the request", () => {
+    seedMixed();
+    render(<ImportReport />);
+    expect(trigger("Duplicados (1)")).toHaveAttribute("aria-expanded", "false");
+    requestImport("duplicados");
+    expect(trigger("Duplicados (1)")).toHaveAttribute("aria-expanded", "true");
+    expect(useSessionStore.getState().importFocus).toBeNull();
+  });
+
+  it("opens the section when the report mounts after the request (tab switch)", () => {
+    seedMixed();
+    requestImport("duplicados");
+    render(<ImportReport />);
+    expect(trigger("Duplicados (1)")).toHaveAttribute("aria-expanded", "true");
+    expect(useSessionStore.getState().importFocus).toBeNull();
+  });
+
+  it("re-opens the rejected section the user had closed", () => {
+    seedMixed();
+    render(<ImportReport />);
+    fireEvent.click(trigger("Rechazados (2)"));
+    expect(trigger("Rechazados (2)")).toHaveAttribute("aria-expanded", "false");
+    requestImport("rechazados");
+    expect(trigger("Rechazados (2)")).toHaveAttribute("aria-expanded", "true");
+    expect(useSessionStore.getState().importFocus).toBeNull();
+  });
+
+  it("leaves the sections the user opened or closed before untouched", () => {
+    seedMixed();
+    render(<ImportReport />);
+    fireEvent.click(trigger("Ignorados (3)"));
+    requestImport("duplicados");
+    expect(trigger("Ignorados (3)")).toHaveAttribute("aria-expanded", "true");
+    expect(trigger("Duplicados (1)")).toHaveAttribute("aria-expanded", "true");
+    expect(trigger("Rechazados (2)")).toHaveAttribute("aria-expanded", "true");
+    expect(trigger("Ingreso (2)")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("can open the same section again after the user closed it", () => {
+    seedMixed();
+    render(<ImportReport />);
+    requestImport("duplicados");
+    fireEvent.click(trigger("Duplicados (1)"));
+    expect(trigger("Duplicados (1)")).toHaveAttribute("aria-expanded", "false");
+    requestImport("duplicados");
+    expect(trigger("Duplicados (1)")).toHaveAttribute("aria-expanded", "true");
+  });
+});

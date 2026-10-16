@@ -678,3 +678,118 @@ describe("InvoiceTable with prebuilt entries", () => {
     expect(dataRows()).toHaveLength(2);
   });
 });
+
+describe("InvoiceTable focus request (D-33, Pitfall 17)", () => {
+  function many(count: number): ParsedInvoice[] {
+    return Array.from({ length: count }, (_, i) =>
+      inv(`P${String(i).padStart(3, "0")}`, {
+        fecha: `2025-01-01T00:${String(Math.floor(i / 60)).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}`,
+      }),
+    );
+  }
+
+  function request(uuid: string): void {
+    act(() => {
+      useSessionStore.getState().requestFocus(uuid);
+    });
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("jumps to the page of a row at sorted position 105, opens it, centres it, focuses its chevron and clears the request", () => {
+    seed(many(120));
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<Harness />);
+    expect(screen.getByText("Página 1 de 3")).toBeInTheDocument();
+    // Fecha descending: position 105 (0-based) is the invoice P014.
+    request("P014");
+    expect(screen.getByText("Página 3 de 3")).toBeInTheDocument();
+    expect(chevron("P014")).toHaveAttribute("aria-expanded", "true");
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.contexts[0]).toBe(dataRow("P014"));
+    expect(scroll.mock.calls[0]?.[0]).toMatchObject({ block: "center" });
+    expect(chevron("P014")).toHaveFocus();
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+  });
+
+  it("does not repeat the jump when the table is sorted again afterwards", () => {
+    seed(many(120));
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<Harness />);
+    request("P014");
+    expect(scroll).toHaveBeenCalledTimes(1);
+    clickHeader("Folio");
+    clickHeader("Folio");
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Página 3 de 3")).toBeInTheDocument();
+    expect(chevron("P014")).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("scrolls smoothly unless the user prefers reduced motion", () => {
+    seed(many(60));
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<Harness />);
+    request("P030");
+    expect(scroll.mock.calls[0]?.[0]).toMatchObject({ block: "center", behavior: "smooth" });
+  });
+
+  it("uses auto behavior when prefers-reduced-motion matches", () => {
+    seed(many(60));
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<Harness />);
+    request("P030");
+    expect(scroll.mock.calls[0]?.[0]).toMatchObject({ block: "center", behavior: "auto" });
+  });
+
+  it("uses auto behavior when matchMedia is unavailable", () => {
+    seed(many(60));
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<Harness />);
+    request("P030");
+    expect(scroll.mock.calls[0]?.[0]).toMatchObject({ block: "center", behavior: "auto" });
+  });
+
+  it("keeps the other open panels when it opens the requested one", () => {
+    seed(many(60));
+    render(<Harness />);
+    fireEvent.click(chevron("P059"));
+    request("P010");
+    expect(chevron("P059")).toHaveAttribute("aria-expanded", "true");
+    expect(chevron("P010")).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("clears at once a request for a uuid that is not in the ledger, without any visible effect", () => {
+    seed(many(60));
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<Harness />);
+    request("NO-SUCH-UUID");
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+    expect(scroll).not.toHaveBeenCalled();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+    expect(document.querySelector('[aria-expanded="true"]')).toBeNull();
+  });
+
+  it("does not move the table nor clear the request when the row is in the ledger but filtered out", () => {
+    seed(many(60));
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<Harness only={new Set(["P000", "P001"])} />);
+    request("P030");
+    expect(scroll).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().focusRequest?.uuid).toBe("P030");
+    expect(dataRows()).toHaveLength(2);
+  });
+});
