@@ -1,1 +1,1 @@
-No external API integration: Phase 2 computes everything in the browser (pure accounting layer, zustand stores, Recharts and shadcn components bundled locally) and calls no external service; the detector fired only on the phrase "raw-HTML API" in a threat-model row; DeepSeek arrives in Phase 4.
+No external API integration: Phase 2 runs fully in the browser and calls no external service; the detector matched "raw-HTML API" in a threat-model row; DeepSeek arrives in Phase 4.
