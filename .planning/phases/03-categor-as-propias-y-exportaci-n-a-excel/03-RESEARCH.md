@@ -527,32 +527,32 @@ export function normalizeDescription(text: string): string {
 | A9 | Cross-tab last-write-wins and downgrade data loss are acceptable for this single-team tool | Pitfall 13 | Low |
 | A10 | Duplicate name check ignores case and edge spaces only (not accents), exactly as D-04 words it | Pattern 3 | Low; "Cafe" and "Café" would be two categories |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-The first (Q-A) blocks a correct export; Q-B..Q-D change persisted or visible behaviour; Q-E and Q-F are minor.
+The first (Q-A) blocks a correct export; Q-B..Q-D change persisted or visible behaviour; Q-E and Q-F are minor. All six were answered by the user on 2026-10-16 during /gsd-plan-phase and are recorded as locked decisions D-24..D-30 in 03-CONTEXT.md (a follow-up question on the filter option count produced D-28).
 
-1. **Q-A (blocker): allow `worker-src 'self' blob:` in the CSP?**
+1. **Q-A (blocker): allow `worker-src 'self' blob:` in the CSP?** — RESOLVED (user, 2026-10-16): yes. Add `"worker-src 'self' blob:"` to the CSP in `next.config.ts` (`script-src` unchanged) and race `toBlob()` against a timeout that ends in the export-failure toast. Locked as D-24.
    - What we know: reproduced; without it `toBlob()` never settles for sheets whose uncompressed XML is ≥160,000 bytes, which the Conceptos sheet will be; with it the export works; `script-src` stays unchanged and `blob:` is limited to workers.
    - What's unclear: the user's security preference.
    - Recommendation: approve the one-line CSP change in `next.config.ts` and keep the timeout/failure toast as a second line of defence. Alternative (not recommended): drop the Conceptos sheet or cap rows; there is no supported synchronous path in the library's public API.
 
-2. **Q-B: do users coming from v1 (Phase 2, only `ivaMode` stored) get the 9 seed categories on migration?**
+2. **Q-B: do users coming from v1 (Phase 2, only `ivaMode` stored) get the 9 seed categories on migration?** — RESOLVED (user, 2026-10-16): yes, the v1 → v2 migration seeds the 9 categories of D-02 and keeps `ivaMode`. Locked as D-25.
    - What we know: UI-SPEC seeds "the first time (no stored settings, or unreadable settings)"; D-02 says "La primera vez existen 9 categorías". A v1 user has stored settings but has never had categories.
    - Recommendation: yes, seed them (they have never seen categories), keeping `ivaMode`.
 
-3. **Q-C: is `ñ` an accent for the rule key (D-10)?**
+3. **Q-C: is `ñ` an accent for the rule key (D-10)?** — RESOLVED (user, 2026-10-16): no. The rule-key normalizer strips accent marks but keeps `ñ` distinct from `n` ("PEÑA" ≠ "PENA"; "Ñ" = "ñ" because case is ignored), unlike `normalizeSearch`; frozen with tests. Locked as D-26.
    - What we know: the existing `normalizeSearch` removes every combining mark, so `ñ` becomes `n`; Spanish treats `ñ` as a distinct letter, and "PEÑA"/"PENA" or "AÑO"/"ANO" would collide. In the sample 2 of 362 concept descriptions contain `ñ` and there are zero collisions either way. The key is written into localStorage and the backup file, so changing it later means a migration (D-09 reversibility: costly).
    - Recommendation: keep `ñ` distinct (strip only accent marks, not the tilde of `ñ`), documented and frozen with tests. Either choice is acceptable; it needs a decision before execution.
 
-4. **Q-D: under a category filter, is an invoice kept when only its rounding-difference part (at most one cent in the sample) falls in the chosen categories?**
+4. **Q-D: under a category filter, is an invoice kept when only its rounding-difference part (at most one cent in the sample) falls in the chosen categories?** — RESOLVED (user, 2026-10-16): yes. An invoice belongs to the selection when any part (a line or the rounding difference) falls in it, so selecting every category reproduces the unfiltered totals exactly; this applies to KPIs, trend, ranking, table, invoice count, ticket and the Excel. Locked as D-27. Follow-up answered the same day: the per-option count of the category filter uses the same membership rule (locked as D-28).
    - What we know: D-14 says "facturas con al menos un concepto de esas categorías". If only lines count, choosing every category would still lose those cents versus the unfiltered total.
    - Recommendation: keep the entry if any part (line or rounding difference) is in the selection so that selecting all categories reproduces the unfiltered totals exactly; the visible effect is limited to the invoice count in a rare edge case.
 
-5. **Q-E: add `fflate` as a direct devDependency to unzip the produced `.xlsx` in a Vitest smoke test?**
+5. **Q-E: add `fflate` as a direct devDependency to unzip the produced `.xlsx` in a Vitest smoke test?** — RESOLVED (user, 2026-10-16): no. Sheet-builder unit tests plus a `PK` magic-bytes smoke test; the "opens in Excel" check stays manual. Locked as D-29.
    - Without it: builder unit tests (no dependency) plus a smoke test that `toBlob()` resolves in the Node environment and the bytes start with `PK`; the "opens in Excel, dates right, text preserved" check stays manual (UI-SPEC already requires it).
    - Recommendation: do not add it; manual Excel verification covers what unzipping would.
 
-6. **Q-F: caps for the backup file and the persisted arrays (assumption A6).** Recommendation: use the suggested caps and keep the 1 MB file limit from the UI-SPEC.
+6. **Q-F: caps for the backup file and the persisted arrays (assumption A6).** Recommendation: use the suggested caps and keep the 1 MB file limit from the UI-SPEC. — RESOLVED (user, 2026-10-16): yes, at most 200 categories, 5,000 supplier assignments, 20,000 concept rules, 60-character category names and a 1 MB file. Locked as D-30.
 
 Planner-discretion items (no user decision needed): include the original `description` text in each concept rule (the normalized key is unreadable in the JSON); exact JSON field names; ids as `cat_<uuid>` and seed ids as `seed:<slug>`.
 
