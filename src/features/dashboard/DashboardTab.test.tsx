@@ -1189,4 +1189,52 @@ describe("Dashboard tab: Fecha year window (WR-03, D-48)", () => {
     expect(screen.getByText("Entre 6 meses del calendario")).toBeInTheDocument();
     expect(notice()).toBeInTheDocument();
   });
+
+  it("WR-03: with the browser in June 2027 an Ingreso dated January 2028 is inside the window", () => {
+    vi.setSystemTime(new Date(2027, 5, 15, 12, 0, 0));
+    load([
+      inv("OK-2025", { fecha: "2025-01-15T10:00:00" }),
+      inv("NEXT-1", { fecha: "2028-01-15T10:00:00" }),
+    ]);
+    render(<DashboardTab />);
+    expect(gastoText()).toContain("$232.00");
+    expect(screen.getByText("Entre 37 meses del calendario")).toBeInTheDocument();
+  });
+
+  it("WR-03: with the browser in June 2026 the same January 2028 Ingreso is reported and does not sum", () => {
+    vi.setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
+    load([
+      inv("OK-2025", { fecha: "2025-01-15T10:00:00" }),
+      inv("NEXT-1", { fecha: "2028-01-15T10:00:00" }),
+    ]);
+    render(<DashboardTab />);
+    expect(gastoText()).toContain("$116.00");
+    expect(screen.getByText("Entre 1 mes del calendario")).toBeInTheDocument();
+    expect(notice()).toBeInTheDocument();
+  });
+
+  it("WR-03: both ends are inclusive: 2027-12-31 counts, 2028-01-01 and 1999-12-31 do not (June 2026)", () => {
+    vi.setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
+    load([
+      inv("OK-2025", { fecha: "2025-01-15T10:00:00" }),
+      inv("UPPER-1", { fecha: "2027-12-31T23:59:59" }),
+      inv("ABOVE-1", { fecha: "2028-01-01T00:00:00" }),
+      inv("BELOW-1", { fecha: "1999-12-31T23:59:59" }),
+    ]);
+    render(<DashboardTab />);
+    expect(gastoText()).toContain("$232.00");
+    expect(screen.getByText("Entre 36 meses del calendario")).toBeInTheDocument();
+  });
+
+  it("WR-03: a Pago dated 2205 stays out of the span and raises no amount-change notice", () => {
+    vi.setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
+    load([
+      inv("OK-2025", { fecha: "2025-01-15T10:00:00" }),
+      inv("PAGO-FAR", { tipo: "P", fecha: "2205-01-01T10:00:00" }),
+    ]);
+    render(<DashboardTab />);
+    expect(gastoText()).toContain("$116.00");
+    expect(screen.getByText("Entre 1 mes del calendario")).toBeInTheDocument();
+    expect(notice()).toBeNull();
+  });
 });
