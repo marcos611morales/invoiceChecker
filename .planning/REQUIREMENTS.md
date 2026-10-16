@@ -27,7 +27,7 @@
 - [ ] **REGLA-02**: Las notas de crédito se restan en el mes de la factura relacionada si está cargada; si no, en su propia fecha con aviso
 - [ ] **REGLA-03**: Usuario puede alternar globalmente "con IVA" (Total) y "sin IVA" (Subtotal − Descuento + IEPS, es decir, quitando solo el IVA); el modo activo se indica siempre en pantalla y aplica a gráficas, tablas, promedios y Excel
 - [ ] **REGLA-04**: Los cálculos usan aritmética decimal exacta (big.js); el redondeo solo ocurre al mostrar
-- [ ] **REGLA-05**: Los meses se asignan por la fecha literal del CFDI (sin conversión de zona horaria)
+- [x] **REGLA-05**: Los meses se asignan por la fecha literal del CFDI (sin conversión de zona horaria)
 - [ ] **REGLA-06**: Facturas con total $0 se excluyen de conteos y promedios, y se listan en calidad de datos
 - [ ] **REGLA-07**: Facturas en moneda distinta a MXN se convierten con el TipoCambio de la propia factura
 - [x] **REGLA-08**: Usuario puede marcar manualmente una factura como "Excluida" (p. ej. cancelada) y deja de contar en todo el análisis
@@ -36,11 +36,11 @@
 ### Dashboard (DASH)
 
 - [ ] **DASH-01**: Usuario ve KPIs: gasto total, número de facturas, ticket promedio y promedio mensual del rango filtrado
-- [ ] **DASH-02**: Usuario ve la tendencia de gasto por mes (incluyendo meses sin gasto en $0)
+- [x] **DASH-02**: Usuario ve la tendencia de gasto por mes (incluyendo meses sin gasto en $0)
 - [ ] **DASH-03**: Usuario ve ranking de gasto por categoría ("en qué gastamos más")
 - [ ] **DASH-04**: Usuario ve ranking de gasto por proveedor con ticket promedio por proveedor
 - [ ] **DASH-05**: Usuario ve promedio mensual por categoría
-- [ ] **DASH-06**: El promedio mensual divide entre los meses del calendario del rango filtrado (aunque no tengan facturas), indicado en pantalla
+- [x] **DASH-06**: El promedio mensual divide entre los meses del calendario del rango filtrado (aunque no tengan facturas), indicado en pantalla
 - [ ] **DASH-07**: Usuario ve la variación % mes contra mes por categoría
 - [ ] **DASH-08**: Usuario puede hacer clic en una categoría o proveedor y ver sus facturas y conceptos
 - [ ] **DASH-09**: Usuario ve una tabla de facturas/conceptos ordenable
@@ -48,7 +48,7 @@
 
 ### Filtros (FILT)
 
-- [ ] **FILT-01**: Usuario puede filtrar por rango de fechas o mes
+- [x] **FILT-01**: Usuario puede filtrar por rango de fechas o mes
 - [ ] **FILT-02**: Usuario puede filtrar por uno o varios proveedores
 - [ ] **FILT-03**: Usuario puede filtrar por una o varias categorías
 - [ ] **FILT-04**: Usuario puede filtrar por forma de pago (con nombres del catálogo SAT, no códigos)
@@ -87,7 +87,7 @@
 
 ### Calidad de datos (CAL)
 
-- [ ] **CAL-01**: Usuario ve un panel con duplicados, archivos con error, facturas en $0, diferencias de redondeo, sustituciones (TipoRelación 04) y notas sin factura relacionada
+- [x] **CAL-01**: Usuario ve un panel con duplicados, archivos con error, facturas en $0, diferencias de redondeo, sustituciones (TipoRelación 04) y notas sin factura relacionada
 
 ### Exportar a Excel (XLS)
 
@@ -141,22 +141,22 @@
 | REGLA-02 | Phase 2 | Pending |
 | REGLA-03 | Phase 2 | Pending |
 | REGLA-04 | Phase 2 | Pending |
-| REGLA-05 | Phase 2 | Pending |
+| REGLA-05 | Phase 2 | Complete |
 | REGLA-06 | Phase 2 | Pending |
 | REGLA-07 | Phase 2 | Pending |
 | REGLA-08 | Phase 2 | Complete |
 | REGLA-09 | Phase 2 | Pending |
 | DASH-01 | Phase 2 | Pending |
-| DASH-02 | Phase 2 | Pending |
+| DASH-02 | Phase 2 | Complete |
 | DASH-03 | Phase 3 | Pending |
 | DASH-04 | Phase 2 | Pending |
 | DASH-05 | Phase 3 | Pending |
-| DASH-06 | Phase 2 | Pending |
+| DASH-06 | Phase 2 | Complete |
 | DASH-07 | Phase 3 | Pending |
 | DASH-08 | Phase 3 | Pending |
 | DASH-09 | Phase 2 | Pending |
 | DASH-10 | Phase 2 | Pending |
-| FILT-01 | Phase 2 | Pending |
+| FILT-01 | Phase 2 | Complete |
 | FILT-02 | Phase 2 | Pending |
 | FILT-03 | Phase 3 | Pending |
 | FILT-04 | Phase 2 | Pending |
@@ -180,7 +180,7 @@
 | PREC-04 | Phase 5 | Pending |
 | PREC-05 | Phase 5 | Pending |
 | PREC-06 | Phase 5 | Pending |
-| CAL-01 | Phase 2 | Pending |
+| CAL-01 | Phase 2 | Complete |
 | XLS-01 | Phase 3 | Pending |
 | XLS-02 | Phase 3 | Pending |
 | XLS-03 | Phase 3 | Pending |
