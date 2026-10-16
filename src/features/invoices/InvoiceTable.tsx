@@ -120,7 +120,7 @@ function RowMenu({
 }: {
   row: InvoiceRow;
   onExclude: (uuid: string) => void;
-  onReinclude: (uuid: string) => void;
+  onReinclude: (entry: LedgerEntry) => void;
 }) {
   const { entry } = row;
   if (entry.noSuma !== null) return null;
@@ -137,7 +137,7 @@ function RowMenu({
       <DropdownMenuContent align="end" className="w-auto min-w-44">
         <DropdownMenuItem
           onClick={() => {
-            if (reinclude) onReinclude(entry.uuid);
+            if (reinclude) onReinclude(entry);
             else onExclude(entry.uuid);
           }}
         >
@@ -229,6 +229,7 @@ function ConceptsPanel({
  */
 export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps) {
   const excludeInvoice = useSessionStore((s) => s.excludeInvoice);
+  const undoExclusion = useSessionStore((s) => s.undoExclusion);
   const reincludeInvoice = useSessionStore((s) => s.reincludeInvoice);
   const focusRequest = useSessionStore((s) => s.focusRequest);
   const clearFocusRequest = useSessionStore((s) => s.clearFocusRequest);
@@ -321,20 +322,22 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
   };
 
   const exclude = (uuid: string) => {
-    excludeInvoice(uuid);
+    const undo = excludeInvoice(uuid);
     toast(es.invoices.excludedToast, {
       duration: TOAST_DURATION_MS,
       action: {
         label: es.invoices.undo,
         onClick: () => {
-          reincludeInvoice(uuid);
+          undoExclusion(undo);
         },
       },
     });
   };
 
-  const reinclude = (uuid: string) => {
-    reincludeInvoice(uuid);
+  const reinclude = (entry: LedgerEntry) => {
+    // The override applies only when the row has a loaded substitute; a row that is both
+    // excluded by hand and substituted overrides too (user decision, UAT G-02-10).
+    reincludeInvoice(entry.uuid, { overrideSubstitution: entry.substitutedBy !== null });
     toast(es.invoices.reincludedToast, { duration: TOAST_DURATION_MS });
   };
 

@@ -246,7 +246,7 @@ describe("Dashboard tab: Gasto total follows the exclusions (REGLA-08)", () => {
     expect(gastoText()).toBe("−$1,000.00");
 
     act(() => {
-      useSessionStore.getState().reincludeInvoice(ingreso.uuid);
+      useSessionStore.getState().reincludeInvoice(ingreso.uuid, { overrideSubstitution: false });
     });
     expect(gastoText()).toBe("$345.98");
   });
@@ -900,7 +900,7 @@ describe("useLedger (shared ledger hook)", () => {
     expect(afterExclude).not.toBe(first);
     expect(afterExclude.find((entry) => entry.uuid === "L-1")?.exclusion).toBe("manual");
     act(() => {
-      useSessionStore.getState().reincludeInvoice("L-1");
+      useSessionStore.getState().reincludeInvoice("L-1", { overrideSubstitution: false });
     });
     const afterRestore = result.current;
     expect(afterRestore).not.toBe(afterExclude);
@@ -945,7 +945,7 @@ describe("Dashboard tab: amount-changing incidents notice (D-04, D-35, D-46)", (
     render(<DashboardTab />);
     expect(notice()).toBeInTheDocument();
     act(() => {
-      useSessionStore.getState().reincludeInvoice("ORIG-1");
+      useSessionStore.getState().reincludeInvoice("ORIG-1", { overrideSubstitution: true });
     });
     expect(notice()).toBeNull();
   });

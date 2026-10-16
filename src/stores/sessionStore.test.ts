@@ -150,11 +150,71 @@ describe("sessionStore", () => {
       expect(before.size).toBe(0);
     });
 
-    it("reincludeInvoice removes from excluded and adds to restored, replacing both sets", () => {
+    it("excludeInvoice reports that a plain uuid was not restored (WR-01)", () => {
+      const token = useSessionStore.getState().excludeInvoice("A");
+      expect(token).toEqual({ uuid: "A", wasRestored: false });
+      expect(useSessionStore.getState().restored.has("A")).toBe(false);
+    });
+
+    it("excludeInvoice reports that a restored uuid was restored and takes it out of restored (WR-01)", () => {
+      useSessionStore.setState({ restored: new Set(["A"]) });
+      const token = useSessionStore.getState().excludeInvoice("A");
+      expect(token).toEqual({ uuid: "A", wasRestored: true });
+      expect(useSessionStore.getState().excluded.has("A")).toBe(true);
+      expect(useSessionStore.getState().restored.has("A")).toBe(false);
+    });
+
+    it("undoExclusion of a plain exclusion removes it from excluded and keeps the restored instance (WR-01)", () => {
+      const token = useSessionStore.getState().excludeInvoice("A");
+      const excludedBefore = useSessionStore.getState().excluded;
+      const restoredBefore = useSessionStore.getState().restored;
+      useSessionStore.getState().undoExclusion(token);
+      const state = useSessionStore.getState();
+      expect(state.excluded.has("A")).toBe(false);
+      expect(state.excluded).not.toBe(excludedBefore);
+      expect(excludedBefore.has("A")).toBe(true);
+      expect(state.restored).toBe(restoredBefore);
+      expect(state.restored.has("A")).toBe(false);
+    });
+
+    it("undoExclusion of an exclusion that replaced a restored uuid puts it back in restored (WR-01)", () => {
+      useSessionStore.setState({ restored: new Set(["A"]) });
+      const token = useSessionStore.getState().excludeInvoice("A");
+      useSessionStore.getState().undoExclusion(token);
+      const state = useSessionStore.getState();
+      expect(state.excluded.has("A")).toBe(false);
+      expect(state.restored.has("A")).toBe(true);
+    });
+
+    it("undoExclusion only touches its own uuid (WR-01)", () => {
+      useSessionStore.setState({ restored: new Set(["B"]) });
+      const token = useSessionStore.getState().excludeInvoice("A");
+      useSessionStore.getState().excludeInvoice("C");
+      useSessionStore.getState().undoExclusion(token);
+      const state = useSessionStore.getState();
+      expect(state.excluded.has("C")).toBe(true);
+      expect(state.restored.has("B")).toBe(true);
+      expect(state.excluded.has("A")).toBe(false);
+    });
+
+    it("reincludeInvoice without an override only removes from excluded and keeps the restored instance (WR-01)", () => {
       useSessionStore.getState().excludeInvoice("A");
       const excludedBefore = useSessionStore.getState().excluded;
       const restoredBefore = useSessionStore.getState().restored;
-      useSessionStore.getState().reincludeInvoice("A");
+      useSessionStore.getState().reincludeInvoice("A", { overrideSubstitution: false });
+      const state = useSessionStore.getState();
+      expect(state.excluded.has("A")).toBe(false);
+      expect(state.excluded).not.toBe(excludedBefore);
+      expect(state.restored).toBe(restoredBefore);
+      expect(state.restored.has("A")).toBe(false);
+      expect(excludedBefore.has("A")).toBe(true);
+    });
+
+    it("reincludeInvoice with an override removes from excluded and adds to restored, replacing both sets (WR-01)", () => {
+      useSessionStore.getState().excludeInvoice("A");
+      const excludedBefore = useSessionStore.getState().excluded;
+      const restoredBefore = useSessionStore.getState().restored;
+      useSessionStore.getState().reincludeInvoice("A", { overrideSubstitution: true });
       const state = useSessionStore.getState();
       expect(state.excluded.has("A")).toBe(false);
       expect(state.restored.has("A")).toBe(true);
@@ -166,7 +226,7 @@ describe("sessionStore", () => {
 
     it("excluding a restored uuid again takes it out of restored", () => {
       useSessionStore.getState().excludeInvoice("A");
-      useSessionStore.getState().reincludeInvoice("A");
+      useSessionStore.getState().reincludeInvoice("A", { overrideSubstitution: true });
       useSessionStore.getState().excludeInvoice("A");
       const state = useSessionStore.getState();
       expect(state.excluded.has("A")).toBe(true);
@@ -302,7 +362,8 @@ describe("sessionStore", () => {
       store.setFormas(new Set(["03"]));
       store.excludeInvoice("A");
       store.excludeInvoice("B");
-      store.reincludeInvoice("B");
+      store.reincludeInvoice("B", { overrideSubstitution: true });
+      expect(useSessionStore.getState().restored.has("B")).toBe(true);
       store.requestFocus("A");
       store.requestImportFocus("rechazados");
       const generation = useSessionStore.getState().generation;

@@ -173,7 +173,9 @@ function IncidentRow({
             variant="outline"
             size="sm"
             onClick={() => {
-              reincludeInvoice(entry.uuid);
+              // The override applies only when the row has a loaded substitute; a row that is both
+              // excluded by hand and substituted overrides too (user decision, UAT G-02-10).
+              reincludeInvoice(entry.uuid, { overrideSubstitution: entry.substitutedBy !== null });
             }}
           >
             {es.quality.reinclude}

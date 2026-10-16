@@ -383,7 +383,7 @@ describe("QualityTab rows", () => {
   it("shows the re-included wording once the original is back", () => {
     seed([inv("ORIG-1"), inv("NEW-1", { relacionados: [{ tipoRelacion: "04", uuids: ["ORIG-1"] }] })]);
     act(() => {
-      useSessionStore.getState().reincludeInvoice("ORIG-1");
+      useSessionStore.getState().reincludeInvoice("ORIG-1", { overrideSubstitution: true });
     });
     render(<QualityTab />);
     ensureOpen("sustituciones");
@@ -506,7 +506,7 @@ describe("QualityTab row actions", () => {
     ensureOpen("excluidas");
     fireEvent.click(within(rowOf("excluidas", "EXC-1")).getByRole("button", { name: "Volver a incluir" }));
     expect(useSessionStore.getState().excluded.has("EXC-1")).toBe(false);
-    expect(useSessionStore.getState().restored.has("EXC-1")).toBe(true);
+    expect(useSessionStore.getState().restored.has("EXC-1")).toBe(false);
     expect(screen.queryByTestId("quality-trigger-excluidas")).toBeNull();
     expect(screen.getByTestId("quality-excluidas")).toHaveTextContent("0");
   });
@@ -517,9 +517,52 @@ describe("QualityTab row actions", () => {
     ensureOpen("sustituidas");
     fireEvent.click(within(rowOf("sustituidas", "ORIG-1")).getByRole("button", { name: "Volver a incluir" }));
     expect(screen.queryByTestId("quality-trigger-sustituidas")).toBeNull();
+    expect(useSessionStore.getState().restored.has("ORIG-1")).toBe(true);
     expect(
       within(rowOf("sustituciones", "NEW-1", ":ORIG-1")).getByText(
         "Sustituye a la factura ORIG-1…. La original se volvió a incluir.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("WR-01: a plain Volver a incluir on Excluidas does not shield a substitute loaded later", () => {
+    seed([inv("EXC-9")]);
+    act(() => {
+      useSessionStore.getState().excludeInvoice("EXC-9");
+    });
+    render(<QualityTab />);
+    ensureOpen("excluidas");
+    fireEvent.click(within(rowOf("excluidas", "EXC-9")).getByRole("button", { name: "Volver a incluir" }));
+    expect(useSessionStore.getState().restored.has("EXC-9")).toBe(false);
+    seed([inv("NEW-9", { relacionados: [{ tipoRelacion: "04", uuids: ["EXC-9"] }] })]);
+    expect(screen.getByTestId("quality-sustituidas")).toHaveTextContent("1");
+    ensureOpen("sustituidas");
+    expect(rowOf("sustituidas", "EXC-9")).toBeInTheDocument();
+    ensureOpen("sustituciones");
+    expect(
+      within(rowOf("sustituciones", "NEW-9", ":EXC-9")).getByText(
+        "Sustituye a la factura EXC-9…. La original quedó excluida.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("WR-01: Volver a incluir on an Excluidas row that is also substituted overrides the substitution too (user decision)", () => {
+    seed([inv("EXC-9")]);
+    act(() => {
+      useSessionStore.getState().excludeInvoice("EXC-9");
+    });
+    seed([inv("NEW-9", { relacionados: [{ tipoRelacion: "04", uuids: ["EXC-9"] }] })]);
+    render(<QualityTab />);
+    ensureOpen("excluidas");
+    expect(rowOf("excluidas", "EXC-9")).toBeInTheDocument();
+    expect(screen.queryByTestId("quality-trigger-sustituidas")).toBeNull();
+    fireEvent.click(within(rowOf("excluidas", "EXC-9")).getByRole("button", { name: "Volver a incluir" }));
+    expect(useSessionStore.getState().restored.has("EXC-9")).toBe(true);
+    expect(screen.getByTestId("quality-excluidas")).toHaveTextContent("0");
+    ensureOpen("sustituciones");
+    expect(
+      within(rowOf("sustituciones", "NEW-9", ":EXC-9")).getByText(
+        "Sustituye a la factura EXC-9…. La original se volvió a incluir.",
       ),
     ).toBeInTheDocument();
   });
