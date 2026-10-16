@@ -89,7 +89,7 @@ Plans:
   4. El usuario marca una factura como "Excluida" y esta deja de contar en todo el análisis; en el panel de calidad de datos ve duplicados, archivos con error, facturas en $0, diferencias de redondeo, sustituciones (TipoRelación 04) y notas de crédito sin factura relacionada.
   5. `pnpm test` pasa las pruebas Vitest del parser y de las reglas de montos sobre XML anonimizados (descuentos, IEPS, facturas a pocas horas de un cambio de mes asignadas al mes de su fecha literal, conversión con TipoCambio y aritmética exacta con big.js), y `Facturas/` está fuera de git.
 
-**Plans:** 15/15 plans executed
+**Plans:** 15/17 plans executed (2 gap closure plans from UAT pending)
 
 Plans:
 **Wave 1**
@@ -136,6 +136,12 @@ Plans:
 
 **Wave 15** *(blocked on Wave 14 completion)*
 - [x] 02-15-PLAN.md — Pestaña Calidad con contador, aviso en el Dashboard, "Ver factura", cierre DEV-03 y revisión humana
+
+**Wave 16** *(gap closure G-02-10; blocked on Wave 15 completion)*
+- [ ] 02-16-PLAN.md — WR-01: "Deshacer exclusión" exacto y "Volver a incluir" que solo anula una sustitución real (sin doble conteo al cargar después la sustituta)
+
+**Wave 17** *(gap closure G-02-11; blocked on Wave 16 completion)*
+- [ ] 02-17-PLAN.md — WR-03: ventana de años 2000..(año actual + 1) para la Fecha con el año del navegador inyectado; fuera de ella va a "Datos inválidos" y no estira el rango (D-48)
 
 **UI hint**: yes
 **Research flag**: ligero — verificar las etiquetas de c_FormaPago contra el catCFDI oficial y la semántica de TipoRelación 04/07 en la guía de llenado del Anexo 20.
