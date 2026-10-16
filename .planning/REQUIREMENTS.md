@@ -23,36 +23,36 @@
 
 ### Reglas de montos (REGLA)
 
-- [ ] **REGLA-01**: Facturas tipo Ingreso suman al gasto; Egreso (notas de crédito) restan; complementos de Pago no suman dinero
-- [ ] **REGLA-02**: Las notas de crédito se restan en el mes de la factura relacionada si está cargada; si no, en su propia fecha con aviso
-- [ ] **REGLA-03**: Usuario puede alternar globalmente "con IVA" (Total) y "sin IVA" (Subtotal − Descuento + IEPS, es decir, quitando solo el IVA); el modo activo se indica siempre en pantalla y aplica a gráficas, tablas, promedios y Excel
-- [ ] **REGLA-04**: Los cálculos usan aritmética decimal exacta (big.js); el redondeo solo ocurre al mostrar
+- [x] **REGLA-01**: Facturas tipo Ingreso suman al gasto; Egreso (notas de crédito) restan; complementos de Pago no suman dinero
+- [x] **REGLA-02**: Las notas de crédito se restan en el mes de la factura relacionada si está cargada; si no, en su propia fecha con aviso
+- [x] **REGLA-03**: Usuario puede alternar globalmente "con IVA" (Total) y "sin IVA" (Subtotal − Descuento + IEPS, es decir, quitando solo el IVA); el modo activo se indica siempre en pantalla y aplica a gráficas, tablas, promedios y Excel
+- [x] **REGLA-04**: Los cálculos usan aritmética decimal exacta (big.js); el redondeo solo ocurre al mostrar
 - [x] **REGLA-05**: Los meses se asignan por la fecha literal del CFDI (sin conversión de zona horaria)
-- [ ] **REGLA-06**: Facturas con total $0 se excluyen de conteos y promedios, y se listan en calidad de datos
-- [ ] **REGLA-07**: Facturas en moneda distinta a MXN se convierten con el TipoCambio de la propia factura
+- [x] **REGLA-06**: Facturas con total $0 se excluyen de conteos y promedios, y se listan en calidad de datos
+- [x] **REGLA-07**: Facturas en moneda distinta a MXN se convierten con el TipoCambio de la propia factura
 - [x] **REGLA-08**: Usuario puede marcar manualmente una factura como "Excluida" (p. ej. cancelada) y deja de contar en todo el análisis
-- [ ] **REGLA-09**: La forma de pago real de facturas PPD ("99 Por definir") se toma de su complemento de Pago cargado, para filtros y reportes
+- [x] **REGLA-09**: La forma de pago real de facturas PPD ("99 Por definir") se toma de su complemento de Pago cargado, para filtros y reportes
 
 ### Dashboard (DASH)
 
-- [ ] **DASH-01**: Usuario ve KPIs: gasto total, número de facturas, ticket promedio y promedio mensual del rango filtrado
+- [x] **DASH-01**: Usuario ve KPIs: gasto total, número de facturas, ticket promedio y promedio mensual del rango filtrado
 - [x] **DASH-02**: Usuario ve la tendencia de gasto por mes (incluyendo meses sin gasto en $0)
 - [ ] **DASH-03**: Usuario ve ranking de gasto por categoría ("en qué gastamos más")
-- [ ] **DASH-04**: Usuario ve ranking de gasto por proveedor con ticket promedio por proveedor
+- [x] **DASH-04**: Usuario ve ranking de gasto por proveedor con ticket promedio por proveedor
 - [ ] **DASH-05**: Usuario ve promedio mensual por categoría
 - [x] **DASH-06**: El promedio mensual divide entre los meses del calendario del rango filtrado (aunque no tengan facturas), indicado en pantalla
 - [ ] **DASH-07**: Usuario ve la variación % mes contra mes por categoría
 - [ ] **DASH-08**: Usuario puede hacer clic en una categoría o proveedor y ver sus facturas y conceptos
-- [ ] **DASH-09**: Usuario ve una tabla de facturas/conceptos ordenable
-- [ ] **DASH-10**: Interfaz en español con formato es-MX (moneda MXN, fechas)
+- [x] **DASH-09**: Usuario ve una tabla de facturas/conceptos ordenable
+- [x] **DASH-10**: Interfaz en español con formato es-MX (moneda MXN, fechas)
 
 ### Filtros (FILT)
 
 - [x] **FILT-01**: Usuario puede filtrar por rango de fechas o mes
-- [ ] **FILT-02**: Usuario puede filtrar por uno o varios proveedores
+- [x] **FILT-02**: Usuario puede filtrar por uno o varios proveedores
 - [ ] **FILT-03**: Usuario puede filtrar por una o varias categorías
-- [ ] **FILT-04**: Usuario puede filtrar por forma de pago (con nombres del catálogo SAT, no códigos)
-- [ ] **FILT-05**: Los filtros aplican de forma consistente a KPIs, gráficas, tablas y export
+- [x] **FILT-04**: Usuario puede filtrar por forma de pago (con nombres del catálogo SAT, no códigos)
+- [x] **FILT-05**: Los filtros aplican de forma consistente a KPIs, gráficas, tablas y export
 
 ### Categorías (CAT)
 
@@ -99,7 +99,7 @@
 
 - [x] **DEV-01**: Proyecto Next.js + TypeScript en modo strict, administrado con pnpm
 - [x] **DEV-02**: `pnpm lint` (ESLint) y `pnpm typecheck` pasan sin errores
-- [ ] **DEV-03**: Pruebas unitarias (Vitest) del parser y reglas de montos usando XML anonimizados; `Facturas/` fuera de git
+- [x] **DEV-03**: Pruebas unitarias (Vitest) del parser y reglas de montos usando XML anonimizados; `Facturas/` fuera de git
 - [x] **DEV-04**: Desplegable en Vercel con variables de entorno documentadas (`.env.example`)
 
 ## v2 Requirements
@@ -137,30 +137,30 @@
 | CARGA-04 | Phase 1 | Complete |
 | CARGA-05 | Phase 1 | Complete |
 | CARGA-06 | Phase 1 | Complete |
-| REGLA-01 | Phase 2 | Pending |
-| REGLA-02 | Phase 2 | Pending |
-| REGLA-03 | Phase 2 | Pending |
-| REGLA-04 | Phase 2 | Pending |
+| REGLA-01 | Phase 2 | Complete |
+| REGLA-02 | Phase 2 | Complete |
+| REGLA-03 | Phase 2 | Complete |
+| REGLA-04 | Phase 2 | Complete |
 | REGLA-05 | Phase 2 | Complete |
-| REGLA-06 | Phase 2 | Pending |
-| REGLA-07 | Phase 2 | Pending |
+| REGLA-06 | Phase 2 | Complete |
+| REGLA-07 | Phase 2 | Complete |
 | REGLA-08 | Phase 2 | Complete |
-| REGLA-09 | Phase 2 | Pending |
-| DASH-01 | Phase 2 | Pending |
+| REGLA-09 | Phase 2 | Complete |
+| DASH-01 | Phase 2 | Complete |
 | DASH-02 | Phase 2 | Complete |
 | DASH-03 | Phase 3 | Pending |
-| DASH-04 | Phase 2 | Pending |
+| DASH-04 | Phase 2 | Complete |
 | DASH-05 | Phase 3 | Pending |
 | DASH-06 | Phase 2 | Complete |
 | DASH-07 | Phase 3 | Pending |
 | DASH-08 | Phase 3 | Pending |
-| DASH-09 | Phase 2 | Pending |
-| DASH-10 | Phase 2 | Pending |
+| DASH-09 | Phase 2 | Complete |
+| DASH-10 | Phase 2 | Complete |
 | FILT-01 | Phase 2 | Complete |
-| FILT-02 | Phase 2 | Pending |
+| FILT-02 | Phase 2 | Complete |
 | FILT-03 | Phase 3 | Pending |
-| FILT-04 | Phase 2 | Pending |
-| FILT-05 | Phase 2 | Pending |
+| FILT-04 | Phase 2 | Complete |
+| FILT-05 | Phase 2 | Complete |
 | CAT-01 | Phase 3 | Pending |
 | CAT-02 | Phase 3 | Pending |
 | CAT-03 | Phase 3 | Pending |
@@ -186,7 +186,7 @@
 | XLS-03 | Phase 3 | Pending |
 | DEV-01 | Phase 1 | Complete |
 | DEV-02 | Phase 1 | Complete |
-| DEV-03 | Phase 2 | Pending |
+| DEV-03 | Phase 2 | Complete |
 | DEV-04 | Phase 1 | Complete |
 
 **Coverage:**

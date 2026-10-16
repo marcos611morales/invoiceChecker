@@ -13,7 +13,7 @@ InvoiceChecker se construye en cinco rebanadas verticales, cada una utilizable d
 Las fases decimales aparecen entre sus enteros vecinos en orden numérico.
 
 - [x] **Phase 1: Acceso protegido y carga de facturas** - Contraseña compartida, app desplegada en Vercel y carga de XML en el navegador con reporte de importación (completed 2026-10-14)
-- [ ] **Phase 2: Dashboard de gasto confiable** - Reglas de montos (I/E/P, con/sin IVA, $0, excluidas), KPIs, tendencia mensual, ranking por proveedor, filtros y calidad de datos
+- [x] **Phase 2: Dashboard de gasto confiable** - Reglas de montos (I/E/P, con/sin IVA, $0, excluidas), KPIs, tendencia mensual, ranking por proveedor, filtros y calidad de datos (completed 2026-10-16)
 - [ ] **Phase 3: Categorías propias y exportación a Excel** - Categorías editables por proveedor y por concepto, persistidas y respaldables, vistas por categoría y Excel de varias hojas
 - [ ] **Phase 4: Agrupación de productos con DeepSeek** - Agrupación de "mismo producto" y sugerencias de categoría por una ruta protegida, con cola de revisión
 - [ ] **Phase 5: Comparación de precios entre tiendas** - Precio unitario neto por producto y tienda, tienda más barata, ahorro estimado e historial de precio
@@ -89,7 +89,7 @@ Plans:
   4. El usuario marca una factura como "Excluida" y esta deja de contar en todo el análisis; en el panel de calidad de datos ve duplicados, archivos con error, facturas en $0, diferencias de redondeo, sustituciones (TipoRelación 04) y notas de crédito sin factura relacionada.
   5. `pnpm test` pasa las pruebas Vitest del parser y de las reglas de montos sobre XML anonimizados (descuentos, IEPS, facturas a pocas horas de un cambio de mes asignadas al mes de su fecha literal, conversión con TipoCambio y aritmética exacta con big.js), y `Facturas/` está fuera de git.
 
-**Plans:** 17/17 plans executed (2 gap closure plans from UAT pending)
+**Plans:** 17/17 plans complete (2 gap closure plans from UAT pending)
 
 Plans:
 **Wave 1**
@@ -204,7 +204,7 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
-| 2. Dashboard de gasto confiable | 17/17 | In Progress | - |
+| 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
 | 3. Categorías propias y exportación a Excel | 0/TBD | Not started | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
