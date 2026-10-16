@@ -14,6 +14,7 @@ import { totalSpend } from "@/domain/accounting/aggregate";
 import type { IvaMode } from "@/domain/accounting/aggregate";
 import { buildLedger } from "@/domain/accounting/ledger";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
+import { qualitySummary } from "@/domain/accounting/quality";
 import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
 import { formatMoney } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -99,6 +100,7 @@ function Harness({
   return (
     <>
       <p data-testid="gasto">{formatMoney(totalSpend(ledger, mode))}</p>
+      <p data-testid="amount-changing">{String(qualitySummary(ledger).amountChanging)}</p>
       <InvoiceTable rows={rows} ledger={ledger} mode={mode} />
     </>
   );
@@ -144,6 +146,18 @@ function chevron(uuid: string): HTMLElement {
 async function openMenu(ref: string): Promise<void> {
   fireEvent.click(screen.getByRole("button", { name: `Acciones de la factura ${ref}` }));
   await screen.findByRole("menu");
+}
+
+/** onClick of the most recent "Factura excluida" toast action (the "Deshacer exclusión" button). */
+function lastExclusionUndo(): () => void {
+  for (let index = toastMock.mock.calls.length - 1; index >= 0; index -= 1) {
+    const [message, options] = toastMock.mock.calls[index] ?? [];
+    if (message === "Factura excluida") {
+      const undo = options?.action?.onClick;
+      if (undo !== undefined) return undo;
+    }
+  }
+  throw new Error("no exclusion toast with an undo action");
 }
 
 beforeEach(() => {
@@ -557,9 +571,63 @@ describe("InvoiceTable exclusion", () => {
       undo();
     });
     expect(useSessionStore.getState().excluded.has("U1")).toBe(false);
-    expect(useSessionStore.getState().restored.has("U1")).toBe(true);
+    expect(useSessionStore.getState().restored.has("U1")).toBe(false);
     expect(screen.getByTestId("gasto")).toHaveTextContent("$100.00");
     expect(within(dataRow("U1")).queryByText("Excluida")).toBeNull();
+  });
+
+  it("WR-01: undoing a plain exclusion from the toast does not shield a substitute loaded later", async () => {
+    seed([inv("X")]);
+    render(<Harness />);
+    await openMenu("X");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excluir factura" }));
+    const undo = lastExclusionUndo();
+    act(() => {
+      undo();
+    });
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$116.00");
+    seed([inv("Y", { relacionados: [{ tipoRelacion: "04", uuids: ["X"] }] })]);
+    expect(within(dataRow("X")).getByText("Sustituida")).toBeInTheDocument();
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$116.00");
+    expect(useSessionStore.getState().restored.has("X")).toBe(false);
+    expect(screen.getByTestId("amount-changing")).toHaveTextContent("true");
+  });
+
+  it("WR-01: undoing the exclusion of a re-included substituted original brings the override back", async () => {
+    seed([inv("X"), inv("Y", { relacionados: [{ tipoRelacion: "04", uuids: ["X"] }] })]);
+    act(() => {
+      useSessionStore.setState({ restored: new Set(["X"]) });
+    });
+    render(<Harness />);
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$232.00");
+    await openMenu("X");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excluir factura" }));
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$116.00");
+    expect(useSessionStore.getState().restored.has("X")).toBe(false);
+    const undo = lastExclusionUndo();
+    act(() => {
+      undo();
+    });
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$232.00");
+    expect(useSessionStore.getState().restored.has("X")).toBe(true);
+    expect(within(dataRow("X")).queryByText("Sustituida")).toBeNull();
+  });
+
+  it("WR-01: a substitute that arrives while the undo toast is open still leaves the original substituted after the undo", async () => {
+    seed([inv("X")]);
+    render(<Harness />);
+    await openMenu("X");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excluir factura" }));
+    seed([inv("Y", { relacionados: [{ tipoRelacion: "04", uuids: ["X"] }] })]);
+    expect(within(dataRow("X")).getByText("Excluida")).toBeInTheDocument();
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$116.00");
+    const undo = lastExclusionUndo();
+    act(() => {
+      undo();
+    });
+    expect(within(dataRow("X")).getByText("Sustituida")).toBeInTheDocument();
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$116.00");
+    expect(useSessionStore.getState().restored.has("X")).toBe(false);
   });
 
   it("offers Volver a incluir on an excluded row and toasts the reinclusion", async () => {

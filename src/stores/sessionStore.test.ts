@@ -150,6 +150,53 @@ describe("sessionStore", () => {
       expect(before.size).toBe(0);
     });
 
+    it("excludeInvoice reports that a plain uuid was not restored (WR-01)", () => {
+      const token = useSessionStore.getState().excludeInvoice("A");
+      expect(token).toEqual({ uuid: "A", wasRestored: false });
+      expect(useSessionStore.getState().restored.has("A")).toBe(false);
+    });
+
+    it("excludeInvoice reports that a restored uuid was restored and takes it out of restored (WR-01)", () => {
+      useSessionStore.setState({ restored: new Set(["A"]) });
+      const token = useSessionStore.getState().excludeInvoice("A");
+      expect(token).toEqual({ uuid: "A", wasRestored: true });
+      expect(useSessionStore.getState().excluded.has("A")).toBe(true);
+      expect(useSessionStore.getState().restored.has("A")).toBe(false);
+    });
+
+    it("undoExclusion of a plain exclusion removes it from excluded and keeps the restored instance (WR-01)", () => {
+      const token = useSessionStore.getState().excludeInvoice("A");
+      const excludedBefore = useSessionStore.getState().excluded;
+      const restoredBefore = useSessionStore.getState().restored;
+      useSessionStore.getState().undoExclusion(token);
+      const state = useSessionStore.getState();
+      expect(state.excluded.has("A")).toBe(false);
+      expect(state.excluded).not.toBe(excludedBefore);
+      expect(excludedBefore.has("A")).toBe(true);
+      expect(state.restored).toBe(restoredBefore);
+      expect(state.restored.has("A")).toBe(false);
+    });
+
+    it("undoExclusion of an exclusion that replaced a restored uuid puts it back in restored (WR-01)", () => {
+      useSessionStore.setState({ restored: new Set(["A"]) });
+      const token = useSessionStore.getState().excludeInvoice("A");
+      useSessionStore.getState().undoExclusion(token);
+      const state = useSessionStore.getState();
+      expect(state.excluded.has("A")).toBe(false);
+      expect(state.restored.has("A")).toBe(true);
+    });
+
+    it("undoExclusion only touches its own uuid (WR-01)", () => {
+      useSessionStore.setState({ restored: new Set(["B"]) });
+      const token = useSessionStore.getState().excludeInvoice("A");
+      useSessionStore.getState().excludeInvoice("C");
+      useSessionStore.getState().undoExclusion(token);
+      const state = useSessionStore.getState();
+      expect(state.excluded.has("C")).toBe(true);
+      expect(state.restored.has("B")).toBe(true);
+      expect(state.excluded.has("A")).toBe(false);
+    });
+
     it("reincludeInvoice removes from excluded and adds to restored, replacing both sets", () => {
       useSessionStore.getState().excludeInvoice("A");
       const excludedBefore = useSessionStore.getState().excluded;
