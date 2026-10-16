@@ -70,13 +70,14 @@ Las reglas de montos de PROJECT.md (Key Decisions) son definitivas y no se repit
 - **D-38:** Monto "con IVA" de un concepto = importe − descuento + Σ traslados − Σ retenciones (cuadra con el Total), en lugar del literal de D-25.
 - **D-39:** Ticket promedio sin facturas que cuenten: se muestra **"—"**.
 - **D-40:** Porcentajes con espacio: **"12.4 %"**, como en el UI-SPEC (no el `12.4%` de `Intl`).
-- **D-41:** El rango por defecto (D-12) se calcula con **todas las facturas cargadas** (incluye P, $0 y excluidas).
+- **D-41:** El rango por defecto (D-12) se calcula con **todas las facturas cargadas** (incluye P, $0 y excluidas). Excepción: D-48 (año de la Fecha fuera de la ventana).
 - **D-42:** Si la factura que sustituye (04) está excluida o vale $0, la original **sigue "Sustituida"** (D-08 literal); el usuario puede "Volver a incluir".
 - **D-43:** El proveedor se identifica **por RFC** en filtros y ranking.
 - **D-44:** Toda carga terminada abre Dashboard, aunque no agregue facturas nuevas, salvo que la sesión no tenga ninguna factura (entonces abre Importación).
 - **D-46:** (Afina D-34) Tipo de incidencia nuevo **"Notas de crédito con varias relacionadas"**, para notas de crédito cuyas relacionadas cargadas caen en meses distintos. Es **informativa** (la nota sí resta): su acordeón va cerrado y no activa el aviso de D-04. Texto de fila: **"Aplica a {mes}: la relacionada más antigua de {n}"**.
 - **D-47:** (Afina D-35) El texto de fila de "Datos inválidos" concuerda en género con el campo: "Fecha inválida: no se suma", "Total inválido: no se suma".
 - **D-45:** Se aceptan para v1 las etiquetas de c_FormaPago y la semántica de TipoRelación 04/07 de 02-RESEARCH.md (espejo phpcfdi y fuentes secundarias); se pueden confirmar después contra el catCFDI y el Anexo 20 oficiales.
+- **D-48:** (Excepción a D-41, decidida en la UAT del 2026-10-16, WR-03) Una `Fecha` cuyo año queda fuera de la ventana **2000 a (año actual + 1)**, con ambos extremos incluidos, se trata como una `Fecha` inválida: si la factura es Ingreso o Egreso va a "Datos inválidos" (campo Fecha) con el texto que ya existe, "Fecha inválida: no se suma", y no suma; si es Pago, Traslado o Nómina sigue como "No suma" por su tipo, sin incidencia nueva. Ninguna de esas facturas cuenta para el rango por defecto (D-12/D-41), así que no estira la lista de meses, la gráfica ni el divisor del promedio mensual. Una nota de crédito cuya factura relacionada tiene la fecha fuera de la ventana se resta en el mes de otra relacionada válida o en su propia fecha. El año actual es el año local del navegador, que `useLedger` lee una vez al montar y pasa al dominio como parámetro; la `Fecha` nunca se convierte en un objeto `Date`.
 
 ### Claude's Discretion
 - Columnas exactas de la tabla y orden por defecto (sugerido: fecha, de la más reciente a la más antigua).
