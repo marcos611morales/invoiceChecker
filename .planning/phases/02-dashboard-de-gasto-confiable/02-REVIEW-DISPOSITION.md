@@ -6,7 +6,15 @@ findings:
   - id: WR-01
     severity: warning
     disposition: open
-    title: "Undo or re-include of a normal exclusion writes to `restored`, so a later substitute double-counts the original"
+    title: "A stale \"Deshacer exclusión\" token can write to `restored` after `clearAll`"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "The window year is snapshotted per hook instance, but the doc comment says the views \"can never disagree\""
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "A wrong browser clock turns valid invoices into \"Fecha inválida\" with no hint of the cause"
   - id: WR-02
     severity: warning
     disposition: open
@@ -19,14 +27,6 @@ findings:
     severity: warning
     disposition: open
     title: "Duplicate React keys in the payments list of the concepts panel"
-  - id: IN-01
-    severity: info
-    disposition: open
-    title: "Substitution cycles remove both invoices from the totals"
-  - id: IN-02
-    severity: info
-    disposition: open
-    title: "Vendored `chart.tsx` has unjustified `as` assertions (CLAUDE.md section 2)"
   - id: IN-03
     severity: info
     disposition: open
@@ -45,7 +45,7 @@ findings:
     title: "Negative Total, SubTotal or Importe are accepted without any incident"
 open: 10
 total: 10
-recorded: 2026-10-16T01:17:12.128Z
+recorded: 2026-10-16T20:26:36.201Z
 ---
 
 # Phase 02: Code Review Disposition
@@ -53,15 +53,15 @@ recorded: 2026-10-16T01:17:12.128Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
-| WR-04 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
-| IN-03 | info | open | - |
-| IN-04 | info | open | - |
-| IN-05 | info | open | - |
-| IN-06 | info | open | - |
+| WR-02 | warning | open | - (not in the current review) |
+| WR-03 | warning | open | - (not in the current review) |
+| WR-04 | warning | open | - (not in the current review) |
+| IN-03 | info | open | - (not in the current review) |
+| IN-04 | info | open | - (not in the current review) |
+| IN-05 | info | open | - (not in the current review) |
+| IN-06 | info | open | - (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
