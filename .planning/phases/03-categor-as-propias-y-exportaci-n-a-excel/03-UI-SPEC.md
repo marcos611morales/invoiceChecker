@@ -14,7 +14,7 @@ created: "2026-10-16"
 >
 > This phase **extends** `01-UI-SPEC.md` and `02-UI-SPEC.md` (both approved). Tokens, the 4 type sizes, the 2 weights, the spacing scale, theme behavior, top bar, touch-target rule, Tooltip/tap-Popover rule for truncated text and the accessibility floor stay in force and are **not repeated** unless this phase adds to them. "As Phase 2" means follow the Phase 2 contract exactly.
 >
-> Source key: **[D-nn]** = locked decision in 03-CONTEXT.md (decisions of Phase 2 are cited as **[P2 D-nn]**). **[P1]** / **[P2]** = rule inherited from the Phase 1 / Phase 2 UI-SPEC. **[CLAUDE.md]** = stack decision locked by the user. **[default]** = low-risk value chosen by the researcher because no upstream artifact answers it (listed under "Defaults taken"). **[OPEN Qn]** = value that is provisional until the user answers question n in "Open questions" (project rule: ask before inferring). Nothing marked **[OPEN]** may be treated as final by the planner.
+> Source key: **[D-nn]** = locked decision in 03-CONTEXT.md (decisions of Phase 2 are cited as **[P2 D-nn]**). **[P1]** / **[P2]** = rule inherited from the Phase 1 / Phase 2 UI-SPEC. **[CLAUDE.md]** = stack decision locked by the user. **[default]** = low-risk value chosen by the researcher because no upstream artifact answers it (listed under "Defaults taken"). **[user-confirmed Qn]** = decision the user locked on 2026-10-16 by answering question n (listed under "User decisions"; do not re-ask).
 
 ---
 
@@ -162,13 +162,13 @@ Destructive reserved for (Phase 1 list plus two confirms and one icon):
 
 ## Copywriting Contract
 
-All strings are final unless marked `{…}` (interpolated) or **[OPEN Qn]**. Plurals: singular for 1 ("1 proveedor", "1 concepto", "1 línea"), zero parts omitted where noted. Quotation marks around user data are «…» (as the Phase 2 no-match copy). Number formats as Phase 2 (`Intl` es-MX; percentages `12.4 %`; months `ene 2025`).
+All strings are final unless marked `{…}` (interpolated) or when a row cites a user decision. Plurals: singular for 1 ("1 proveedor", "1 concepto", "1 línea"), zero parts omitted where noted. Quotation marks around user data are «…» (as the Phase 2 no-match copy). Number formats as Phase 2 (`Intl` es-MX; percentages `12.4 %`; months `ene 2025`).
 
 ### Shell and top bar
 
 | Element | Copy |
 |---------|------|
-| Tab order | Dashboard · **Categorías** · Calidad de datos · Importación **[OPEN Q2: position]** |
+| Tab order | Dashboard · **Categorías** · Calidad de datos · Importación **[user-confirmed Q2]** |
 | New tab label | Categorías |
 | Top bar export button (visible label ≥1024px; `aria-label` and Tooltip always) | Exportar a Excel |
 | Export button pending | Exportando… (Spinner replaces the icon; button inert) |
@@ -193,8 +193,8 @@ All strings are final unless marked `{…}` (interpolated) or **[OPEN Qn]**. Plu
 | {resumen} pattern [D-08] | "9 categorías, 24 proveedores, 7 conceptos ajustados" (singular: "1 categoría", "1 proveedor", "1 concepto ajustado"; a zero part reads "0 …", never omitted, so the user sees what they are about to lose or gain) |
 | Replace dialog buttons | Conservar los míos (dismiss, default focus) · Reemplazar mis ajustes (destructive) |
 | Replace success toast | Ajustes reemplazados |
-| Settings storage failed (write blocked/quota) | Alert in this tab, `Info` icon, not dismissible: «Este navegador no permite guardar tus ajustes. Los cambios se perderán al cerrar la página; descarga tus ajustes para no perderlos.» **[OPEN Q8]** |
-| Stored settings unreadable on load | Toast once per page load: «No se pudieron leer tus ajustes guardados y se usaron los valores iniciales. Si tienes un archivo de respaldo, súbelo.» **[OPEN Q8]** |
+| Settings storage failed (write blocked/quota) | Alert in this tab, `Info` icon, not dismissible: «Este navegador no permite guardar tus ajustes. Los cambios se perderán al cerrar la página; descarga tus ajustes para no perderlos.» **[user-confirmed Q8]** |
+| Stored settings unreadable on load | Toast once per page load: «No se pudieron leer tus ajustes guardados y se usaron los valores iniciales. Si tienes un archivo de respaldo, súbelo.» **[user-confirmed Q8]** |
 
 ### Categorías tab — "Mis categorías" [D-02, D-04, D-05]
 
@@ -271,8 +271,8 @@ All strings are final unless marked `{…}` (interpolated) or **[OPEN Qn]**. Plu
 | Concept category implicit | Sin categoría (muted, no suffix) |
 | Concept category adjusted [D-09, D-11] | {nombre} (normal color) and a 12px muted caption: Aplica a {n} líneas de {proveedor} ("Aplica a 1 línea de …") |
 | Select footer item (only when adjusted) | Quitar ajuste (`RotateCcw` icon, after a separator) |
-| Select first items | Sin categoría **[OPEN Q4]**, then the user's categories in list order |
-| Toast after a change **[OPEN Q5]** | Categoría de «{descripción, 40 caracteres máx.}» cambiada a {categoría} · action «Deshacer» (6 s) |
+| Select first items | Sin categoría **[user-confirmed Q4]**, then the user's categories in list order |
+| Toast after a change **[user-confirmed Q5]** | Categoría de «{descripción, 40 caracteres máx.}» cambiada a {categoría} · action «Deshacer» (6 s) |
 | Toast after «Quitar ajuste» | Ajuste quitado |
 | Dimmed concept (category filter active) `sr-only` text [D-14] | No cuenta en el filtro de categoría |
 | Amount cell with category filter active [D-14] | Line 1: the part for the chosen categories; line 2 (12px muted): de {monto} total |
@@ -293,7 +293,7 @@ All strings are final unless marked `{…}` (interpolated) or **[OPEN Qn]**. Plu
 ### Errors and destructive confirmations
 
 - Destructive confirmations in this phase: **delete category** (dialog above, with reassign target) and **replace settings** (dialog above). "Quitar asignación", "Quitar ajuste", rename and create are reversible or non-destructive and apply immediately.
-- No new network error surfaces: everything runs in the browser. Failure modes are the invalid backup file (inline Alert, nothing changes), storage failures **[OPEN Q8]** and the export failure toast.
+- No new network error surfaces: everything runs in the browser. Failure modes are the invalid backup file (inline Alert, nothing changes), storage failures **[user-confirmed Q8]** and the export failure toast.
 
 ---
 
@@ -308,11 +308,11 @@ All strings are final unless marked `{…}` (interpolated) or **[OPEN Qn]**. Plu
 
 ### Shell, tabs and top bar [D-01, D-19]
 
-- Four tabs: Dashboard, Categorías, Calidad de datos, Importación **[OPEN Q2]**. `AppTab` gains `"categorias"`; `isAppTab`, `TABS` and the `Tabs` panel list in `AppShell.tsx` are extended. Same trigger styling as Phase 2 (14/600, 40px list, accent 2px underline on the active one).
+- Four tabs: Dashboard, Categorías, Calidad de datos, Importación **[user-confirmed Q2]**. `AppTab` gains `"categorias"`; `isAppTab`, `TABS` and the `Tabs` panel list in `AppShell.tsx` are extended. Same trigger styling as Phase 2 (14/600, 40px list, accent 2px underline on the active one).
 - The tab list must not wrap. **Under 640px it scrolls horizontally** inside its container (`overflow-x-auto`, hidden scrollbar, `flex-none` triggers, 44px height), and the active trigger is scrolled into view when the tab changes (`scrollIntoView({ inline: "nearest" })`). Four tabs cannot fit 312px (the Phase 2 claim that three fit must also be re-checked in the verification run).
-- The tab shows, like the others, only when at least one file was processed (empty screen unchanged) **[OPEN Q2: restoring a backup needs loaded invoices first]**. The active tab is not persisted.
+- The tab shows, like the others, only when at least one file was processed (empty screen unchanged) **[user-confirmed Q2]**; consequence accepted: in a new browser the XML must be loaded before a backup can be restored. The active tab is not persisted.
 - Top bar: order of the right-hand group is **Exportar a Excel**, Agregar facturas, theme toggle, Cerrar sesión. "Exportar a Excel" is a `Button` `outline` with `FileSpreadsheet` icon (16px), 36px tall, **visible only on the loaded screen** (same condition as "Agregar facturas") and on every tab. It always exports the Dashboard filters and IVA mode, whichever tab is active; the Parámetros sheet records them.
-- Responsive collapse of the export button: label visible from 1024px; **icon-only (36x36, `aria-label`, Tooltip) below 1024px**, 44x44 under 640px. "Agregar facturas" and "Cerrar sesión" keep their Phase 2 rule (icon-only under 768px). The verification run must check 768–1023px: the IVA control stays centered and nothing wraps; if the bar overflows, collapse the two other labels under 1024px as well (change their `max-md:` to `max-lg:`). **[OPEN Q9 only if this fallback is needed]**
+- Responsive collapse of the export button: label visible from 1024px; **icon-only (36x36, `aria-label`, Tooltip) below 1024px**, 44x44 under 640px. "Agregar facturas" and "Cerrar sesión" keep their Phase 2 rule (icon-only under 768px). The verification run must check 768–1023px: the IVA control stays centered and nothing wraps; if the bar overflows, collapse the two other labels under 1024px as well (change their `max-md:` to `max-lg:`); this is approved only for that case and overrides Phase 2 user decision 4 in that case alone. **[user-confirmed Q9]**
 - Export interaction: click builds the workbook from the same filtered selectors the Dashboard uses [FILT-05, XLS-02], awaits `toBlob()`, downloads through a temporary `<a download>` and revokes the object URL. While running the button is inert with a Spinner (no layout shift: the icon slot is reused). Disabled state uses `aria-disabled="true"` (not `disabled`) so the Tooltip "No hay facturas con los filtros actuales" stays reachable; activation is ignored. Focus stays on the button.
 
 ### Categorías tab composition [D-01]
@@ -331,7 +331,7 @@ Vertical order, 32px gaps: (1) title row, (2) invalid-file Alert and storage Ale
 - Add form (a row; stacks under 640px): visible `Label` "Nueva categoría", `Input` (maxLength 60 **[default]**, `aria-describedby` to the error text), `Button outline` "Agregar categoría". Enter submits. On success the input is cleared, focus stays in the input and the new row appears in its sorted place. Errors show under the input in 12px `foreground` with the field `aria-invalid`; they clear when the user types. Comparison for duplicates ignores case and surrounding spaces; the name is trimmed before saving [D-04].
 - List: `<ul>`, rows separated by 1px `border`, each row = name (14/600, wraps, never truncated) + usage caption (12px muted) on the left; `Pencil` and `Trash2` ghost icon buttons (36px; 44px under 640px) on the right. Order: alphabetical with `es` collation, the seed category "Otros" last (identified by its stable seed id, not by its current name) [Claude's discretion in D, **default**]. "Sin categoría" is a locked last row on `secondary` (not editable, no actions), always shown.
 - Rename: the pencil swaps the name for an `Input` (current name selected, 60 max) with `Check` and `X` icon buttons; Enter saves, Esc cancels, blur does nothing. Renaming to the same name with different case is allowed (the row itself is excluded from the duplicate check). Focus returns to that row's pencil after saving or cancelling. Only one row is edited at a time.
-- Delete: the trash opens the delete `AlertDialog`. Used category: body + «Pasarlos a» Select (default «Sin categoría», excluded: the category being deleted). Unused: body only. Default focus on «Cancelar»; Esc and overlay click dismiss. Confirming deletes, moves every supplier assignment and concept adjustment of that category to the chosen target (to «Sin categoría» = the supplier assignment is removed) **[OPEN Q4 for concept adjustments]**, shows the "Categoría borrada · Deshacer" toast, and moves focus to the section heading (the row is gone). «Deshacer» restores the category (same id, same position) and **every assignment it had** from a snapshot taken at delete time; it is valid for the toast's 6 s.
+- Delete: the trash opens the delete `AlertDialog`. Used category: body + «Pasarlos a» Select (default «Sin categoría», excluded: the category being deleted). Unused: body only. Default focus on «Cancelar»; Esc and overlay click dismiss. Confirming deletes, moves every supplier assignment and concept adjustment of that category to the chosen target (to «Sin categoría»: the supplier assignment is removed, and each concept adjustment becomes an explicit «Sin categoría» adjustment that stays out of the supplier's category) **[user-confirmed Q4]**, shows the "Categoría borrada · Deshacer" toast, and moves focus to the section heading (the row is gone). «Deshacer» restores the category (same id, same position) and **every assignment it had** from a snapshot taken at delete time; it is valid for the toast's 6 s.
 - Empty (zero categories): `Empty` with the copy above; the add form stays.
 - Seed state: the first time (no stored settings, or unreadable settings) the 9 categories of D-02 exist, none assigned to anything; deleting them is allowed.
 
@@ -346,7 +346,7 @@ Vertical order, 32px gaps: (1) title row, (2) invalid-file Alert and storage Ale
 
 ### Dashboard composition changes [D-14, D-16, D-18]
 
-Vertical order, 32px gaps: (1) incidents Alert, (2) hidden-invoice Alert, (3) filter bar + chips + mode caption + category caption, (4) KPI row, (5) **trend card, full width**, (6) **two-column row: "Gasto por categoría" | "Gasto por proveedor"**, (7) Facturas section. **[OPEN Q1: layout of (5) and (6)]**
+Vertical order, 32px gaps: (1) incidents Alert, (2) hidden-invoice Alert, (3) filter bar + chips + mode caption + category caption, (4) KPI row, (5) **trend card, full width**, (6) **two-column row, 50/50: "Gasto por categoría" (left) | "Gasto por proveedor" (right)**, (7) Facturas section. **[user-confirmed Q1]**
 
 - Row (6): `grid grid-cols-1 items-start gap-6 lg:grid-cols-2`; below 1024px the blocks stack in the order trend, categories, suppliers. Each block is a bordered `background` card with 24px padding [P2].
 - Filter bar gains the fourth trigger "Categoría" between Proveedor and Forma de pago (order: Fechas · Proveedor · Categoría · Forma de pago) **[default]**, 320px popover, built with the existing `MultiSelectFilter` (`widthClass="w-[320px]"`). Options come from the user's categories plus "Sin categoría", with the number of invoices that have at least one line of that category, over all loaded invoices regardless of the other filters [D-15, P2 default]. Sorted by count descending then name (`es`), like the other filters. The selection lives in `sessionStore` (`filters.categories`, a `ReadonlySet<string>` of category ids plus a sentinel for "Sin categoría") and is **not persisted** [D-15]. It is cleared by "Quitar filtros", "Quitar todas" and logout, and counts in `isDefaultFilters`.
@@ -362,18 +362,18 @@ Vertical order, 32px gaps: (1) incidents Alert, (2) hidden-invoice Alert, (3) fi
 - The promedio mensual uses the same divisor as the KPI (calendar months of the range [P2 D-06/D-12]). The variation compares the last month of the range with the previous calendar month (even outside the range) under all the same filters except the date [D-17]; with no spend in that category or no loaded invoices in that month it shows the muted "Sin dato del mes anterior", never a percentage against $0.
 - Interaction [D-18]: hover = `secondary` background; focus ring 2px; min height 68px, 44px hit area under 640px. Click or Enter/Space **adds the category to `filters.categories`** (a set, so clicking one already in the filter changes nothing) and navigates to the table: smooth `scrollIntoView({ block: "start" })` of the Facturas section (no smooth scrolling under `prefers-reduced-motion`), with `scroll-margin-top` of 72px (56px bar + 16px) and 124px under 640px (bar + 52px IVA sub-bar), then focus moves to the "Facturas" heading (`tabIndex={-1}`). The new chip is announced through the chips' `aria-live` region. There is no dialog and no detail screen. The table rows stay collapsed; the user opens the ones they want **[default]**.
 - The supplier ranking rows become the same kind of button with the same behavior (adds the supplier to `filters.suppliers`), the `aria-label` "Ver facturas de {proveedor}", the same hover/focus, and the Phase 2 "rows are not interactive" rule is superseded. The "Ver todos" dialog table is not clickable in this phase **[default]**.
-- While a category filter is active, the block lists only the chosen categories (their rows are the filtered data, like every view) **[OPEN Q3]**.
+- While a category filter is active, the block lists only the chosen categories (their rows are the filtered data, like every view) **[user-confirmed Q3]**.
 - Hint state: when no supplier has a category and no concept is adjusted, the block shows the hint Alert above the single «Sin categoría» row, with a link button that switches to the Categorías tab.
 
 **Facturas table and concept panel [D-11, D-12, D-14]:**
 
 - New last column in the expanded concept table: **Categoría** (after Monto). The concept table header and row layout stay as Phase 2; the Categoría cell holds a `Select` (trigger min width 240px) and, below it, the 12px caption when applicable.
   - Select trigger: name (truncates) + the "· del proveedor" suffix (shrink-0, 12px muted) when the category comes from the supplier; muted color for supplier-derived and implicit values, `foreground` for an adjusted value.
-  - Popup: «Sin categoría» **[OPEN Q4]**, the user's categories (list order), and, only when the concept is adjusted, a separator and «Quitar ajuste». Items wrap; the popup is at most 288px tall.
+  - Popup: «Sin categoría» (selectable even when the supplier has a category; it is stored as an explicit adjustment) **[user-confirmed Q4]**, the user's categories (list order), and, only when the concept is adjusted, a separator and «Quitar ajuste». Items wrap; the popup is at most 288px tall.
   - Choosing a category stores a rule for **supplier RFC + normalized description** [D-09/D-10]; it applies at once to every equal line of that supplier in the loaded invoices (the caption shows how many) and to future loads. Other lines of the same invoice with a different description do not change. Choosing the category the line already resolves to via its supplier still creates an adjustment (explicit), shown as adjusted **[default]**.
   - The caption "Aplica a {n} líneas de {proveedor}" appears under the Select for adjusted concepts (`TruncatedText` for the supplier name). Supplier-derived values show "· del proveedor" in the trigger instead of a caption.
   - A credit-note concept is classified by the same rule and subtracts from that category [D-12]; nothing is inherited from the related invoice.
-  - The selector is available on every row that has concepts, including "No suma" and "Excluida" rows (the rule belongs to supplier + description, not to the invoice) **[OPEN Q6]**.
+  - The selector is available on every row that has concepts, including "No suma" and "Excluida" rows (the rule belongs to supplier + description, not to the invoice) **[user-confirmed Q6]**.
 - Under an active category filter [D-14]: the amount cell shows the partial amount (line 1) and "de {total} total" (line 2); concepts of other categories render in `muted-foreground` with the `sr-only` text; the concept's Select stays operable.
 - Mobile: the concept table already lives inside the panel; the Select is 44px tall under 640px and the cell may wrap below the Monto column's right-aligned figure when the panel is narrower than the table (panel scrolls horizontally inside the table container, the page does not).
 
@@ -391,8 +391,8 @@ The workbook is built by pure functions `(filteredData, mode, settings) => Sheet
 
 | Sheet | Columns in order | Notes |
 |-------|------------------|-------|
-| **Facturas** [D-20, D-21, D-22] | Fecha · Proveedor · RFC emisor · Folio · UUID · Tipo · Estado · Forma de pago · **Monto (con IVA)** or **Monto (sin IVA)** · *Monto de la factura completa (con/sin IVA)* · Subtotal · Descuento · IVA · IEPS · Total · Moneda · Tipo de cambio | Every invoice of the filter, **including those that do not sum**. Monto is **0** for non-summing rows (Estado says why); the column sums to the Dashboard figure. The italic column exists only while a category filter is active, and then Monto is the part of the chosen categories [D-21]. Breakdown columns are XML reference values in MXN (converted with the invoice's TipoCambio) **[OPEN Q7]**. |
-| **Conceptos** [D-20..D-22] | Fecha · Proveedor · RFC emisor · Folio · UUID · Estado · Descripción · Cantidad · Unidad · ClaveProdServ · Precio unitario · **Monto (con/sin IVA)** · Importe · Descuento · IVA · IEPS · Categoría · Origen de la categoría | One row per line of the same invoices. While a category filter is active, only lines of those categories [D-21]. Monto is 0 on non-summing rows. Categoría is filled on every row, including "No suma" ones, as information **[OPEN Q6]**. A line "Diferencia de redondeo" (category of the supplier) is added for each invoice whose lines do not add up to its amount, so the sheet reconciles with the Dashboard [D-13] **[OPEN Q7]**. |
+| **Facturas** [D-20, D-21, D-22] | Fecha · Proveedor · RFC emisor · Folio · UUID · Tipo · Estado · Forma de pago · **Monto (con IVA)** or **Monto (sin IVA)** · *Monto de la factura completa (con/sin IVA)* · Subtotal · Descuento · IVA · IEPS · Total · Moneda · Tipo de cambio | Every invoice of the filter, **including those that do not sum**. Monto is **0** for non-summing rows (Estado says why); the column sums to the Dashboard figure. The italic column exists only while a category filter is active, and then Monto is the part of the chosen categories [D-21]. Breakdown columns are XML reference values in MXN (converted with the invoice's TipoCambio), and the sheet has Moneda and Tipo de cambio columns **[user-confirmed Q7a]**. |
+| **Conceptos** [D-20..D-22] | Fecha · Proveedor · RFC emisor · Folio · UUID · Estado · Descripción · Cantidad · Unidad · ClaveProdServ · Precio unitario · **Monto (con/sin IVA)** · Importe · Descuento · IVA · IEPS · Categoría · Origen de la categoría | One row per line of the same invoices. While a category filter is active, only lines of those categories [D-21]. Monto is 0 on non-summing rows. Categoría is filled on every row, including "No suma" ones, as information **[user-confirmed Q6]**. A line "Diferencia de redondeo" (category of the supplier) is added for each invoice whose lines do not add up to its amount, so the sheet reconciles with the Dashboard [D-13] **[user-confirmed Q7b]**. |
 | **Resumen por categoría** [D-23] | Categoría · Monto (con/sin IVA) · % del total · Promedio mensual · Variación % (último mes vs. mes anterior) | Same rows and order as the Dashboard block, "Sin categoría" included when it has spend. Variation without data reads "Sin dato del mes anterior"; the Total row leaves the variation empty **[default]**. |
 | **Resumen por proveedor** [D-23] | RFC · Proveedor · Monto (con/sin IVA) · % del total · Facturas · Ticket promedio | Same rows as the full supplier list (not only the top 10). Total row: total, 100 %, total invoices, overall ticket (= KPI). |
 | **Resumen por mes** [D-23] | Mes · Monto (con/sin IVA) · Facturas | One row per calendar month of the range, **including months at $0**; Mes is text "ene 2025" **[default]**. Total row. |
@@ -403,7 +403,7 @@ Verification the executor must do in a real Excel (and LibreOffice/Numbers if av
 ### Persistence contract (UI-visible parts) [D-06, D-07]
 
 - `invoicechecker:settings` is migrated from v1 (`{ ivaMode }`) to a new version with `migrate`; the IVA mode is preserved. The store keeps `skipHydration` and the `rehydrate()` in the shell effect [P2]. Categories, supplier assignments (RFC + name), concept rules (RFC + normalized description → category id) and IVA mode are persisted; filters, the category filter, exclusions and invoices are not.
-- Every storage call stays in `try/catch`; a failed read falls back to the seeds (9 categories, no assignments) and a failed write keeps working for the session **[OPEN Q8: whether and how to tell the user]**.
+- Every storage call stays in `try/catch`; a failed read falls back to the seeds (9 categories, no assignments) and a failed write keeps working for the session and the user is told in both cases (toast on a failed read, Alert in Categorías on a failed write) **[user-confirmed Q8]**.
 - The backup file contains exactly the persisted state plus an explicit version field, validated with zod on upload. Phase 4 will add grouped products without breaking v1 files [D-07].
 
 ### Accessibility floor (additions to Phase 1 and 2)
@@ -444,21 +444,22 @@ No third-party registries declared; the vetting gate does not apply. The new npm
 
 ---
 
-## Open questions (need the user's answer before planning; the project rule is to ask, not infer)
+## User decisions
 
-The contract above carries a **provisional** value for each so nothing is blocked, but none of these is final until answered. Recommended option first.
+Confirmed by the user on 2026-10-16 (do not re-ask). Each matched the researcher's recommendation.
 
-| # | Question | Options | Provisional value in this contract |
-|---|----------|---------|------------------------------------|
-| Q1 | **Dashboard layout for the new block.** D-16 says "junto al ranking de proveedores" and leaves the fine layout to this spec. Today the trend (3/5) and the supplier ranking (2/5) share one row. | A (recommended): trend full width, then one row with "Gasto por categoría" (left) and "Gasto por proveedor" (right), 50/50. B: keep trend + suppliers as today and add the category block below, full width. C: three columns on wide screens. | A |
-| Q2 | **Position and visibility of the "Categorías" tab.** CONTEXT marks both as inferred. Consequence of "only with loaded invoices": in a new browser the user must load XML first, then upload the backup. | Position: after Dashboard (recommended) / last. Visibility: only with loaded invoices (recommended, as the other tabs) / also on the empty screen so a backup can be restored before loading XML. | After Dashboard; only with loaded invoices |
-| Q3 | **"Gasto por categoría" while a category filter is active.** The block is filtered data like every other view (FILT-05), so it would shrink to the chosen categories and clicking another category there is impossible. | Show only the chosen categories (recommended, consistent, total = KPIs) / show all categories and dim the unchosen ones (lets the user compare and add more with one click, but its total differs from the KPIs). | Only the chosen categories |
-| Q4 | **"Sin categoría" at concept level.** Can a user force one line to "Sin categoría" even if its supplier has a category (an explicit adjustment)? And when a category that has concept adjustments is deleted with target "Sin categoría" (D-05), do those adjustments become "explicit Sin categoría" (line stays out of the supplier's category) or are they removed (line falls back to the supplier's category)? | Explicit "Sin categoría" selectable and kept on delete (recommended: it is literally what D-05 says, "Pasarlos a Sin categoría") / not selectable, adjustments removed on delete. | Selectable; kept as explicit on delete |
-| Q5 | **Safety net when a concept category changes.** One change can re-classify many lines (all equal descriptions of that supplier, loaded and future). | Applies immediately with a toast «Deshacer» (recommended, same pattern as D-29/D-05) / ask for confirmation first / no toast (the caption "Aplica a N líneas" is the only feedback). | Immediate + toast «Deshacer» |
-| Q6 | **Rows that do not sum (Pago, $0, Excluida, Sustituida) and category.** CONTEXT suggests "sí, como informativa". Does the concept Select stay editable on those rows, and does the Excel fill the category on their concept rows? | Editable and filled (recommended: the rule belongs to supplier + description) / read-only and blank in Excel. | Editable and filled |
-| Q7 | **Excel: currency and reconciliation.** (a) For invoices in USD, are the XML-breakdown columns (Subtotal, Descuento, IVA, IEPS, Total, Precio unitario, Importe) in MXN converted with the invoice's TipoCambio (recommended: one currency per sheet, same as the Dashboard, plus Moneda and Tipo de cambio columns) or in the original currency? (b) Add a "Diferencia de redondeo" line per invoice in Conceptos so the sheet's Monto sums to the Dashboard (recommended, follows D-13) or leave the rounding difference out? | (a) MXN / original. (b) add line / omit. | (a) MXN; (b) add line |
-| Q8 | **Storage failures.** Reading unreadable stored settings falls back to the 9 seeds silently (D-06); a blocked write silently loses changes at reload. With categories now valuable, should the user be told? | Toast once on unreadable read + permanent Alert on blocked write in the Categorías tab (recommended) / stay silent as the IVA mode did in Phase 2. | Tell the user |
-| Q9 | **Top bar at 768–1023px** with a third labeled button. Only if the verification run shows overflow: collapse "Agregar facturas" and "Cerrar sesión" to icon-only under 1024px as well. This overrides Phase 2 user decision 4 (icon-only under 768px), so it needs the user's OK if it happens. | Collapse under 1024px / keep 768px and hide something else. | Export collapses under 1024px; others unchanged unless overflow is proven |
+| # | Decision |
+|---|----------|
+| Q1 | Dashboard layout: the trend card is full width, then one 50/50 row with "Gasto por categoría" on the left and the supplier ranking on the right. |
+| Q2 | The "Categorías" tab goes right after Dashboard and appears only when invoices are loaded (restoring a backup in a new browser requires loading the XML first). |
+| Q3 | With a category filter active, "Gasto por categoría" shows only the chosen categories. |
+| Q4 | "Sin categoría" is selectable per concept even when the supplier has a category (stored as an explicit adjustment). When a category is deleted, its concept adjustments become explicit "Sin categoría". |
+| Q5 | A concept category change applies immediately and shows a "Deshacer" toast. |
+| Q6 | On non-summing rows (Pago, $0, Excluida, Sustituida) the concept selector stays editable and the Excel fills the category on those concept rows. |
+| Q7a | XML-breakdown amounts of foreign-currency invoices are in MXN, converted with the invoice's TipoCambio, plus Moneda and Tipo de cambio columns. |
+| Q7b | Conceptos gets a "Diferencia de redondeo" line per invoice so its Monto sums to the Dashboard. |
+| Q8 | Storage failures are reported: a toast when stored settings cannot be read, an Alert in Categorías when they cannot be written. |
+| Q9 | Approved: if the three labeled top-bar buttons do not fit at 768 to 1023px, "Agregar facturas" and "Cerrar sesión" may also go icon-only under 1024px. |
 
 ## Defaults taken (low-risk, not asked; listed so the checker and planner can see them)
 
@@ -478,4 +479,4 @@ Confirmed upstream (do not re-ask): everything in 03-CONTEXT.md D-01..D-23 and i
 - [ ] Dimension 6 Registry Safety: PASS
 - [ ] Dimension 7 Inventory Provenance: PASS
 
-**Approval:** pending (9 open questions to the user first)
+**Approval:** pending checker
