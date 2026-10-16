@@ -197,11 +197,24 @@ describe("sessionStore", () => {
       expect(state.excluded.has("A")).toBe(false);
     });
 
-    it("reincludeInvoice removes from excluded and adds to restored, replacing both sets", () => {
+    it("reincludeInvoice without an override only removes from excluded and keeps the restored instance (WR-01)", () => {
       useSessionStore.getState().excludeInvoice("A");
       const excludedBefore = useSessionStore.getState().excluded;
       const restoredBefore = useSessionStore.getState().restored;
-      useSessionStore.getState().reincludeInvoice("A");
+      useSessionStore.getState().reincludeInvoice("A", { overrideSubstitution: false });
+      const state = useSessionStore.getState();
+      expect(state.excluded.has("A")).toBe(false);
+      expect(state.excluded).not.toBe(excludedBefore);
+      expect(state.restored).toBe(restoredBefore);
+      expect(state.restored.has("A")).toBe(false);
+      expect(excludedBefore.has("A")).toBe(true);
+    });
+
+    it("reincludeInvoice with an override removes from excluded and adds to restored, replacing both sets (WR-01)", () => {
+      useSessionStore.getState().excludeInvoice("A");
+      const excludedBefore = useSessionStore.getState().excluded;
+      const restoredBefore = useSessionStore.getState().restored;
+      useSessionStore.getState().reincludeInvoice("A", { overrideSubstitution: true });
       const state = useSessionStore.getState();
       expect(state.excluded.has("A")).toBe(false);
       expect(state.restored.has("A")).toBe(true);
@@ -213,7 +226,7 @@ describe("sessionStore", () => {
 
     it("excluding a restored uuid again takes it out of restored", () => {
       useSessionStore.getState().excludeInvoice("A");
-      useSessionStore.getState().reincludeInvoice("A");
+      useSessionStore.getState().reincludeInvoice("A", { overrideSubstitution: true });
       useSessionStore.getState().excludeInvoice("A");
       const state = useSessionStore.getState();
       expect(state.excluded.has("A")).toBe(true);
@@ -349,7 +362,8 @@ describe("sessionStore", () => {
       store.setFormas(new Set(["03"]));
       store.excludeInvoice("A");
       store.excludeInvoice("B");
-      store.reincludeInvoice("B");
+      store.reincludeInvoice("B", { overrideSubstitution: true });
+      expect(useSessionStore.getState().restored.has("B")).toBe(true);
       store.requestFocus("A");
       store.requestImportFocus("rechazados");
       const generation = useSessionStore.getState().generation;

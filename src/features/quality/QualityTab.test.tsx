@@ -383,7 +383,7 @@ describe("QualityTab rows", () => {
   it("shows the re-included wording once the original is back", () => {
     seed([inv("ORIG-1"), inv("NEW-1", { relacionados: [{ tipoRelacion: "04", uuids: ["ORIG-1"] }] })]);
     act(() => {
-      useSessionStore.getState().reincludeInvoice("ORIG-1");
+      useSessionStore.getState().reincludeInvoice("ORIG-1", { overrideSubstitution: true });
     });
     render(<QualityTab />);
     ensureOpen("sustituciones");
@@ -506,7 +506,7 @@ describe("QualityTab row actions", () => {
     ensureOpen("excluidas");
     fireEvent.click(within(rowOf("excluidas", "EXC-1")).getByRole("button", { name: "Volver a incluir" }));
     expect(useSessionStore.getState().excluded.has("EXC-1")).toBe(false);
-    expect(useSessionStore.getState().restored.has("EXC-1")).toBe(true);
+    expect(useSessionStore.getState().restored.has("EXC-1")).toBe(false);
     expect(screen.queryByTestId("quality-trigger-excluidas")).toBeNull();
     expect(screen.getByTestId("quality-excluidas")).toHaveTextContent("0");
   });
