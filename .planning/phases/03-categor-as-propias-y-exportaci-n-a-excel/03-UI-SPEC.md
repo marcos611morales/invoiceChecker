@@ -109,7 +109,7 @@ Exactly the Phase 1 set: **4 sizes and 2 weights**. Nothing new.
 | Body | 14px | 400; 600 for buttons, labels, tab triggers, category names in the ranking and the list, amounts, table headers | 1.5 | Category names and amounts, table cells, Select values, dialog body, toasts, inputs |
 | Label / caption | 12px | 400 (600 for table column headers) | 1.5 | Row captions ("12.4 % del total · …"), delta lines, "del proveedor" suffix, "Aplica a N líneas…", usage counts ("3 proveedores · 12 conceptos"), RFC (Geist Mono), chips, helper and error text under inputs, captions under the block headings |
 | Heading | 20px | 600 | 1.2 | "Categorías", "Mis categorías", "Categoría por proveedor", "Gasto por categoría", dialog titles |
-| Display | 28px | 600 | 1.2 | Not used in this phase |
+| Display | 28px | 600 | 1.2 | Inherited from Phase 2, KPI numerals only |
 
 Rules (additions):
 
@@ -154,7 +154,7 @@ Destructive reserved for (Phase 1 list plus two confirms and one icon):
 
 1. Confirm buttons of "Cerrar sesión" and "Quitar todas" (P1).
 2. The login error text and the "Rechazados" value/icon (P1).
-3. **New:** the "Borrar" confirm button of the delete-category dialog [D-05].
+3. **New:** the "Borrar categoría" confirm button of the delete-category dialog [D-05].
 4. **New:** the "Reemplazar mis ajustes" confirm button of the replace-settings dialog [D-08].
 5. **New:** the `CircleAlert` icon (not the text) of the "invalid backup file" Alert [D-08]; its message is in `foreground`, as the rejected-file rows of Phase 1.
 
@@ -208,7 +208,7 @@ All strings are final unless marked `{…}` (interpolated) or when a row cites a
 | Error: reserved [D-04] | «Sin categoría» es un nombre reservado. |
 | Row usage caption | {n} proveedores · {m} conceptos ("1 proveedor · 1 concepto"; a zero part is omitted; both zero reads "Sin uso") |
 | Row actions `aria-label` | Renombrar categoría {nombre} · Borrar categoría {nombre} (icon-only `Pencil` / `Trash2`, Tooltip with the same text) |
-| Inline rename | Input `aria-label` "Nuevo nombre de la categoría {nombre}" · buttons (icon-only, `Check` / `X`) "Guardar nombre" · "Cancelar" |
+| Inline rename | Input `aria-label` "Nuevo nombre de la categoría {nombre}" · buttons (icon-only, `Check` / `X`) "Guardar nombre" · "Cancelar cambio de nombre" (also its Tooltip) **[user-confirmed Q10]** |
 | Locked row ("Sin categoría") | Name «Sin categoría» with `Lock` icon; caption: "Es el valor cuando no hay otra categoría. No se puede renombrar ni borrar." |
 | Live announcements (`sr-only`, `aria-live="polite"`) | Categoría «{nombre}» agregada · Categoría renombrada a «{nombre}» |
 | Empty state heading | No tienes categorías |
@@ -217,7 +217,7 @@ All strings are final unless marked `{…}` (interpolated) or when a row cites a
 | Delete dialog body, unused category | No está asignada a ningún proveedor ni concepto. |
 | Delete dialog body, used category [D-05] | La usan {n} proveedores y {m} conceptos. (a zero part is omitted) |
 | Delete dialog field (used only) | Label «Pasarlos a»; `Select` default «Sin categoría», then the other categories in list order |
-| Delete dialog buttons | Cancelar (dismiss, default focus) · Borrar (destructive) |
+| Delete dialog buttons | Conservar categoría (dismiss, default focus) · Borrar categoría (destructive) **[user-confirmed Q10]** |
 | Toast after delete [D-05, P2 D-29] | Categoría borrada · action «Deshacer» (6 s, bottom-right, closable) |
 
 ### Categorías tab — "Categoría por proveedor" [D-01, D-03]
@@ -331,7 +331,7 @@ Vertical order, 32px gaps: (1) title row, (2) invalid-file Alert and storage Ale
 - Add form (a row; stacks under 640px): visible `Label` "Nueva categoría", `Input` (maxLength 60 **[default]**, `aria-describedby` to the error text), `Button outline` "Agregar categoría". Enter submits. On success the input is cleared, focus stays in the input and the new row appears in its sorted place. Errors show under the input in 12px `foreground` with the field `aria-invalid`; they clear when the user types. Comparison for duplicates ignores case and surrounding spaces; the name is trimmed before saving [D-04].
 - List: `<ul>`, rows separated by 1px `border`, each row = name (14/600, wraps, never truncated) + usage caption (12px muted) on the left; `Pencil` and `Trash2` ghost icon buttons (36px; 44px under 640px) on the right. Order: alphabetical with `es` collation, the seed category "Otros" last (identified by its stable seed id, not by its current name) [Claude's discretion in D, **default**]. "Sin categoría" is a locked last row on `secondary` (not editable, no actions), always shown.
 - Rename: the pencil swaps the name for an `Input` (current name selected, 60 max) with `Check` and `X` icon buttons; Enter saves, Esc cancels, blur does nothing. Renaming to the same name with different case is allowed (the row itself is excluded from the duplicate check). Focus returns to that row's pencil after saving or cancelling. Only one row is edited at a time.
-- Delete: the trash opens the delete `AlertDialog`. Used category: body + «Pasarlos a» Select (default «Sin categoría», excluded: the category being deleted). Unused: body only. Default focus on «Cancelar»; Esc and overlay click dismiss. Confirming deletes, moves every supplier assignment and concept adjustment of that category to the chosen target (to «Sin categoría»: the supplier assignment is removed, and each concept adjustment becomes an explicit «Sin categoría» adjustment that stays out of the supplier's category) **[user-confirmed Q4]**, shows the "Categoría borrada · Deshacer" toast, and moves focus to the section heading (the row is gone). «Deshacer» restores the category (same id, same position) and **every assignment it had** from a snapshot taken at delete time; it is valid for the toast's 6 s.
+- Delete: the trash opens the delete `AlertDialog`. Used category: body + «Pasarlos a» Select (default «Sin categoría», excluded: the category being deleted). Unused: body only. Default focus on «Conservar categoría»; Esc and overlay click dismiss. Confirming deletes, moves every supplier assignment and concept adjustment of that category to the chosen target (to «Sin categoría»: the supplier assignment is removed, and each concept adjustment becomes an explicit «Sin categoría» adjustment that stays out of the supplier's category) **[user-confirmed Q4]**, shows the "Categoría borrada · Deshacer" toast, and moves focus to the section heading (the row is gone). «Deshacer» restores the category (same id, same position) and **every assignment it had** from a snapshot taken at delete time; it is valid for the toast's 6 s.
 - Empty (zero categories): `Empty` with the copy above; the add form stays.
 - Seed state: the first time (no stored settings, or unreadable settings) the 9 categories of D-02 exist, none assigned to anything; deleting them is allowed.
 
@@ -411,7 +411,7 @@ Verification the executor must do in a real Excel (and LibreOffice/Numbers if av
 - Tabs: four triggers with roving arrow keys, `aria-selected`; the scrollable tab list on phones keeps the active tab in view.
 - Category block and ranking rows are real buttons inside an `<ol>`; accessible names from the copy contract; variation direction is also `sr-only` text.
 - Forms: the new-category input has a visible `Label`; errors use `aria-invalid` + `aria-describedby`; inline rename announces the result through the polite live region; focus moves are specified for add (stays), rename (back to the pencil), delete (to the section heading), upload (back to "Subir ajustes" after the dialog).
-- Dialogs: `AlertDialog` focus lands on the dismiss button ("Cancelar" / "Conservar los míos"); Esc and overlay click dismiss; the destructive button is last. The Select inside the delete dialog is operable by keyboard and its popup renders above the dialog.
+- Dialogs: `AlertDialog` focus lands on the dismiss button ("Conservar categoría" / "Conservar los míos"); Esc and overlay click dismiss; the destructive button is last. The Select inside the delete dialog is operable by keyboard and its popup renders above the dialog.
 - Select triggers always have an `aria-label` that names the supplier or the concept (a bare category name is not enough); the "· del proveedor" suffix is part of the accessible name.
 - Toasts with actions ("Deshacer") stay 6 s and are keyboard reachable [P2].
 - Export: the button's busy state is `aria-busy`; the result is announced through the toast (`aria-live`).
@@ -446,7 +446,7 @@ No third-party registries declared; the vetting gate does not apply. The new npm
 
 ## User decisions
 
-Confirmed by the user on 2026-10-16 (do not re-ask). Each matched the researcher's recommendation.
+Confirmed by the user on 2026-10-16 (do not re-ask). Q1 to Q9 matched the researcher's recommendation; Q10 was chosen by the user after the checker's copywriting review.
 
 | # | Decision |
 |---|----------|
@@ -460,6 +460,7 @@ Confirmed by the user on 2026-10-16 (do not re-ask). Each matched the researcher
 | Q7b | Conceptos gets a "Diferencia de redondeo" line per invoice so its Monto sums to the Dashboard. |
 | Q8 | Storage failures are reported: a toast when stored settings cannot be read, an Alert in Categorías when they cannot be written. |
 | Q9 | Approved: if the three labeled top-bar buttons do not fit at 768 to 1023px, "Agregar facturas" and "Cerrar sesión" may also go icon-only under 1024px. |
+| Q10 | Labels (2026-10-16, from the checker's Dimension 1 BLOCK): delete-category dialog dismiss button «Conservar categoría» (keeps default focus); delete confirm «Borrar categoría» (was «Borrar»); inline-rename cancel icon button `aria-label` and Tooltip «Cancelar cambio de nombre». The generic «Cancelar» is no longer used in this phase. |
 
 ## Defaults taken (low-risk, not asked; listed so the checker and planner can see them)
 
