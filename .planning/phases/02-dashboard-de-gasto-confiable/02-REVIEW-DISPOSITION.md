@@ -21,7 +21,7 @@ findings:
     title: "`formatTotal` converts an XML amount with `Number()` (project rule: money via big.js only)"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "One damaged or typo'd `Fecha` can blow up the month span (unbounded month list and chart)"
   - id: WR-04
     severity: warning
@@ -43,7 +43,7 @@ findings:
     severity: info
     disposition: open
     title: "Negative Total, SubTotal or Importe are accepted without any incident"
-open: 10
+open: 9
 total: 10
 recorded: 2026-10-16T20:26:36.201Z
 ---
@@ -56,7 +56,7 @@ recorded: 2026-10-16T20:26:36.201Z
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | WR-02 | warning | open | - (not in the current review) |
-| WR-03 | warning | open | - (not in the current review) |
+| WR-03 | warning | fixed | Plan 02-17 (G-02-11); confirmed resolved by the 2026-10-16 incremental review |
 | WR-04 | warning | open | - (not in the current review) |
 | IN-03 | info | open | - (not in the current review) |
 | IN-04 | info | open | - (not in the current review) |
