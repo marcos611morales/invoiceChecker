@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, type ComponentType } from "react";
+import { useEffect, useMemo, type ComponentType } from "react";
 import { ShieldCheck, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { qualitySummary } from "@/domain/accounting/quality";
 import { hasReport } from "@/domain/import/report";
 import { DashboardTab } from "@/features/dashboard/DashboardTab";
+import { useLedger } from "@/features/dashboard/useLedger";
+import { QualityTab } from "@/features/quality/QualityTab";
 import { ImportReport } from "@/features/report/ImportReport";
 import { EmptyDropzone } from "@/features/upload/EmptyDropzone";
 import { ProcessingIndicator } from "@/features/upload/ProcessingIndicator";
 import { UploadRoot, useUpload } from "@/features/upload/UploadRoot";
 import { es } from "@/lib/copy/es";
+import { qualityTabAria, qualityTabLabel } from "@/lib/copy/messages";
 import { useSessionStore, type AppTab } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { TopBar } from "./TopBar";
@@ -47,9 +51,10 @@ interface TabDefinition {
   Panel: ComponentType;
 }
 
-/** Module scope so Plan 02-15 adds the Calidad entry without touching the structure below. */
+/** Module scope: the list never changes while the app runs (D-01 order). */
 const TABS: readonly TabDefinition[] = [
   { value: "dashboard", label: es.tabs.dashboard, Panel: DashboardTab },
+  { value: "calidad", label: es.tabs.quality, Panel: QualityTab },
   { value: "importacion", label: es.tabs.import, Panel: ImportReport },
 ];
 
@@ -61,6 +66,10 @@ const TABS: readonly TabDefinition[] = [
 function LoadedTabs() {
   const activeTab = useSessionStore((s) => s.activeTab);
   const setActiveTab = useSessionStore((s) => s.setActiveTab);
+  // Incident rows over the ten types of the unfiltered ledger, informational D-46 type
+  // included (D-04). The Dashboard notice reads the same summary's `amountChanging`.
+  const ledger = useLedger();
+  const incidentCount = useMemo(() => qualitySummary(ledger).total, [ledger]);
   return (
     <Tabs
       value={activeTab}
@@ -74,11 +83,22 @@ function LoadedTabs() {
         aria-label={es.tabs.ariaLabel}
         className="group-data-horizontal/tabs:h-10 max-sm:group-data-horizontal/tabs:h-11 gap-2 p-0"
       >
-        {TABS.map(({ value, label }) => (
-          <TabsTrigger key={value} value={value} className={TRIGGER_CLASS}>
-            {label}
-          </TabsTrigger>
-        ))}
+        {TABS.map(({ value, label }) =>
+          value === "calidad" ? (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className={TRIGGER_CLASS}
+              aria-label={qualityTabAria(incidentCount)}
+            >
+              {qualityTabLabel(incidentCount)}
+            </TabsTrigger>
+          ) : (
+            <TabsTrigger key={value} value={value} className={TRIGGER_CLASS}>
+              {label}
+            </TabsTrigger>
+          ),
+        )}
       </TabsList>
       {TABS.map(({ value, Panel }) => (
         <TabsContent key={value} value={value}>

@@ -185,6 +185,8 @@ export const es = {
     noInvoicesHeading: "Ninguna factura válida",
     noInvoicesBody:
       "Revisa los archivos rechazados en Importación y vuelve a soltarlos.",
+    incidentsNotice: "Hay incidencias que cambian los montos.",
+    seeQuality: "Ver Calidad de datos",
   },
 
   quality: {

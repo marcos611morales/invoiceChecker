@@ -5,15 +5,18 @@ import {
   cleanup,
   fireEvent,
   render,
+  renderHook,
   screen,
   within,
 } from "@testing-library/react";
 import { parseCfdi } from "@/domain/cfdi/parseCfdi";
 import type { ParsedInvoice } from "@/domain/cfdi/types";
 import { AppShell } from "@/features/shell/AppShell";
+import { shortUuid } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { DashboardTab } from "./DashboardTab";
+import { useLedger } from "./useLedger";
 import { readFixture } from "../../../tests/support/cfdiVariants";
 import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
@@ -312,11 +315,11 @@ describe("AppShell: shell wiring (D-01, D-05, UI Considerations E1 and E2)", () 
     expect(useSessionStore.getState().activeTab).toBe("dashboard");
   });
 
-  it("lists Dashboard and Importación for now (Calidad arrives in Plan 02-15)", () => {
+  it("lists Dashboard, Calidad de datos (with the credit note without related as 1 incident) and Importación", () => {
     load([ingreso, egreso]);
     render(<AppShell />);
     const names = screen.getAllByRole("tab").map((tab) => tab.textContent);
-    expect(names).toEqual(["Dashboard", "Importación"]);
+    expect(names).toEqual(["Dashboard", "Calidad de datos · 1", "Importación"]);
   });
 
   it("styles the tab list per UI-SPEC: 40 px list, 44 px touch height, 16 px padding, primary underline", () => {
@@ -869,5 +872,301 @@ describe("Dashboard tab: Facturas table (DASH-09, REGLA-08, D-24, D-27, D-28)", 
       useSettingsStore.setState({ ivaMode: "sin" });
     });
     expect(within(tableRow("Ingreso")).getByText("$1,290.81")).toBeInTheDocument();
+  });
+});
+
+describe("useLedger (shared ledger hook)", () => {
+  it("returns the same array while invoices, excluded and restored are unchanged", () => {
+    load([inv("L-1"), inv("L-2")]);
+    const { result, rerender } = renderHook(() => useLedger());
+    const first = result.current;
+    expect(first).toHaveLength(2);
+    rerender();
+    expect(result.current).toBe(first);
+    act(() => {
+      useSettingsStore.setState({ ivaMode: "sin" });
+    });
+    expect(result.current).toBe(first);
+  });
+
+  it("returns a new array when invoices, excluded or restored change", () => {
+    load([inv("L-1"), inv("L-2")]);
+    const { result } = renderHook(() => useLedger());
+    const first = result.current;
+    act(() => {
+      useSessionStore.getState().excludeInvoice("L-1");
+    });
+    const afterExclude = result.current;
+    expect(afterExclude).not.toBe(first);
+    expect(afterExclude.find((entry) => entry.uuid === "L-1")?.exclusion).toBe("manual");
+    act(() => {
+      useSessionStore.getState().reincludeInvoice("L-1");
+    });
+    const afterRestore = result.current;
+    expect(afterRestore).not.toBe(afterExclude);
+    expect(afterRestore.find((entry) => entry.uuid === "L-1")?.exclusion).toBeNull();
+    load([inv("L-3")]);
+    expect(result.current).not.toBe(afterRestore);
+    expect(result.current).toHaveLength(3);
+  });
+});
+
+/** An Ingreso whose folio is its uuid, so every reference in the UI is easy to find. */
+function inv(uuid: string, overrides: Partial<ParsedInvoice> = {}): ParsedInvoice {
+  return makeInvoice({ uuid, folio: uuid, ...overrides });
+}
+
+const NOTICE = "Hay incidencias que cambian los montos.";
+
+function notice(): HTMLElement | null {
+  return screen.queryByText(NOTICE);
+}
+
+describe("Dashboard tab: amount-changing incidents notice (D-04, D-35, D-46)", () => {
+  it("is absent when there is no incident", () => {
+    load([inv("OK-1"), inv("OK-2")]);
+    render(<DashboardTab />);
+    expect(notice()).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ver Calidad de datos" })).toBeNull();
+  });
+
+  it("shows for a credit note without a related invoice, with the Ver Calidad de datos button", () => {
+    load([inv("OK-1"), inv("NC-1", { tipo: "E" })]);
+    render(<DashboardTab />);
+    expect(notice()).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver Calidad de datos" })).toBeInTheDocument();
+  });
+
+  it("shows for an applied substitution and goes away when the original is re-included", () => {
+    load([
+      inv("ORIG-1"),
+      inv("NEW-1", { relacionados: [{ tipoRelacion: "04", uuids: ["ORIG-1"] }] }),
+    ]);
+    render(<DashboardTab />);
+    expect(notice()).toBeInTheDocument();
+    act(() => {
+      useSessionStore.getState().reincludeInvoice("ORIG-1");
+    });
+    expect(notice()).toBeNull();
+  });
+
+  it("shows for a foreign currency invoice without exchange rate", () => {
+    load([inv("OK-1"), inv("USD-1", { moneda: "USD", tipoCambio: null })]);
+    render(<DashboardTab />);
+    expect(notice()).toBeInTheDocument();
+  });
+
+  it("shows for an invoice with damaged data", () => {
+    load([inv("OK-1"), inv("BAD-T", { total: "abc" })]);
+    render(<DashboardTab />);
+    expect(notice()).toBeInTheDocument();
+  });
+
+  it("stays hidden for $0, rounding, PPD, exclusion and several-related credit note incidents", () => {
+    load([
+      inv("OK-1"),
+      inv("CERO-1", { total: "0.00", subTotal: "0.00", totalImpuestosTrasladados: null }),
+      inv("RED-1", { total: "116.50" }),
+      inv("PPD-1", { metodoPago: "PPD", formaPago: "99" }),
+      inv("EXC-1"),
+      inv("REL-MAY", { fecha: "2025-05-20T10:00:00" }),
+      inv("REL-JUL", { fecha: "2025-07-10T10:00:00" }),
+      inv("NC-2", {
+        tipo: "E",
+        fecha: "2025-08-02T10:00:00",
+        relacionados: [{ tipoRelacion: "01", uuids: ["REL-MAY", "REL-JUL"] }],
+      }),
+    ]);
+    act(() => {
+      useSessionStore.getState().excludeInvoice("EXC-1");
+    });
+    render(<DashboardTab />);
+    expect(notice()).toBeNull();
+  });
+
+  it("makes Calidad de datos the active tab when the button is pressed", () => {
+    load([inv("OK-1"), inv("NC-1", { tipo: "E" })]);
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole("button", { name: "Ver Calidad de datos" }));
+    expect(useSessionStore.getState().activeTab).toBe("calidad");
+    expect(screen.getByRole("heading", { name: "Calidad de datos" })).toBeInTheDocument();
+  });
+
+  it("disappears when the condition clears, without a close control", () => {
+    load([inv("OK-1"), inv("NC-1", { tipo: "E" })]);
+    render(<DashboardTab />);
+    const alert = notice()?.closest('[data-slot="alert"]');
+    expect(alert).toBeInstanceOf(HTMLElement);
+    if (!(alert instanceof HTMLElement)) return;
+    // The only control inside is the link-style button; nothing closes or dismisses it.
+    const buttons = within(alert).getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual(["Ver Calidad de datos"]);
+    act(() => {
+      useSessionStore.getState().excludeInvoice("NC-1");
+    });
+    // An excluded credit note is a "Excluidas" incident, which never changes amounts.
+    expect(notice()).toBeNull();
+  });
+
+  it("uses the default Alert variant with a muted icon and no destructive color", () => {
+    load([inv("OK-1"), inv("NC-1", { tipo: "E" })]);
+    render(<DashboardTab />);
+    const alert = notice()?.closest('[data-slot="alert"]');
+    expect(alert).toBeInstanceOf(HTMLElement);
+    if (!(alert instanceof HTMLElement)) return;
+    expect(alert.className).toContain("bg-card");
+    expect(alert.className).not.toMatch(/(^|\s)(text|bg|border)-destructive/);
+    const icon = alert.querySelector("svg");
+    expect(icon).not.toBeNull();
+    expect(icon?.getAttribute("aria-hidden")).toBe("true");
+    expect(icon?.getAttribute("class") ?? "").toContain("text-muted-foreground");
+  });
+
+  it("is the first block above the filter bar", () => {
+    load([inv("OK-1"), inv("NC-1", { tipo: "E" })]);
+    render(<DashboardTab />);
+    const alert = notice()?.closest('[data-slot="alert"]');
+    const caption = screen.getByTestId("mode-caption");
+    expect(alert).toBeInstanceOf(HTMLElement);
+    if (!(alert instanceof HTMLElement)) return;
+    // Node.DOCUMENT_POSITION_FOLLOWING (4): the caption follows the alert in document order.
+    expect(alert.compareDocumentPosition(caption) & 4).toBe(4);
+  });
+});
+
+describe("Dashboard tab: Ver factura flow and the hidden-by-filters Alert (FILT-05, D-33)", () => {
+  const JAN = inv("HID-JAN", { fecha: "2025-01-10T10:00:00" });
+  const MAR = inv("SHOWN-MAR", { fecha: "2025-03-10T10:00:00" });
+
+  function hideJan(): void {
+    act(() => {
+      useSessionStore.getState().setRange({ from: "2025-03", to: "2025-03" });
+    });
+  }
+
+  function request(uuid: string): void {
+    act(() => {
+      useSessionStore.getState().requestFocus(uuid);
+    });
+  }
+
+  function hiddenAlert(folio: string): HTMLElement | null {
+    const text = screen.queryByText(`La factura ${folio} no se ve porque los filtros la ocultan.`);
+    const alert = text?.closest('[data-slot="alert"]');
+    return alert instanceof HTMLElement ? alert : null;
+  }
+
+  it("shows the Alert, leaves the filters untouched and moves nothing when the filters hide the invoice", () => {
+    load([JAN, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    const before = useSessionStore.getState().filters;
+    request("HID-JAN");
+    const alert = hiddenAlert("HID-JAN");
+    expect(alert).not.toBeNull();
+    expect(useSessionStore.getState().filters).toBe(before);
+    expect(document.querySelector('tr[data-row-id="HID-JAN"]')).toBeNull();
+    expect(useSessionStore.getState().focusRequest?.uuid).toBe("HID-JAN");
+  });
+
+  it("reveals the row, expanded and focused, after Quitar filtros and then clears the request and the Alert", () => {
+    load([JAN, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    request("HID-JAN");
+    const alert = hiddenAlert("HID-JAN");
+    expect(alert).not.toBeNull();
+    if (alert === null) return;
+    fireEvent.click(within(alert).getByRole("button", { name: "Quitar filtros" }));
+    expect(useSessionStore.getState().filters.range).toBeNull();
+    expect(screen.getByTestId("expand-HID-JAN")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("expand-HID-JAN")).toHaveFocus();
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+    expect(hiddenAlert("HID-JAN")).toBeNull();
+  });
+
+  it("shows the Alert as well when the filters leave no row at all, and reveals the row afterwards", () => {
+    load([JAN]);
+    render(<DashboardTab />);
+    act(() => {
+      useSessionStore.getState().setRange({ from: "2025-03", to: "2025-03" });
+    });
+    expect(screen.getByTestId("dashboard-empty-filtered")).toBeInTheDocument();
+    request("HID-JAN");
+    const alert = hiddenAlert("HID-JAN");
+    expect(alert).not.toBeNull();
+    if (alert === null) return;
+    fireEvent.click(within(alert).getByRole("button", { name: "Quitar filtros" }));
+    expect(screen.getByTestId("expand-HID-JAN")).toHaveAttribute("aria-expanded", "true");
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+  });
+
+  it("clears the request and the Alert when the user edits a filter instead", () => {
+    load([JAN, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    request("HID-JAN");
+    expect(hiddenAlert("HID-JAN")).not.toBeNull();
+    act(() => {
+      useSessionStore.getState().setRange({ from: "2025-02", to: "2025-03" });
+    });
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+    expect(hiddenAlert("HID-JAN")).toBeNull();
+    expect(useSessionStore.getState().filters.range).toEqual({ from: "2025-02", to: "2025-03" });
+  });
+
+  it("names an invoice without folio by its short uuid", () => {
+    const noFolio = makeInvoice({
+      uuid: "abcdef12-0000-4000-8000-000000000001",
+      folio: null,
+      fecha: "2025-01-10T10:00:00",
+    });
+    load([noFolio, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    request(noFolio.uuid);
+    expect(hiddenAlert(shortUuid(noFolio.uuid))).not.toBeNull();
+  });
+
+  it("renders a hostile folio as plain text in the Alert", () => {
+    const hostile = inv("<img src=x onerror=alert(1)>", { fecha: "2025-01-10T10:00:00" });
+    load([hostile, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    request(hostile.uuid);
+    expect(hiddenAlert("<img src=x onerror=alert(1)>")).not.toBeNull();
+    expect(document.querySelector("img")).toBeNull();
+  });
+
+  it("clears a request for a uuid that is not loaded without showing any Alert", () => {
+    load([JAN, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    const before = useSessionStore.getState().filters;
+    request("NOT-LOADED");
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+    expect(screen.queryByText(/no se ve porque los filtros la ocultan/)).toBeNull();
+    expect(useSessionStore.getState().filters).toBe(before);
+  });
+
+  it("switches from Calidad de datos to the Dashboard and the table, mounting afterwards, consumes the request", () => {
+    load([JAN, MAR]);
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole("tab", { name: /^Calidad de datos/ }));
+    expect(useSessionStore.getState().activeTab).toBe("calidad");
+    request("HID-JAN");
+    expect(useSessionStore.getState().activeTab).toBe("dashboard");
+    expect(screen.getByTestId("expand-HID-JAN")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("expand-HID-JAN")).toHaveFocus();
+    expect(useSessionStore.getState().focusRequest).toBeNull();
+  });
+
+  it("never edits a filter by itself: only Quitar filtros changes them", () => {
+    load([JAN, MAR]);
+    render(<DashboardTab />);
+    hideJan();
+    const before = useSessionStore.getState().filters;
+    request("HID-JAN");
+    expect(useSessionStore.getState().filters).toBe(before);
   });
 });

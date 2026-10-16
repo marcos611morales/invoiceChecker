@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useId, useMemo, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTable } from "@tanstack/react-table";
 import type { Header, PaginationState, SortingState } from "@tanstack/react-table";
 import { ChevronDown, ChevronRight, Ellipsis, Info } from "lucide-react";
@@ -230,6 +230,8 @@ function ConceptsPanel({
 export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps) {
   const excludeInvoice = useSessionStore((s) => s.excludeInvoice);
   const reincludeInvoice = useSessionStore((s) => s.reincludeInvoice);
+  const focusRequest = useSessionStore((s) => s.focusRequest);
+  const clearFocusRequest = useSessionStore((s) => s.clearFocusRequest);
   const rows = useMemo(() => toInvoiceRows(entries, mode), [entries, mode]);
   const payments = useMemo(() => buildPaymentIndex(ledger), [ledger]);
   const byUuid = useMemo(() => new Map(ledger.map((entry) => [entry.uuid, entry])), [ledger]);
@@ -237,6 +239,9 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
   const [pagination, setPagination] = useState<PaginationState>(INITIAL_PAGINATION);
   // Open panels are kept by invoice id, so sorting, paging and filtering keep them.
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set<string>());
+  // Nonce of the last "Ver factura" request whose page and panel were resolved (idempotent render).
+  const [handledNonce, setHandledNonce] = useState(0);
+  const sectionRef = useRef<HTMLElement>(null);
   const headingId = useId();
   const idPrefix = useId();
 
@@ -263,6 +268,48 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
     sortDescFirst: false,
     enableMultiSort: false,
   });
+
+  // "Ver factura" (D-33): resolve the page and the open panel with derived state during
+  // render, not in an effect (Pitfall 17). The index is read from the sorted row model
+  // before pagination, so it follows the current sort. A row the filters hide is left
+  // alone: the Dashboard explains it and nothing moves silently.
+  if (focusRequest !== null && focusRequest.nonce !== handledNonce) {
+    const index = table
+      .getPrePaginatedRowModel()
+      .rows.findIndex((tableRow) => tableRow.id === focusRequest.uuid);
+    if (index >= 0) {
+      setHandledNonce(focusRequest.nonce);
+      setPagination({ pageIndex: Math.floor(index / PAGE_SIZE), pageSize: PAGE_SIZE });
+      setOpen((current) => new Set(current).add(focusRequest.uuid));
+    }
+  }
+
+  // After the commit that shows the page: only the DOM is touched here. A missing node
+  // never throws, and the request is always cleared once handled or when it names a
+  // uuid that is not loaded (T-02-29).
+  useEffect(() => {
+    if (focusRequest === null) return;
+    if (!byUuid.has(focusRequest.uuid)) {
+      clearFocusRequest();
+      return;
+    }
+    if (focusRequest.nonce !== handledNonce) return;
+    const section = sectionRef.current;
+    const rowElement =
+      section === null
+        ? undefined
+        : Array.from(section.querySelectorAll<HTMLElement>("[data-row-id]")).find(
+            (element) => element.getAttribute("data-row-id") === focusRequest.uuid,
+          );
+    if (rowElement !== undefined) {
+      const reduceMotion =
+        typeof window.matchMedia !== "function" ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      rowElement.scrollIntoView({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
+      rowElement.querySelector<HTMLElement>("button[aria-expanded]")?.focus();
+    }
+    clearFocusRequest();
+  }, [focusRequest, handledNonce, byUuid, clearFocusRequest]);
 
   const toggle = (uuid: string) => {
     setOpen((current) => {
@@ -357,7 +404,7 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
   };
 
   return (
-    <section aria-labelledby={headingId} className="flex min-w-0 flex-col gap-4">
+    <section ref={sectionRef} aria-labelledby={headingId} className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h2 id={headingId} className="text-xl leading-[1.2] font-semibold">
           {invoicesHeading(rows.length)}

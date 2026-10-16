@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { Info, TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { kpiDeltas, kpis, monthlySeries, supplierRanking } from "@/domain/accounting/aggregate";
@@ -10,17 +12,19 @@ import {
   previousFilters,
   resolveRange,
 } from "@/domain/accounting/filters";
-import { buildLedger } from "@/domain/accounting/ledger";
 import { previousPeriod } from "@/domain/accounting/months";
+import { qualitySummary } from "@/domain/accounting/quality";
 import { InvoiceTable } from "@/features/invoices/InvoiceTable";
 import { es } from "@/lib/copy/es";
-import { periodLabel } from "@/lib/format";
+import { hiddenInvoiceNotice } from "@/lib/copy/messages";
+import { invoiceRef, periodLabel } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { FilterBar } from "./FilterBar";
 import { KpiRow } from "./KpiRow";
 import { SupplierRanking } from "./SupplierRanking";
 import { TrendChart } from "./TrendChart";
+import { useLedger } from "./useLedger";
 
 /**
  * Dashboard panel. The ledger is built from the session invoices plus the manual
@@ -32,16 +36,17 @@ import { TrendChart } from "./TrendChart";
  * mode only picks the other stored amount; it never rebuilds the ledger.
  */
 export function DashboardTab() {
-  const invoices = useSessionStore((s) => s.invoices);
-  const excluded = useSessionStore((s) => s.excluded);
-  const restored = useSessionStore((s) => s.restored);
   const filters = useSessionStore((s) => s.filters);
   const clearFilters = useSessionStore((s) => s.clearFilters);
+  const setActiveTab = useSessionStore((s) => s.setActiveTab);
+  const focusRequest = useSessionStore((s) => s.focusRequest);
+  const clearFocusRequest = useSessionStore((s) => s.clearFocusRequest);
   const ivaMode = useSettingsStore((s) => s.ivaMode);
-  const ledger = useMemo(
-    () => buildLedger(invoices, { excluded, restored }),
-    [invoices, excluded, restored],
-  );
+  const ledger = useLedger();
+  // The unfiltered ledger decides the notice: an incident changes the amounts whether or
+  // not the current filters show its invoice (D-04). The informational D-46 type never
+  // raises it; `amountChanging` already excludes it.
+  const amountChanging = useMemo(() => qualitySummary(ledger).amountChanging, [ledger]);
   const span = useMemo(() => loadedSpan(ledger), [ledger]);
   const visible = useMemo(() => applyFilters(ledger, filters, span), [ledger, filters, span]);
   const range = useMemo(() => resolveRange(filters, span), [filters, span]);
@@ -64,6 +69,21 @@ export function DashboardTab() {
   const series = useMemo(() => monthlySeries(visible, range, ivaMode), [visible, range, ivaMode]);
   const ranking = useMemo(() => supplierRanking(visible, ivaMode), [visible, ivaMode]);
 
+  // "Ver factura" asked for an invoice the current filters hide (UI-SPEC decision 6): the
+  // filters stay as they are and the Alert below offers to remove them.
+  const hiddenEntry = useMemo(() => {
+    if (focusRequest === null) return null;
+    const entry = ledger.find((candidate) => candidate.uuid === focusRequest.uuid);
+    if (entry === undefined) return null;
+    return visible.some((candidate) => candidate.uuid === entry.uuid) ? null : entry;
+  }, [focusRequest, ledger, visible]);
+  // A request for an invoice that is not loaded has nothing to show: drop it.
+  const unknownRequest =
+    focusRequest !== null && !ledger.some((candidate) => candidate.uuid === focusRequest.uuid);
+  useEffect(() => {
+    if (unknownRequest) clearFocusRequest();
+  }, [unknownRequest, clearFocusRequest]);
+
   if (ledger.length === 0) {
     return (
       <Empty className="border">
@@ -77,6 +97,40 @@ export function DashboardTab() {
 
   return (
     <div className="flex flex-col gap-8">
+      {amountChanging ? (
+        <Alert>
+          <TriangleAlert className="text-muted-foreground!" aria-hidden="true" />
+          <AlertDescription className="text-foreground">
+            {es.dashboard.incidentsNotice}
+          </AlertDescription>
+          <Button
+            type="button"
+            variant="link"
+            className="col-start-2 h-auto justify-self-start p-0 max-sm:min-h-11"
+            onClick={() => {
+              setActiveTab("calidad");
+            }}
+          >
+            {es.dashboard.seeQuality}
+          </Button>
+        </Alert>
+      ) : null}
+      {hiddenEntry === null ? null : (
+        <Alert>
+          <Info className="text-muted-foreground!" aria-hidden="true" />
+          <AlertDescription className="text-foreground">
+            {hiddenInvoiceNotice(invoiceRef(hiddenEntry.invoice.folio, hiddenEntry.uuid))}
+          </AlertDescription>
+          <Button
+            type="button"
+            variant="link"
+            className="col-start-2 h-auto justify-self-start p-0 max-sm:min-h-11"
+            onClick={clearFilters}
+          >
+            {es.filters.reset}
+          </Button>
+        </Alert>
+      )}
       <div className="flex flex-col gap-2">
         <FilterBar ledger={ledger} span={span} />
         <p data-testid="mode-caption" className="text-xs text-muted-foreground">
