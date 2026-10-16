@@ -97,7 +97,7 @@ blocked: 0
     - "USER DECISION: 'Volver a incluir' on a row that is both manually excluded AND has substitutedBy !== null overrides the substitution too (writes `restored`; X and Y both count, X shows 'reincluida')"
     - "Regression tests per path (toast undo, row-menu manual re-include, Calidad 'excluidas'): exclude normal X, undo/re-include, load substitute Y later -> X sustituida, Gasto 116.00, `restored` lacks X, amount-change notice shows; neighbours: undo after excluding a re-included substituted original restores 232.00; Y arriving while toast open; Calidad 'sustituidas' still writes `restored`"
     - "Update the tests that lock the bug and the clearAll setup; correct the 02-06-PLAN truth line"
-  debug_session: ".planning/debug/wr01-restored-pollution.md
+  debug_session: ".planning/debug/wr01-restored-pollution.md"
 
 - gap_id: G-02-11
   truth: "A Fecha whose year is outside the window 2000..(current year + 1) is reported as datos-invalidos (field Fecha) in Calidad de datos, does not sum, and does not widen the loaded month span (D-12/D-41), so the month list, chart and Promedio mensual stay bounded."
@@ -120,4 +120,4 @@ blocked: 0
     - "USER DECISION: reuse existing copy 'Fecha invalida: no se suma' (es.ts:214-222); no new wording"
     - "USER DECISION: record this as an exception/amendment to D-41 in 02-CONTEXT.md"
     - "Tests with injected year (never the real clock): months.test.ts boundaries (1999-12-31 rejected, 2000-01-01 accepted, (cy+1)-12-31 accepted, (cy+2)-01-01 rejected, 0000/0001/9999); ledger.test.ts invalido/Fecha + precedence vs invalid Total + credit note whose related invoice is out of window falls back to own month; span/aggregate/quality via buildLedger; DashboardTab/QualityTab component level; update the 11 buildLedger( calls in 7 test files"
-  debug_session: ".planning/debug/wr03-fecha-year-window.md
+  debug_session: ".planning/debug/wr03-fecha-year-window.md"
