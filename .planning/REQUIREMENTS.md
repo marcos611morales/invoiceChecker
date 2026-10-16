@@ -30,7 +30,7 @@
 - [ ] **REGLA-05**: Los meses se asignan por la fecha literal del CFDI (sin conversión de zona horaria)
 - [ ] **REGLA-06**: Facturas con total $0 se excluyen de conteos y promedios, y se listan en calidad de datos
 - [ ] **REGLA-07**: Facturas en moneda distinta a MXN se convierten con el TipoCambio de la propia factura
-- [ ] **REGLA-08**: Usuario puede marcar manualmente una factura como "Excluida" (p. ej. cancelada) y deja de contar en todo el análisis
+- [x] **REGLA-08**: Usuario puede marcar manualmente una factura como "Excluida" (p. ej. cancelada) y deja de contar en todo el análisis
 - [ ] **REGLA-09**: La forma de pago real de facturas PPD ("99 Por definir") se toma de su complemento de Pago cargado, para filtros y reportes
 
 ### Dashboard (DASH)
@@ -144,7 +144,7 @@
 | REGLA-05 | Phase 2 | Pending |
 | REGLA-06 | Phase 2 | Pending |
 | REGLA-07 | Phase 2 | Pending |
-| REGLA-08 | Phase 2 | Pending |
+| REGLA-08 | Phase 2 | Complete |
 | REGLA-09 | Phase 2 | Pending |
 | DASH-01 | Phase 2 | Pending |
 | DASH-02 | Phase 2 | Pending |
