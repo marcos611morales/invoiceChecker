@@ -331,3 +331,21 @@ export function excluidaRow(): string {
 export function sustituidaRow(ref: string): string {
   return substitutedLine(ref);
 }
+
+/** Visible text of the Calidad de datos tab trigger: the counter shows only above zero (D-04). */
+export function qualityTabLabel(n: number): string {
+  void n;
+  return "";
+}
+
+/** Accessible name of the Calidad de datos tab trigger; "1 incidencia" for one row (A-7). */
+export function qualityTabAria(n: number): string {
+  void n;
+  return "";
+}
+
+/** Dashboard Alert when the filters hide the invoice that "Ver factura" asked for (UI-SPEC decision 6). */
+export function hiddenInvoiceNotice(ref: string): string {
+  void ref;
+  return "";
+}

@@ -37,7 +37,10 @@ import {
   paidLine,
   paginationPageText,
   paginationRangeText,
+  hiddenInvoiceNotice,
   processingText,
+  qualityTabAria,
+  qualityTabLabel,
   receptorDistintoText,
   rankingCaption,
   rejectReasonText,
@@ -379,5 +382,42 @@ describe("datosInvalidosRow (D-35, D-47)", () => {
   it("does not treat inherited object keys as fields", () => {
     expect(datosInvalidosRow("__proto__")).toBe("Dato inválido: no se suma");
     expect(datosInvalidosRow("constructor")).toBe("Dato inválido: no se suma");
+  });
+});
+
+describe("Calidad de datos tab texts (D-04, A-7)", () => {
+  it("shows the counter only above zero", () => {
+    expect(qualityTabLabel(0)).toBe("Calidad de datos");
+    expect(qualityTabLabel(1)).toBe("Calidad de datos · 1");
+    expect(qualityTabLabel(5)).toBe("Calidad de datos · 5");
+    expect(qualityTabLabel(99)).toBe("Calidad de datos · 99");
+  });
+
+  it("uses the singular for one incident in the accessible name", () => {
+    expect(qualityTabAria(0)).toBe("Calidad de datos");
+    expect(qualityTabAria(1)).toBe("Calidad de datos, 1 incidencia");
+    expect(qualityTabAria(5)).toBe("Calidad de datos, 5 incidencias");
+  });
+
+  it("builds the label from the same words as the tab copy", () => {
+    expect(qualityTabLabel(0)).toBe(es.tabs.quality);
+    expect(qualityTabAria(0)).toBe(es.tabs.quality);
+  });
+});
+
+describe("hiddenInvoiceNotice (UI-SPEC decision 6)", () => {
+  it("names the invoice by the reference it is given", () => {
+    expect(hiddenInvoiceNotice("A-12")).toBe(
+      "La factura A-12 no se ve porque los filtros la ocultan.",
+    );
+    expect(hiddenInvoiceNotice("1a2b3c4d")).toBe(
+      "La factura 1a2b3c4d no se ve porque los filtros la ocultan.",
+    );
+  });
+
+  it("keeps markup-like text as plain characters", () => {
+    expect(hiddenInvoiceNotice("<b>x</b>")).toBe(
+      "La factura <b>x</b> no se ve porque los filtros la ocultan.",
+    );
   });
 });
