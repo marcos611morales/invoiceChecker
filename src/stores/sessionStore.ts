@@ -26,6 +26,16 @@ export interface FocusRequest {
 
 export type ImportFocus = "duplicados" | "rechazados";
 
+/**
+ * What an exclusion replaced for one invoice, so its undo can return exactly that
+ * uuid to its previous state: `wasRestored` is true when the invoice had a
+ * TipoRelacion-04 substitution override that the exclusion took away (WR-01).
+ */
+export interface ExclusionUndo {
+  uuid: string;
+  wasRestored: boolean;
+}
+
 interface SessionState extends ImportState {
   /** Bumped by clearAll so async work started before a clear cannot write after it (Pitfall 12). */
   generation: number;
@@ -34,7 +44,10 @@ interface SessionState extends ImportState {
   filters: Filters;
   /** Invoices the user excluded by hand (REGLA-08). Replaced, never mutated. */
   excluded: ReadonlySet<string>;
-  /** Invoices the user brought back with "Volver a incluir" (D-28). Replaced, never mutated. */
+  /**
+   * Invoices whose TipoRelacion-04 substitution the user overrode (D-28, D-42, WR-01).
+   * A plain re-include or undo of a manual exclusion never lands here. Replaced, never mutated.
+   */
   restored: ReadonlySet<string>;
   activeTab: AppTab;
   focusRequest: FocusRequest | null;
@@ -50,7 +63,10 @@ interface SessionState extends ImportState {
   setFormas: (next: ReadonlySet<string>) => void;
   /** Keeps a pending focus request so "Quitar filtros" can still reveal the row. */
   clearFilters: () => void;
-  excludeInvoice: (uuid: string) => void;
+  /** Returns the token that `undoExclusion` needs to put this uuid back exactly as it was. */
+  excludeInvoice: (uuid: string) => ExclusionUndo;
+  /** "Deshacer exclusión": touches only the token's uuid and never reads the ledger (D-29, WR-01). */
+  undoExclusion: (undo: ExclusionUndo) => void;
   reincludeInvoice: (uuid: string) => void;
   setActiveTab: (tab: AppTab) => void;
   requestFocus: (uuid: string) => void;
@@ -114,10 +130,18 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       focusRequest: null,
     })),
   clearFilters: () => set({ filters: EMPTY_FILTERS }),
-  excludeInvoice: (uuid) =>
+  excludeInvoice: (uuid) => {
+    const wasRestored = get().restored.has(uuid);
     set((current) => ({
       excluded: withUuid(current.excluded, uuid),
       restored: withoutUuid(current.restored, uuid),
+    }));
+    return { uuid, wasRestored };
+  },
+  undoExclusion: ({ uuid, wasRestored }) =>
+    set((current) => ({
+      excluded: withoutUuid(current.excluded, uuid),
+      restored: wasRestored ? withUuid(current.restored, uuid) : current.restored,
     })),
   reincludeInvoice: (uuid) =>
     set((current) => ({

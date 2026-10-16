@@ -229,6 +229,7 @@ function ConceptsPanel({
  */
 export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps) {
   const excludeInvoice = useSessionStore((s) => s.excludeInvoice);
+  const undoExclusion = useSessionStore((s) => s.undoExclusion);
   const reincludeInvoice = useSessionStore((s) => s.reincludeInvoice);
   const focusRequest = useSessionStore((s) => s.focusRequest);
   const clearFocusRequest = useSessionStore((s) => s.clearFocusRequest);
@@ -321,13 +322,13 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
   };
 
   const exclude = (uuid: string) => {
-    excludeInvoice(uuid);
+    const undo = excludeInvoice(uuid);
     toast(es.invoices.excludedToast, {
       duration: TOAST_DURATION_MS,
       action: {
         label: es.invoices.undo,
         onClick: () => {
-          reincludeInvoice(uuid);
+          undoExclusion(undo);
         },
       },
     });
