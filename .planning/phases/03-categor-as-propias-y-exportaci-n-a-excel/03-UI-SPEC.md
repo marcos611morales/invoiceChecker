@@ -1,7 +1,8 @@
 ---
 phase: "03"
 slug: categorias-propias-y-exportacion-a-excel
-status: draft
+status: approved
+reviewed_at: 2026-10-16
 shadcn_initialized: true
 preset: "base-nova (preset code b2fA, neutral, geist, lucide)"
 created: "2026-10-16"
@@ -422,15 +423,64 @@ Verification the executor must do in a real Excel (and LibreOffice/Numbers if av
 
 ## UI Considerations
 
-> Not yet run for this phase. The ui-phase UI-consideration probe (Step 9.5) runs after checker approval and will replace the rows below (idempotent). Elements to classify: E1 Categorías tab · "Mis categorías" list · E2 Supplier table · E3 Delete and replace dialogs · E4 Backup controls and Alerts · E5 Category filter · E6 "Gasto por categoría" block · E7 Concept category Select in the invoice table · E8 Export button.
->
-> Already answered in this contract (the probe should mark them resolved, not re-ask): zero categories (Empty state); no supplier classified (hint in the block); no match in the category filter search; supplier without loaded invoices (Badge + «Quitar asignación»); category with no spend or negative net (tick + caption); no comparable previous month ("Sin dato del mes anterior"); one vs many in every count ("1 proveedor", "1 línea"); long category names (list rows wrap, Select values truncate with the full name in the open popup, block names wrap to two lines); 60+ suppliers (50-per-page pagination); 360px (scrollable tab list, stacked backup buttons, 44px controls, horizontally scrollable tables); export with filters that leave no invoice (aria-disabled + Tooltip); export in progress; export failure.
+Probe run 2026-10-16 (ui-consideration-probe, 8 elements, 52 applicable, 0 unclassified). Gaps were resolved with the user on 2026-10-16; everything else cites this contract. Empty/error COPY lives in the Copywriting Contract; rows below reference it.
 
-Applicable state considerations resolved: pending probe.
+Applicable state considerations resolved: 52/52 (41 explicit, 11 dismissed with reason).
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
-| — | — | ⚠ unresolved | Pending the Step 9.5 probe run. |
+| empty | E1 Mis categorías list | ✓ resolved (explicit) | Specified: zero categories shows `Empty` («No tienes categorías» + body); add form stays; «Sin categoría» locked row always shown. |
+| loading | E1 Mis categorías list | dismissed | Dismissed (user, 2026-10-16): computed synchronously in the browser from in-memory data; no loading indicator. |
+| error | E1 Mis categorías list | ✓ resolved (explicit) | Specified: add/rename validation errors (empty, duplicate, reserved) under the input with aria-invalid; storage-write failure Alert (Q8). |
+| populated | E1 Mis categorías list | ✓ resolved (explicit) | Specified: alphabetical (`es`) list, «Otros» last, «Sin categoría» locked last row; usage caption per row; seed of 9 categories on first use. |
+| partial | E1 Mis categorías list | ✓ resolved (explicit) | Specified: unused category caption reads «Sin uso»; zero parts of the usage caption are omitted. |
+| overflow | E1 Mis categorías list | ✓ resolved (explicit) | Specified: card `max-w-[720px]`; list grows with the page (no inner scroll); form stacks under 640px. |
+| zero-one-many | E1 Mis categorías list | ✓ resolved (explicit) | Specified: count «1 categoría» / «{n} categorías»; usage caption singular forms («1 proveedor · 1 concepto»). |
+| long-text | E1 Mis categorías list | ✓ resolved (explicit) | Specified: names max 60 chars; list names wrap, never truncated; rename input 60 max. |
+| empty | E2 Supplier table | ✓ resolved (explicit) | Specified: tab exists only with loaded invoices (Q2), so the table always has ≥1 supplier; unassigned value reads «Sin categoría» (muted). |
+| loading | E2 Supplier table | dismissed | Dismissed (user, 2026-10-16): computed synchronously in the browser from in-memory data; no loading indicator. |
+| error | E2 Supplier table | dismissed | Dismissed (user, 2026-10-16): no failure surface beyond the storage-write Alert (Q8); nothing else can fail client-side. |
+| populated | E2 Supplier table | ✓ resolved (explicit) | Specified: Proveedor · RFC · Facturas · Categoría por defecto; sorted Facturas desc then name; Select applies immediately with no toast. |
+| partial | E2 Supplier table | ✓ resolved (explicit) | Specified: supplier with saved assignment but no loaded invoices shows Badge «Sin facturas cargadas» + «Quitar asignación» (undo toast); sorted last. |
+| overflow | E2 Supplier table | ✓ resolved (explicit) | Specified: 50-per-page pagination above 50 rows; table min width 900px inside `overflow-x-auto`. |
+| zero-one-many | E2 Supplier table | ✓ resolved (explicit) | Specified: pagination footer only above 50 rows; counts right-aligned. |
+| long-text | E2 Supplier table | ✓ resolved (explicit) | Specified: supplier name `TruncatedText` max 280px; Select value truncates, full name visible in the open popup (items wrap). |
+| empty | E3 Delete / replace dialogs | ✓ resolved (explicit) | Specified: unused category shows body only (no «Pasarlos a»); with no other categories the target Select offers only «Sin categoría» (default). |
+| loading | E3 Delete / replace dialogs | dismissed | Dismissed (user, 2026-10-16): computed synchronously in the browser from in-memory data; no loading indicator. Settings file (≤1 MB) is read and validated before the dialog opens. |
+| error | E3 Delete / replace dialogs | ✓ resolved (explicit) | Specified: invalid file never opens the replace dialog; it shows the invalid-file Alert and changes nothing. |
+| populated | E3 Delete / replace dialogs | ✓ resolved (explicit) | Specified: delete dialog title/body/«Pasarlos a» Select, focus on «Conservar categoría»; replace dialog with {resumen}, focus on «Conservar los míos». |
+| partial | E3 Delete / replace dialogs | ✓ resolved (explicit) | Specified: {resumen} always lists all three parts, a zero part reads «0 …»; delete body omits zero parts. |
+| overflow | E3 Delete / replace dialogs | ✓ resolved (explicit) | Specified: Select popup in the delete dialog renders above the dialog and is max 288px tall (scrolls). |
+| zero-one-many | E3 Delete / replace dialogs | ✓ resolved (explicit) | Specified: singular/plural in {resumen} and delete body («1 proveedor», «1 concepto ajustado»). |
+| loading | E4 Backup controls + Alerts | dismissed | Dismissed (user, 2026-10-16): computed synchronously in the browser from in-memory data; no loading indicator. Download/upload of the settings file are instant; no spinner. |
+| error | E4 Backup controls + Alerts | ✓ resolved (explicit) | Specified: invalid-file Alert with the four {motivo} reasons, current settings untouched; storage-write Alert and unreadable-settings toast (Q8). |
+| long-text | E4 Backup controls + Alerts | ✓ resolved (explicit) | Specified (user, 2026-10-16): user text in dialogs/Alerts (category name, file name) is shown in full, wrapping with break-words, never truncated. |
+| empty | E5 Category filter | ✓ resolved (explicit) | Specified: no-match copy «Ninguna categoría coincide con «{texto}». Revisa la búsqueda.»; «Sin categoría» is always an option. |
+| loading | E5 Category filter | dismissed | Dismissed (user, 2026-10-16): computed synchronously in the browser from in-memory data; no loading indicator. |
+| error | E5 Category filter | dismissed | Dismissed (user, 2026-10-16): no failure surface beyond the storage-write Alert (Q8); nothing else can fail client-side. |
+| populated | E5 Category filter | ✓ resolved (explicit) | Specified: options «{nombre} ({n})» sorted by count desc then name; chip, caption under mode caption, «Limpiar categorías» footer. |
+| partial | E5 Category filter | ✓ resolved (explicit) | Specified: counts are over all loaded invoices regardless of other filters; categories with 0 invoices still listed with (0). |
+| overflow | E5 Category filter | ✓ resolved (explicit) | Specified: 320px popover with search (MultiSelectFilter pattern, scrolling list); mobile disclosure «Filtros · {n}». |
+| zero-one-many | E5 Category filter | ✓ resolved (explicit) | Specified: chip shows 2 names then «+{k}», as the Proveedor chip. |
+| long-text | E5 Category filter | ✓ resolved (explicit) | Specified: option labels wrap in the popover; chip names follow the existing Proveedor chip truncation. |
+| empty | E6 Gasto por categoría block | ✓ resolved (explicit) | Specified: when nothing is classified, hint Alert «Todavía no clasificaste…» + «Ir a Categorías» above the single «Sin categoría» row. |
+| loading | E6 Gasto por categoría block | dismissed | Dismissed (user, 2026-10-16): computed synchronously in the browser from in-memory data; no loading indicator. |
+| error | E6 Gasto por categoría block | dismissed | Dismissed (user, 2026-10-16): no failure surface beyond the storage-write Alert (Q8); nothing else can fail client-side. |
+| populated | E6 Gasto por categoría block | ✓ resolved (explicit) | Specified: all categories with spend, net desc, 3-line row (name+amount, bar, pct · promedio · variación); click adds filter and scrolls to Facturas. |
+| partial | E6 Gasto por categoría block | ✓ resolved (explicit) | Specified: no comparable previous month shows «Sin dato del mes anterior»; negative net goes last with tick and caption; zero has no fill. |
+| overflow | E6 Gasto por categoría block | ✓ resolved (explicit) | Specified (user, 2026-10-16): every category with spend is listed and the block grows; no «Ver todas» even at 20+ categories. |
+| zero-one-many | E6 Gasto por categoría block | ✓ resolved (explicit) | Specified: sub-caption «Entre 1 mes…» for a one-month range; under a category filter only the chosen categories (Q3). |
+| empty | E7 Concept category Select | ✓ resolved (explicit) | Specified: implicit value «Sin categoría» (muted, no suffix). |
+| loading | E7 Concept category Select | dismissed | Dismissed (user, 2026-10-16): computed synchronously in the browser from in-memory data; no loading indicator. |
+| error | E7 Concept category Select | dismissed | Dismissed (user, 2026-10-16): no failure surface beyond the storage-write Alert (Q8); nothing else can fail client-side. |
+| populated | E7 Concept category Select | ✓ resolved (explicit) | Specified: supplier-derived «{nombre} · del proveedor»; adjusted value in foreground + «Aplica a {n} líneas de {proveedor}»; change applies with «Deshacer» toast (Q5). |
+| partial | E7 Concept category Select | ✓ resolved (explicit) | Specified: selector editable on non-summing/Excluida rows (Q6); under category filter other categories' concepts are dimmed but Select stays operable. |
+| overflow | E7 Concept category Select | ✓ resolved (explicit) | Specified: popup max 288px tall, items wrap; panel scrolls horizontally inside the table container on narrow screens. |
+| zero-one-many | E7 Concept category Select | ✓ resolved (explicit) | Specified: caption «Aplica a 1 línea de …» vs «{n} líneas»; «Quitar ajuste» only when adjusted. |
+| long-text | E7 Concept category Select | ✓ resolved (explicit) | Specified: trigger name truncates (suffix shrink-0); aria-label description capped at 60 chars, toast description at 40. |
+| loading | E8 Exportar a Excel | ✓ resolved (explicit) | Specified: «Exportando…» with Spinner replacing the icon, button inert and `aria-busy`, no layout shift. |
+| error | E8 Exportar a Excel | ✓ resolved (explicit) | Specified: toast «No se pudo generar el Excel. Inténtalo de nuevo.»; disabled (aria-disabled + Tooltip) when filters leave no invoice. |
+| long-text | E8 Exportar a Excel | ✓ resolved (explicit) | Specified: success toast shows the generated file name, which has a fixed bounded pattern (`gastos-AAAA-MM_AAAA-MM-{con|sin}-iva.xlsx`). |
 
 ---
 
@@ -472,12 +522,12 @@ Confirmed upstream (do not re-ask): everything in 03-CONTEXT.md D-01..D-23 and i
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS
 
-**Approval:** pending checker
+**Approval:** approved 2026-10-16 (gsd-ui-checker, 7/7 PASS after revision 1)
