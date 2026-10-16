@@ -27,6 +27,14 @@ export interface FocusRequest {
 export type ImportFocus = "duplicados" | "rechazados";
 
 /**
+ * How "Volver a incluir" treats a TipoRelacion-04 substitution. `overrideSubstitution`
+ * is true only when the entry has a loaded substitute at click time (WR-01).
+ */
+export interface ReincludeOptions {
+  overrideSubstitution: boolean;
+}
+
+/**
  * What an exclusion replaced for one invoice, so its undo can return exactly that
  * uuid to its previous state: `wasRestored` is true when the invoice had a
  * TipoRelacion-04 substitution override that the exclusion took away (WR-01).
@@ -67,7 +75,8 @@ interface SessionState extends ImportState {
   excludeInvoice: (uuid: string) => ExclusionUndo;
   /** "Deshacer exclusión": touches only the token's uuid and never reads the ledger (D-29, WR-01). */
   undoExclusion: (undo: ExclusionUndo) => void;
-  reincludeInvoice: (uuid: string) => void;
+  /** The caller decides from the entry it rendered; the store never reads the ledger (D-28, D-42, WR-01). */
+  reincludeInvoice: (uuid: string, options: ReincludeOptions) => void;
   setActiveTab: (tab: AppTab) => void;
   requestFocus: (uuid: string) => void;
   clearFocusRequest: () => void;
@@ -143,10 +152,10 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       excluded: withoutUuid(current.excluded, uuid),
       restored: wasRestored ? withUuid(current.restored, uuid) : current.restored,
     })),
-  reincludeInvoice: (uuid) =>
+  reincludeInvoice: (uuid, { overrideSubstitution }) =>
     set((current) => ({
       excluded: withoutUuid(current.excluded, uuid),
-      restored: withUuid(current.restored, uuid),
+      restored: overrideSubstitution ? withUuid(current.restored, uuid) : current.restored,
     })),
   setActiveTab: (activeTab) => set({ activeTab }),
   requestFocus: (uuid) => {
