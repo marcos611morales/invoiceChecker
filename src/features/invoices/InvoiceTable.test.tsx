@@ -658,6 +658,40 @@ describe("InvoiceTable exclusion", () => {
     expect(within(dataRow("OR")).queryByText("Sustituida")).toBeNull();
   });
 
+  it("WR-01: a plain Volver a incluir from the row menu does not shield a substitute loaded later", async () => {
+    seed([inv("X")]);
+    render(<Harness />);
+    act(() => {
+      useSessionStore.getState().excludeInvoice("X");
+    });
+    await openMenu("X");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Volver a incluir" }));
+    expect(useSessionStore.getState().restored.has("X")).toBe(false);
+    seed([inv("Y", { relacionados: [{ tipoRelacion: "04", uuids: ["X"] }] })]);
+    expect(within(dataRow("X")).getByText("Sustituida")).toBeInTheDocument();
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$116.00");
+    expect(screen.getByTestId("amount-changing")).toHaveTextContent("true");
+  });
+
+  it("WR-01: Volver a incluir on a row both excluded by hand and substituted overrides the substitution too (user decision)", async () => {
+    seed([inv("X")]);
+    render(<Harness />);
+    act(() => {
+      useSessionStore.getState().excludeInvoice("X");
+    });
+    seed([inv("Y", { relacionados: [{ tipoRelacion: "04", uuids: ["X"] }] })]);
+    expect(within(dataRow("X")).getByText("Excluida")).toBeInTheDocument();
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$116.00");
+    await openMenu("X");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Volver a incluir" }));
+    expect(useSessionStore.getState().restored.has("X")).toBe(true);
+    expect(useSessionStore.getState().excluded.has("X")).toBe(false);
+    expect(screen.getByTestId("gasto")).toHaveTextContent("$232.00");
+    expect(within(dataRow("X")).queryByText("Excluida")).toBeNull();
+    expect(within(dataRow("X")).queryByText("Sustituida")).toBeNull();
+    expect(screen.getByTestId("amount-changing")).toHaveTextContent("false");
+  });
+
   it("lasts only the session and writes nothing to the browser storage", async () => {
     const write = vi.spyOn(Storage.prototype, "setItem");
     seed([inv("U1")]);
