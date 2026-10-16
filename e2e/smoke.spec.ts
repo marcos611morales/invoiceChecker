@@ -161,6 +161,30 @@ test("carpeta sintética: reporte correcto, ningún XML sale del navegador, reca
   await expect(page.getByTestId("kpi-gasto")).toBeVisible();
   // The Facturas table lists every row of the synthetic folder (2 Ingreso, 1 Egreso, 1 Pago).
   await expect(page.getByText("Facturas (4)")).toBeVisible();
+
+  // Phase 2 flow: the Dashboard is the active tab after the load, Sin IVA changes the
+  // Gasto total, the Calidad de datos tab is reachable, and the only browser-storage
+  // key is the IVA mode (D-06, D-30, CARGA-02).
+  await expect(page.getByRole("tab", { name: "Dashboard" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  const gastoCon = await page.getByTestId("kpi-gasto").innerText();
+  const ivaGroup = page
+    .getByTestId("iva-toggle-bar")
+    .getByRole("group", { name: "Montos con o sin IVA" });
+  await ivaGroup.getByRole("button", { name: "Sin IVA" }).click();
+  await expect(page.getByTestId("kpi-gasto")).not.toHaveText(gastoCon);
+  await page.getByRole("tab", { name: /^Calidad de datos/ }).click();
+  await expect(page.getByRole("heading", { name: "Calidad de datos" })).toBeVisible();
+  await page.getByRole("tab", { name: "Dashboard" }).click();
+  const storageKeys = await page.evaluate(() => ({
+    local: Object.keys(window.localStorage),
+    session: Object.keys(window.sessionStorage),
+  }));
+  expect(storageKeys.local).toEqual(["invoicechecker:settings"]);
+  expect(storageKeys.session).toEqual([]);
+
   await page.getByRole("tab", { name: "Importación" }).click();
   await expect(page.getByText("Reporte de importación")).toBeVisible();
 
