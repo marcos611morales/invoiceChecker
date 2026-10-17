@@ -365,12 +365,36 @@ const CONCEPT_ARIA_MAX = 60;
 
 /** Accessible name of the category Select of one concept line: the description is cut at 60 characters with «…». */
 export function conceptCategoryAria(descripcion: string): string {
-  const characters = Array.from(descripcion);
-  const shown =
-    characters.length > CONCEPT_ARIA_MAX
-      ? `${characters.slice(0, CONCEPT_ARIA_MAX - 1).join("")}…`
-      : descripcion;
-  return `Categoría del concepto «${shown}»`;
+  return `Categoría del concepto «${capCodePoints(descripcion, CONCEPT_ARIA_MAX)}»`;
+}
+
+/**
+ * Cuts a text to at most `max` code points in total: a longer text keeps `max - 1` code
+ * points plus «…», so the cap includes the ellipsis and an emoji is never split.
+ */
+function capCodePoints(text: string, max: number): string {
+  const characters = Array.from(text);
+  return characters.length > max ? `${characters.slice(0, max - 1).join("")}…` : text;
+}
+
+/** Longest description kept in the change toast, «…» included (UI-SPEC E7 long-text, user decision 2026-10-17). */
+const CONCEPT_TOAST_MAX = 40;
+
+/**
+ * Toast after a concept category change (UI-SPEC Q5): «Categoría de «{descripción}» cambiada
+ * a {categoría}». The description is cut at 40 characters in total, the last one being «…»,
+ * by the same rule as the selector's aria-label; the category name is never cut.
+ */
+export function categoryChangedToast(descripcion: string, categoria: string): string {
+  return `Categoría de «${capCodePoints(descripcion, CONCEPT_TOAST_MAX)}» cambiada a ${categoria}`;
+}
+
+/**
+ * Start of the caption under an adjusted concept (D-09): «Aplica a 1 línea de» or
+ * «Aplica a {n} líneas de»; the supplier name follows in its own truncating element.
+ */
+export function appliesToLinesText(n: number): string {
+  return n === 1 ? "Aplica a 1 línea de" : `Aplica a ${String(n)} líneas de`;
 }
 
 /** Count under the «Mis categorías» heading: «1 categoría» or «{n} categorías». */

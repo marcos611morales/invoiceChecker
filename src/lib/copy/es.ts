@@ -127,6 +127,8 @@ export const es = {
     },
     fromSupplier: "· del proveedor",
     conceptLimit: "Llegaste al máximo de 20,000 conceptos ajustados.",
+    adjustmentRemoved: "Ajuste quitado",
+    removeAdjustment: "Quitar ajuste",
     exclude: "Excluir factura",
     reinclude: "Volver a incluir",
     excludedToast: "Factura excluida",

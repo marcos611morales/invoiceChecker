@@ -25,8 +25,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { IvaMode } from "@/domain/accounting/aggregate";
+import { ruleLineCounts } from "@/domain/accounting/categories";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
 import { orderedCategories } from "@/domain/settings/categories";
+import { ruleMapKey } from "@/domain/settings/normalize";
 import type { Resolver } from "@/domain/settings/resolver";
 import type { Category } from "@/domain/settings/types";
 import { useCategorySettings } from "@/features/categories/useCategorySettings";
@@ -161,6 +163,7 @@ function ConceptsPanel({
   payments,
   substitutedByRef,
   resolver,
+  lineCounts,
   categories,
   nameOf,
 }: {
@@ -170,6 +173,8 @@ function ConceptsPanel({
   payments: ReadonlyArray<{ fechaPago: string; formaDePagoP: string }>;
   substitutedByRef: string | null;
   resolver: Resolver;
+  /** Loaded lines per rule key over the whole ledger, for the «Aplica a N líneas» caption (D-09). */
+  lineCounts: ReadonlyMap<string, number>;
   /** The user's categories in list order. */
   categories: readonly Category[];
   nameOf: (key: string) => string;
@@ -230,6 +235,7 @@ function ConceptsPanel({
                   supplierName={entry.supplierName}
                   descripcion={concept.descripcion}
                   ruleKey={concept.ruleKey}
+                  lineCount={lineCounts.get(ruleMapKey(entry.supplierRfc, concept.ruleKey)) ?? 0}
                   category={concept.category}
                   source={concept.source}
                   categories={categories}
@@ -265,6 +271,8 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
   const rows = useMemo(() => toInvoiceRows(entries, mode), [entries, mode]);
   const payments = useMemo(() => buildPaymentIndex(ledger), [ledger]);
   const byUuid = useMemo(() => new Map(ledger.map((entry) => [entry.uuid, entry])), [ledger]);
+  // Over the whole ledger, not the visible rows: the caption says how far a rule reaches (D-09).
+  const lineCounts = useMemo(() => ruleLineCounts(ledger), [ledger]);
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
   const [pagination, setPagination] = useState<PaginationState>(INITIAL_PAGINATION);
   // Open panels are kept by invoice id, so sorting, paging and filtering keep them.
@@ -536,6 +544,7 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
                         payments={payments.get(entry.uuid) ?? []}
                         substitutedByRef={substitutedByRef}
                         resolver={resolver}
+                        lineCounts={lineCounts}
                         categories={categories}
                         nameOf={nameOf}
                       />
