@@ -6,9 +6,12 @@
  */
 import { SIN_CATEGORIA, type SettingsData } from "./types";
 
+export type CategorySource = "regla" | "proveedor" | "ninguna";
+
 export interface Resolver {
   /** Category id of one concept line of a supplier, or SIN_CATEGORIA. */
   resolve(rfc: string, descripcion: string): string;
+  explain(rfc: string, descripcion: string): { category: string; source: CategorySource };
   /** Category id of a supplier, or SIN_CATEGORIA. */
   supplierCategory(rfc: string): string;
 }
@@ -22,6 +25,7 @@ export function makeResolver(settings: SettingsData): Resolver {
   const supplierCategory = (rfc: string): string => bySupplier.get(rfc) ?? SIN_CATEGORIA;
   return {
     resolve: (rfc) => supplierCategory(rfc),
+    explain: (rfc) => ({ category: supplierCategory(rfc), source: "ninguna" }),
     supplierCategory,
   };
 }

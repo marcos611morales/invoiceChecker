@@ -5,7 +5,7 @@
  * the next load (an id that is not a category, a list over its limit), so the
  * store only ever holds data the schema accepts.
  */
-import { LIMITS, type SettingsData } from "./types";
+import { LIMITS, type ConceptRule, type SettingsData } from "./types";
 
 export type SupplierResult =
   | { ok: true; next: SettingsData }
@@ -55,4 +55,22 @@ export function setSupplierCategory(
         : [...settings.supplierCategories, entry],
     },
   };
+}
+
+// RED stub: neutral value so the target tests fail on their assertions.
+export type RuleResult =
+  | { ok: true; next: SettingsData; previous: ConceptRule | null }
+  | { ok: false; reason: "limit" | "unknown-category" };
+
+export function setConceptRule(
+  settings: SettingsData,
+  rfc: string,
+  description: string,
+  categoryId: string | null,
+): RuleResult {
+  void settings;
+  void rfc;
+  void description;
+  void categoryId;
+  return { ok: false, reason: "limit" };
 }

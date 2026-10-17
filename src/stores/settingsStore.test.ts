@@ -551,3 +551,58 @@ describe("settingsStore category actions (CAT-01, CAT-05)", () => {
     expect(snapshot().categories.at(-1)).toEqual(added.category);
   });
 });
+
+describe("settingsStore setConceptRule (CAT-03)", () => {
+  it("stores the rule once, keeps the readable description and persists the envelope", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const result = useSettingsStore
+      .getState()
+      .setConceptRule("AAA010101AAA", "Café  Molido", "seed:servicios");
+    expect(result.ok).toBe(true);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().conceptRules).toEqual([
+      {
+        rfc: "AAA010101AAA",
+        key: "cafe molido",
+        description: "Café  Molido",
+        categoryId: "seed:servicios",
+      },
+    ]);
+    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 2 });
+  });
+
+  it("replaces the rule of the same rfc and description and stores null as an explicit adjustment", () => {
+    useSettingsStore.getState().setConceptRule("AAA010101AAA", "Cloro", "seed:servicios");
+    useSettingsStore.getState().setConceptRule("AAA010101AAA", "CLORO", null);
+    expect(snapshot().conceptRules).toEqual([
+      { rfc: "AAA010101AAA", key: "cloro", description: "CLORO", categoryId: null },
+    ]);
+  });
+
+  it("changes and writes nothing when the reducer refuses", () => {
+    const before = snapshot();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().setConceptRule("AAA010101AAA", "Cloro", "missing")).toEqual({
+      ok: false,
+      reason: "unknown-category",
+    });
+    expect(snapshot()).toEqual(before);
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("refuses the 20,001st rule and keeps the stored list at the limit", () => {
+    useSettingsStore.setState({
+      conceptRules: Array.from({ length: 20000 }, (_, index) => ({
+        rfc: "AAA010101AAA",
+        key: `linea ${String(index)}`,
+        description: `Línea ${String(index)}`,
+        categoryId: "seed:servicios",
+      })),
+    });
+    const result = useSettingsStore
+      .getState()
+      .setConceptRule("AAA010101AAA", "Nueva", "seed:servicios");
+    expect(result).toEqual({ ok: false, reason: "limit" });
+    expect(snapshot().conceptRules).toHaveLength(20000);
+  });
+});

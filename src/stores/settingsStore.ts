@@ -2,7 +2,12 @@ import { create } from "zustand";
 import { persist, type PersistStorage } from "zustand/middleware";
 import { z } from "zod";
 import type { IvaMode } from "@/domain/accounting/aggregate";
-import { setSupplierCategory, type SupplierResult } from "@/domain/settings/assignments";
+import {
+  setConceptRule,
+  setSupplierCategory,
+  type RuleResult,
+  type SupplierResult,
+} from "@/domain/settings/assignments";
 import {
   addCategory,
   deleteCategory,
@@ -64,6 +69,12 @@ interface SettingsState extends SettingsData {
   deleteCategory: (id: string, target: string | null) => DeleteSnapshot | null;
   /** Undo of `deleteCategory`: puts back the category, its assignments and its rules. */
   restoreCategory: (snapshot: DeleteSnapshot) => void;
+  /**
+   * Stores the category of one concept description of one supplier (CAT-03, D-09):
+   * a category id, or null for an explicit «Sin categoría». Only an ok result is applied,
+   * in one `set`; a refused result ("limit", "unknown-category") changes nothing.
+   */
+  setConceptRule: (rfc: string, description: string, categoryId: string | null) => RuleResult;
 }
 
 /** The four stored fields of the current state, as the domain reducers take them. */
@@ -155,6 +166,11 @@ export const useSettingsStore = create<SettingsState>()(
           supplierCategories: next.supplierCategories,
           conceptRules: next.conceptRules,
         });
+      },
+      setConceptRule: (rfc, description, categoryId) => {
+        const result = setConceptRule(dataOf(get()), rfc, description, categoryId);
+        if (result.ok) set({ conceptRules: result.next.conceptRules });
+        return result;
       },
     }),
     {
