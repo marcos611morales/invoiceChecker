@@ -421,3 +421,133 @@ describe("settingsStore setSupplierCategory (CAT-02)", () => {
     expect(snapshot().supplierCategories).toHaveLength(5000);
   });
 });
+
+describe("settingsStore category actions (CAT-01, CAT-05)", () => {
+  it("adds a category with a generated cat_ id and writes it in the stored envelope", () => {
+    const result = useSettingsStore.getState().addCategory("  Café  ");
+    if (!result.ok) throw new Error("the add must be accepted");
+    expect(result.category.name).toBe("Café");
+    expect(result.category.id).toMatch(/^cat_.+/);
+    expect(snapshot().categories.at(-1)).toEqual(result.category);
+    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 2 });
+  });
+
+  it("generates a different id on every add", () => {
+    const first = useSettingsStore.getState().addCategory("Uno");
+    const second = useSettingsStore.getState().addCategory("Dos");
+    if (!first.ok || !second.ok) throw new Error("both adds must be accepted");
+    expect(first.category.id).not.toBe(second.category.id);
+  });
+
+  it("writes once per successful action", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSettingsStore.getState().addCategory("Café");
+    expect(setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the reason and writes nothing when an add is refused", () => {
+    const before = snapshot();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().addCategory("otros")).toEqual({
+      ok: false,
+      reason: "duplicate",
+    });
+    expect(useSettingsStore.getState().addCategory("Sin categoría")).toEqual({
+      ok: false,
+      reason: "reserved",
+    });
+    expect(useSettingsStore.getState().addCategory("   ")).toEqual({ ok: false, reason: "empty" });
+    expect(snapshot()).toEqual(before);
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("refuses the 201st category and keeps the stored list at the limit", () => {
+    useSettingsStore.setState({
+      categories: Array.from({ length: 200 }, (_, index) => ({
+        id: `cat_${String(index)}`,
+        name: `Categoría ${String(index)}`,
+      })),
+    });
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().addCategory("Una más")).toEqual({
+      ok: false,
+      reason: "limit",
+    });
+    expect(snapshot().categories).toHaveLength(200);
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("renames keeping the id, and reports a duplicate without writing", () => {
+    const result = useSettingsStore.getState().renameCategory("seed:servicios", "Luz y agua");
+    expect(result).toEqual({ ok: true });
+    expect(snapshot().categories[3]).toEqual({ id: "seed:servicios", name: "Luz y agua" });
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().renameCategory("seed:servicios", "OTROS")).toEqual({
+      ok: false,
+      reason: "duplicate",
+    });
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("deletes, moving assignments and rules, and returns the snapshot", () => {
+    useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "A", "seed:servicios");
+    useSettingsStore.setState({
+      conceptRules: [
+        { rfc: "AAA010101AAA", key: "luz", description: "Luz", categoryId: "seed:servicios" },
+      ],
+    });
+    const snapshotOfDelete = useSettingsStore.getState().deleteCategory("seed:servicios", "seed:otros");
+    if (snapshotOfDelete === null) throw new Error("the delete must be accepted");
+    expect(snapshotOfDelete.category.id).toBe("seed:servicios");
+    expect(snapshot().categories.some((category) => category.id === "seed:servicios")).toBe(false);
+    expect(snapshot().supplierCategories).toEqual([
+      { rfc: "AAA010101AAA", name: "A", categoryId: "seed:otros" },
+    ]);
+    expect(snapshot().conceptRules[0]?.categoryId).toBe("seed:otros");
+  });
+
+  it("returns null and writes nothing when a delete is refused", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().deleteCategory("seed:servicios", "seed:servicios")).toBeNull();
+    expect(useSettingsStore.getState().deleteCategory("cat_missing", null)).toBeNull();
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("leaves the stored data deep-equal to the data before the delete after a restore", () => {
+    useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "A", "seed:servicios");
+    useSettingsStore.getState().setSupplierCategory("BBB010101BBB", "B", "seed:limpieza-higiene");
+    useSettingsStore.setState({
+      conceptRules: [
+        { rfc: "AAA010101AAA", key: "luz", description: "Luz", categoryId: "seed:servicios" },
+        { rfc: "BBB010101BBB", key: "otro", description: "Otro", categoryId: null },
+      ],
+    });
+    const before = storedEnvelope();
+    const deleted = useSettingsStore.getState().deleteCategory("seed:servicios", "seed:otros");
+    if (deleted === null) throw new Error("the delete must be accepted");
+    expect(storedEnvelope()).not.toEqual(before);
+    useSettingsStore.getState().restoreCategory(deleted);
+    expect(storedEnvelope()).toEqual(before);
+  });
+
+  it("restores the assignments removed by a delete to Sin categoría", () => {
+    useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "A", "seed:servicios");
+    const before = snapshot();
+    const deleted = useSettingsStore.getState().deleteCategory("seed:servicios", null);
+    if (deleted === null) throw new Error("the delete must be accepted");
+    expect(snapshot().supplierCategories).toEqual([]);
+    useSettingsStore.getState().restoreCategory(deleted);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it("survives a reload: the added category is back after rehydrating", async () => {
+    const added = useSettingsStore.getState().addCategory("Café");
+    if (!added.ok) throw new Error("the add must be accepted");
+    const stored = storedEnvelope();
+    // Resetting the memory also writes the defaults, so the stored value is put back after it.
+    useSettingsStore.setState(defaultSettings());
+    window.localStorage.setItem(KEY, JSON.stringify(stored));
+    await rehydrate();
+    expect(snapshot().categories.at(-1)).toEqual(added.category);
+  });
+});
