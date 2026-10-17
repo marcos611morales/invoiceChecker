@@ -159,7 +159,7 @@ Plans:
   4. El usuario descarga un Excel con las hojas Facturas, Conceptos, Resumen por categoría, Resumen por proveedor, Resumen por mes y Parámetros (filtros y modo IVA usados), que respeta los filtros activos y el modo con/sin IVA.
   5. En el Excel los montos son números con formato MXN, las fechas son fechas y RFC, UUID y folio son texto, y los totales coinciden con los del dashboard para el mismo filtro y modo.
 
-**Plans:** 2/17 plans executed
+**Plans:** 3/17 plans executed
 
 Plans:
 **Wave 1**
@@ -169,7 +169,7 @@ Plans:
 - [x] 03-02-PLAN.md — Pestaña Categorías: categoría por defecto de cada proveedor, orden de pestañas y desplazamiento en móvil (Q2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 03-03-PLAN.md — Mis categorías: crear, renombrar y borrar con «Pasarlos a» y Deshacer
+- [x] 03-03-PLAN.md — Mis categorías: crear, renombrar y borrar con «Pasarlos a» y Deshacer
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 03-04-PLAN.md — Categoría por concepto: regla RFC + descripción normalizada (con «ñ») y selector en la fila desplegable
@@ -258,6 +258,6 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
-| 3. Categorías propias y exportación a Excel | 2/17 | In Progress | - |
+| 3. Categorías propias y exportación a Excel | 3/17 | In Progress | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
