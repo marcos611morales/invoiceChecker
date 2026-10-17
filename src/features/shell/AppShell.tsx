@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, type ComponentType } from "react";
 import { ShieldCheck, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { qualitySummary } from "@/domain/accounting/quality";
 import { hasReport } from "@/domain/import/report";
+import { CategoriesTab } from "@/features/categories/CategoriesTab";
 import { DashboardTab } from "@/features/dashboard/DashboardTab";
 import { useLedger } from "@/features/dashboard/useLedger";
 import { QualityTab } from "@/features/quality/QualityTab";
@@ -42,7 +43,12 @@ const TRIGGER_CLASS =
 
 /** Accepts only the tab values the store knows; anything else is ignored (no cast). */
 function isAppTab(value: unknown): value is AppTab {
-  return value === "dashboard" || value === "calidad" || value === "importacion";
+  return (
+    value === "dashboard" ||
+    value === "categorias" ||
+    value === "calidad" ||
+    value === "importacion"
+  );
 }
 
 interface TabDefinition {
@@ -54,6 +60,7 @@ interface TabDefinition {
 /** Module scope: the list never changes while the app runs (D-01 order). */
 const TABS: readonly TabDefinition[] = [
   { value: "dashboard", label: es.tabs.dashboard, Panel: DashboardTab },
+  { value: "categorias", label: es.tabs.categories, Panel: CategoriesTab },
   { value: "calidad", label: es.tabs.quality, Panel: QualityTab },
   { value: "importacion", label: es.tabs.import, Panel: ImportReport },
 ];
@@ -70,6 +77,13 @@ function LoadedTabs() {
   // included (D-04). The Dashboard notice reads the same summary's `amountChanging`.
   const ledger = useLedger();
   const incidentCount = useMemo(() => qualitySummary(ledger).total, [ledger]);
+  // Below 640 px the four triggers do not fit: the list scrolls inside its container and
+  // the active trigger is brought into view whenever the tab changes (UI-SPEC Q2).
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const active = listRef.current?.querySelector('[role="tab"][aria-selected="true"]');
+    active?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [activeTab]);
   return (
     <Tabs
       value={activeTab}
@@ -79,9 +93,10 @@ function LoadedTabs() {
       className="gap-8"
     >
       <TabsList
+        ref={listRef}
         variant="line"
         aria-label={es.tabs.ariaLabel}
-        className="group-data-horizontal/tabs:h-10 max-sm:group-data-horizontal/tabs:h-11 gap-2 p-0"
+        className="group-data-horizontal/tabs:h-10 max-sm:group-data-horizontal/tabs:h-11 max-w-full gap-2 p-0 max-sm:justify-start max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden"
       >
         {TABS.map(({ value, label }) =>
           value === "calidad" ? (

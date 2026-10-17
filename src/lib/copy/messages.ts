@@ -354,3 +354,8 @@ export function qualityTabAria(n: number): string {
 export function hiddenInvoiceNotice(ref: string): string {
   return `La factura ${ref} no se ve porque los filtros la ocultan.`;
 }
+
+/** Accessible name of the default-category Select of one supplier row (UI-SPEC, Categoría por proveedor). */
+export function supplierCategoryAria(name: string): string {
+  return `Categoría por defecto de ${name}`;
+}

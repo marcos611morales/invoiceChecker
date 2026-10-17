@@ -377,3 +377,47 @@ describe("settingsStore writes", () => {
     }
   });
 });
+
+describe("settingsStore setSupplierCategory (CAT-02)", () => {
+  it("applies an ok result, refreshes the name and persists", () => {
+    const first = useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "Viejo", "seed:servicios");
+    expect(first.ok).toBe(true);
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "Nuevo", "seed:otros");
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().supplierCategories).toEqual([
+      { rfc: "AAA010101AAA", name: "Nuevo", categoryId: "seed:otros" },
+    ]);
+    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 2 });
+  });
+
+  it("removes the assignment with null", () => {
+    useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "A", "seed:servicios");
+    useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "A", null);
+    expect(snapshot().supplierCategories).toEqual([]);
+  });
+
+  it("changes and writes nothing when the reducer refuses", () => {
+    const before = snapshot();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const result = useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "A", "missing");
+    expect(result).toEqual({ ok: false, reason: "unknown-category" });
+    expect(snapshot()).toEqual(before);
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("refuses the 5,001st assignment and keeps the stored list at the limit", () => {
+    const full: SettingsData = {
+      ...defaultSettings(),
+      supplierCategories: Array.from({ length: 5000 }, (_, index) => ({
+        rfc: `RFC${String(index)}`,
+        name: `Proveedor ${String(index)}`,
+        categoryId: "seed:servicios",
+      })),
+    };
+    useSettingsStore.setState(full);
+    const result = useSettingsStore.getState().setSupplierCategory("NEW", "Nuevo", "seed:servicios");
+    expect(result).toEqual({ ok: false, reason: "limit" });
+    expect(snapshot().supplierCategories).toHaveLength(5000);
+  });
+});

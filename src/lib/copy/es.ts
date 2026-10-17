@@ -136,6 +136,7 @@ export const es = {
   tabs: {
     ariaLabel: "Secciones",
     dashboard: "Dashboard",
+    categories: "Categorías",
     quality: "Calidad de datos",
     import: "Importación",
   },
@@ -246,6 +247,19 @@ export const es = {
 
   categories: {
     none: "Sin categoría",
+    heading: "Categorías",
+    intro:
+      "Organiza tu gasto en categorías. Se guardan en este navegador; descarga tus ajustes para respaldarlos o usarlos en otro.",
+    supplierHeading: "Categoría por proveedor",
+    supplierIntro:
+      "La categoría por defecto de cada proveedor. Para cambiar un concepto, ábrelo en la tabla de facturas del Dashboard.",
+    columns: {
+      supplier: "Proveedor",
+      rfc: "RFC",
+      invoices: "Facturas",
+      category: "Categoría por defecto",
+      actions: "Acciones",
+    },
   },
 
   errors: {
