@@ -1,10 +1,12 @@
 import type { IvaMode } from "@/domain/accounting/aggregate";
+import { defaultSettings, type SettingsData } from "@/domain/settings/types";
 import { useSettingsStore } from "@/stores/settingsStore";
 
 /**
  * Test access to the persisted settings through the store's own storage adapter,
  * so tests never touch the browser storage object directly. Reload simulation:
- * `storeIvaMode("sin")`, render, expect the Sin IVA figure.
+ * `storeIvaMode("sin")` (the Phase 2 contract, version 1, so it exercises the
+ * migration) or `storeSettings(data)` (version 2), then rehydrate the store.
  */
 function adapter() {
   const options = useSettingsStore.persist.getOptions();
@@ -17,6 +19,18 @@ function adapter() {
 export function storeIvaMode(ivaMode: IvaMode): void {
   const { storage, name } = adapter();
   void storage.setItem(name, { state: { ivaMode }, version: 1 });
+}
+
+/** Writes a version-2 value as a browser that already used Phase 3 would hold it. */
+export function storeSettings(data: SettingsData): void {
+  const { storage, name } = adapter();
+  void storage.setItem(name, { state: data, version: 2 });
+}
+
+/** Puts the store back to the suggestions and Con IVA, then clears the stored key. */
+export function resetSettingsStore(): void {
+  useSettingsStore.setState(defaultSettings());
+  clearStoredSettings();
 }
 
 export async function readStoredSettings(): Promise<unknown> {

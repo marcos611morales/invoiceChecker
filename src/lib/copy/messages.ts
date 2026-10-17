@@ -242,6 +242,11 @@ export function rankingCaption(pctText: string, ticketText: string): string {
   return `${pctText} del total · Ticket promedio ${ticketText}`;
 }
 
+/** Caption of a category row: share of the total and monthly average, already formatted (D-16). */
+export function categoryCaption(pctText: string, promedioText: string): string {
+  return `${pctText} del total · Promedio mensual ${promedioText}`;
+}
+
 // Calidad de datos: card and accordion titles and the sentence of every incident row (CAL-01).
 
 /** Card and accordion title of an incident type (D-32, D-35, D-46). */

@@ -227,6 +227,7 @@ export const es = {
     trendLegendBars: "Gasto mensual",
     trendTooltipRow: "Gasto",
     trendTableMonth: "Mes",
+    categoryHeading: "Gasto por categoría",
     rankingHeading: "Gasto por proveedor",
     rankingSub: "Top 10",
     rankingAria: "Top 10 de proveedores por gasto neto",
@@ -241,6 +242,10 @@ export const es = {
       invoices: "Facturas",
       ticket: "Ticket promedio",
     },
+  },
+
+  categories: {
+    none: "Sin categoría",
   },
 
   errors: {
