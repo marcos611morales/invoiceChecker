@@ -1,19 +1,29 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   act,
   cleanup,
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import type { ParsedInvoice } from "@/domain/cfdi/types";
+import { defaultSettings } from "@/domain/settings/types";
 import { useSessionStore } from "@/stores/sessionStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
 import { resetSettingsStore } from "../../../tests/support/settingsStorage";
 import { AppShell } from "./AppShell";
+
+const toastMock = vi.hoisted(() => vi.fn<(message: string) => void>());
+vi.mock("sonner", () => ({ toast: toastMock }));
+
+const READ_FAILED_TOAST =
+  "No se pudieron leer tus ajustes guardados y se usaron los valores iniciales. Si tienes un archivo de respaldo, súbelo.";
 
 /** An Ingreso whose folio is its uuid, so every reference in the UI is easy to find. */
 function inv(uuid: string, overrides: Partial<ParsedInvoice> = {}): ParsedInvoice {
@@ -43,8 +53,14 @@ function qualityTab(): HTMLElement {
   return screen.getByRole("tab", { name: /^Calidad de datos/ });
 }
 
+beforeEach(() => {
+  toastMock.mockReset();
+  window.localStorage.clear();
+});
+
 afterEach(() => {
   cleanup();
+  window.localStorage.clear();
   vi.restoreAllMocks();
   act(() => {
     useSessionStore.getState().clearAll();
@@ -168,5 +184,65 @@ describe("AppShell tabs (D-01, D-04)", () => {
     const categorias = screen.getByRole("tab", { name: "Categorías" });
     fireEvent.click(categorias);
     expect(scrollIntoView.mock.contexts).toEqual([importacion, categorias]);
+  });
+});
+
+describe("AppShell read-failure toast (Q8, AJUS-01)", () => {
+  const KEY = "invoicechecker:settings";
+
+  async function mountAndSettle(strict = false): Promise<void> {
+    await act(async () => {
+      render(strict ? <StrictMode><AppShell /></StrictMode> : <AppShell />);
+      await useSettingsStore.persist.rehydrate();
+    });
+  }
+
+  it("shows the toast exactly once for unreadable stored settings, even in StrictMode and after another rehydrate", async () => {
+    window.localStorage.setItem(KEY, "{not json");
+    await mountAndSettle(true);
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(READ_FAILED_TOAST);
+    });
+    await act(async () => {
+      await useSettingsStore.persist.rehydrate();
+    });
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the toast for a stored version 2 that breaks a limit and uses the defaults", async () => {
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        version: 2,
+        state: {
+          ...defaultSettings(),
+          categories: Array.from({ length: 201 }, (_, i) => ({ id: `c${i}`, name: `Categoría ${i}` })),
+        },
+      }),
+    );
+    await mountAndSettle();
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(READ_FAILED_TOAST);
+    });
+    expect(useSettingsStore.getState().categories).toEqual(defaultSettings().categories);
+  });
+
+  it("shows the toast for a stored version 1 with a tampered mode", async () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ version: 1, state: { ivaMode: "x" } }));
+    await mountAndSettle();
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(READ_FAILED_TOAST);
+    });
+  });
+
+  it("shows no toast with nothing stored, a valid version 2 or a valid version 1", async () => {
+    await mountAndSettle();
+    cleanup();
+    window.localStorage.setItem(KEY, JSON.stringify({ version: 2, state: defaultSettings() }));
+    await mountAndSettle();
+    cleanup();
+    window.localStorage.setItem(KEY, JSON.stringify({ version: 1, state: { ivaMode: "sin" } }));
+    await mountAndSettle();
+    expect(toastMock).not.toHaveBeenCalled();
   });
 });

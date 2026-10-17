@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
 import { defaultSettings } from "@/domain/settings/types";
@@ -323,5 +323,41 @@ describe("Categorías tab: Categoría por proveedor (CAT-02, D-01, D-03, D-04)",
     expect(screen.getAllByText(hostile).length).toBeGreaterThan(0);
     expect(screen.getByRole("combobox", { name: `Categoría por defecto de ${hostile}` })).toBeInTheDocument();
     expect(document.querySelector("img")).toBeNull();
+  });
+});
+
+describe("Categorías tab: write-failure Alert (Q8, AJUS-01)", () => {
+  const WRITE_FAILED =
+    "Este navegador no permite guardar tus ajustes. Los cambios se perderán al cerrar la página; descarga tus ajustes para no perderlos.";
+
+  function writeAlert(): HTMLElement | null {
+    return screen.queryByText(WRITE_FAILED)?.closest<HTMLElement>("[data-slot='alert']") ?? null;
+  }
+
+  it("shows no Alert while writes work", async () => {
+    load(sample());
+    await renderShell();
+    openTab("Categorías");
+    choose(A.nombre, "Limpieza e higiene");
+    expect(screen.queryByText(WRITE_FAILED)).toBeNull();
+  });
+
+  it("shows a non-dismissible Alert when the write fails, keeps the change in memory and removes it after a later write", async () => {
+    load(sample());
+    await renderShell();
+    openTab("Categorías");
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota");
+    });
+    choose(A.nombre, "Limpieza e higiene");
+    const alert = writeAlert();
+    expect(alert).not.toBeNull();
+    expect(alert?.querySelector("svg")).not.toBeNull();
+    expect(alert ? within(alert).queryByRole("button") : null).toBeNull();
+    // The change keeps working for the session.
+    expect(supplierSelect(A.nombre)).toHaveTextContent("Limpieza e higiene");
+    blocked.mockRestore();
+    choose(A.nombre, "Servicios (luz, agua, internet, teléfono)");
+    expect(writeAlert()).toBeNull();
   });
 });
