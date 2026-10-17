@@ -289,6 +289,14 @@ export const es = {
     },
     deletedToast: "Categoría borrada",
     undo: "Deshacer",
+    savedOnly: "Sin facturas cargadas",
+    removeAssignment: "Quitar asignación",
+    assignmentRemoved: "Asignación quitada",
+    supplierLimit: "Llegaste al máximo de 5,000 proveedores con categoría.",
+    readFailedToast:
+      "No se pudieron leer tus ajustes guardados y se usaron los valores iniciales. Si tienes un archivo de respaldo, súbelo.",
+    writeFailedAlert:
+      "Este navegador no permite guardar tus ajustes. Los cambios se perderán al cerrar la página; descarga tus ajustes para no perderlos.",
   },
 
   errors: {

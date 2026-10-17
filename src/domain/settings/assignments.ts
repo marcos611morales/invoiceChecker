@@ -6,7 +6,7 @@
  * store only ever holds data the schema accepts.
  */
 import { normalizeDescription } from "./normalize";
-import { LIMITS, type ConceptRule, type SettingsData } from "./types";
+import { LIMITS, type ConceptRule, type SettingsData, type SupplierAssignment } from "./types";
 
 export type SupplierResult =
   | { ok: true; next: SettingsData }
@@ -167,5 +167,100 @@ export function restoreConceptRule(
     conceptRules: settings.conceptRules.map((existing, position) =>
       position === index ? rule : existing,
     ),
+  };
+}
+
+/**
+ * One row of the «Categoría por proveedor» table (D-03). A `loaded: false` row is a
+ * supplier that only exists in the saved settings: no loaded invoice, `invoices` 0.
+ */
+export interface SupplierTableRow {
+  rfc: string;
+  name: string;
+  invoices: number;
+  categoryId: string | null;
+  loaded: boolean;
+}
+
+/**
+ * Rows of the supplier table: every loaded supplier (current name, invoice count) in the
+ * given order, then every saved assignment whose RFC is not loaded, in stored order, with
+ * the name stored when it was last assigned (D-03). An RFC is never listed twice.
+ */
+export function supplierTableRows(
+  loaded: readonly { key: string; label: string; count: number }[],
+  settings: SettingsData,
+): SupplierTableRow[] {
+  const assigned = new Map<string, SupplierAssignment>(
+    settings.supplierCategories.map((assignment) => [assignment.rfc, assignment]),
+  );
+  const loadedRfcs = new Set<string>();
+  const rows: SupplierTableRow[] = [];
+  for (const supplier of loaded) {
+    loadedRfcs.add(supplier.key);
+    rows.push({
+      rfc: supplier.key,
+      name: supplier.label,
+      invoices: supplier.count,
+      categoryId: assigned.get(supplier.key)?.categoryId ?? null,
+      loaded: true,
+    });
+  }
+  for (const assignment of settings.supplierCategories) {
+    if (loadedRfcs.has(assignment.rfc)) continue;
+    rows.push({
+      rfc: assignment.rfc,
+      name: assignment.name,
+      invoices: 0,
+      categoryId: assignment.categoryId,
+      loaded: false,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Removes the saved category of one supplier and returns the removed assignment, which is
+ * what «Deshacer» needs (UI-SPEC defaults). A missing assignment gives `removed` null and
+ * the same settings object.
+ */
+export function removeSupplierAssignment(
+  settings: SettingsData,
+  rfc: string,
+): { next: SettingsData; removed: SupplierAssignment | null } {
+  const removed = settings.supplierCategories.find((assignment) => assignment.rfc === rfc) ?? null;
+  if (removed === null) return { next: settings, removed: null };
+  return {
+    next: {
+      ...settings,
+      supplierCategories: settings.supplierCategories.filter((assignment) => assignment !== removed),
+    },
+    removed,
+  };
+}
+
+/**
+ * Undo of `removeSupplierAssignment`: puts back exactly `removed`. An assignment of the
+ * same RFC made in the meantime is replaced in place. It refuses silently, returning the
+ * same settings object, when the category of `removed` no longer exists or when appending
+ * it would pass LIMITS.supplierCategories.
+ */
+export function restoreSupplierAssignment(
+  settings: SettingsData,
+  removed: SupplierAssignment,
+): SettingsData {
+  if (!settings.categories.some((category) => category.id === removed.categoryId)) {
+    return settings;
+  }
+  const entry: SupplierAssignment = { ...removed };
+  const exists = settings.supplierCategories.some((assignment) => assignment.rfc === removed.rfc);
+  if (!exists && settings.supplierCategories.length >= LIMITS.supplierCategories) return settings;
+  return {
+    ...settings,
+    supplierCategories: exists
+      ? settings.supplierCategories.map((assignment) =>
+          assignment.rfc === removed.rfc ? entry : assignment,
+        )
+      : [...settings.supplierCategories, entry],
   };
 }

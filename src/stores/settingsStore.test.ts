@@ -8,6 +8,7 @@ import {
 } from "@/domain/settings/types";
 import { useSessionStore } from "./sessionStore";
 import { useSettingsStore } from "./settingsStore";
+import { useStorageStatusStore } from "./storageStatusStore";
 import { resetSettingsStore } from "../../tests/support/settingsStorage";
 
 const KEY = "invoicechecker:settings";
@@ -660,5 +661,92 @@ describe("settingsStore removeConceptRule and restoreConceptRule (CAT-03, Q5)", 
     });
     expect(setItem).not.toHaveBeenCalled();
     expect(snapshot().conceptRules).toEqual([]);
+  });
+});
+
+describe("settingsStore storage status flags (Q8, AJUS-01)", () => {
+  function status() {
+    const { readFailed, writeFailed } = useStorageStatusStore.getState();
+    return { readFailed, writeFailed };
+  }
+
+  it("marks a read failure for stored invalid JSON", async () => {
+    window.localStorage.setItem(KEY, "{not json");
+    await rehydrate();
+    expect(status().readFailed).toBe(true);
+  });
+
+  it("marks a read failure for a wrongly shaped envelope", async () => {
+    window.localStorage.setItem(KEY, JSON.stringify([]));
+    await rehydrate();
+    expect(status().readFailed).toBe(true);
+  });
+
+  it("marks a read failure for a version-2 value that breaks a limit", async () => {
+    storeRaw({
+      ...defaultSettings(),
+      categories: Array.from({ length: 201 }, (_, i) => ({ id: `c${i}`, name: `Categoría ${i}` })),
+    });
+    await rehydrate();
+    expect(status().readFailed).toBe(true);
+    expect(snapshot()).toEqual(defaultSettings());
+  });
+
+  it("marks a read failure for a version-1 value with a tampered mode", async () => {
+    storeRaw({ ivaMode: "x" }, 1);
+    await rehydrate();
+    expect(status().readFailed).toBe(true);
+    expect(snapshot()).toEqual(defaultSettings());
+  });
+
+  it("does not mark a read failure with nothing stored, a valid version 2 or a valid version 1", async () => {
+    await rehydrate();
+    expect(status().readFailed).toBe(false);
+    storeRaw({ ...defaultSettings(), ivaMode: "sin" });
+    await rehydrate();
+    expect(status().readFailed).toBe(false);
+    storeRaw({ ivaMode: "sin" }, 1);
+    await rehydrate();
+    expect(status().readFailed).toBe(false);
+  });
+
+  it("does not mark a read failure when getItem itself throws: nothing is known to be stored", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    await rehydrate();
+    expect(status().readFailed).toBe(false);
+  });
+
+  it("marks a write failure when setItem throws, keeps the change in memory, and clears it after a later write", () => {
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota");
+    });
+    const added = useSettingsStore.getState().addCategory("Café");
+    expect(added.ok).toBe(true);
+    expect(status().writeFailed).toBe(true);
+    expect(snapshot().categories.some((category) => category.name === "Café")).toBe(true);
+    blocked.mockRestore();
+    useSettingsStore.getState().setIvaMode("sin");
+    expect(status().writeFailed).toBe(false);
+  });
+
+  it("never sets the settings store from the adapter: one change writes once", () => {
+    const writes = vi.spyOn(Storage.prototype, "setItem");
+    useSettingsStore.getState().setIvaMode("sin");
+    expect(writes).toHaveBeenCalledTimes(1);
+    writes.mockClear();
+    writes.mockImplementation(() => {
+      throw new Error("quota");
+    });
+    useSettingsStore.getState().setIvaMode("con");
+    expect(writes).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not persist the status flags", () => {
+    useStorageStatusStore.getState().markReadFailed();
+    useStorageStatusStore.getState().setWriteFailed(true);
+    expect(window.localStorage.getItem("invoicechecker:storage-status")).toBeNull();
+    expect(storedEnvelope()).toBeNull();
   });
 });
