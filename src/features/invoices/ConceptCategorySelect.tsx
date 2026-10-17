@@ -1,26 +1,34 @@
 "use client";
 
+import { RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { TruncatedText } from "@/components/TruncatedText";
 import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import type { CategorySource } from "@/domain/settings/resolver";
 import { SIN_CATEGORIA, type Category } from "@/domain/settings/types";
 import { es } from "@/lib/copy/es";
-import { conceptCategoryAria } from "@/lib/copy/messages";
+import { appliesToLinesText, categoryChangedToast, conceptCategoryAria } from "@/lib/copy/messages";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settingsStore";
 
 /**
- * Select values are encoded so that no category id can collide with the action
- * value: a category is "category:" plus its id, «Sin categoría» is "none".
+ * Select values are encoded so that no category id can collide with an action
+ * value: a category is "category:" plus its id, «Sin categoría» is "none" and
+ * «Quitar ajuste» is "remove".
  */
 const CATEGORY_PREFIX = "category:";
 const NONE_VALUE = "none";
+const REMOVE_VALUE = "remove";
+
+/** The change toast stays six seconds, like the other toasts with «Deshacer» (D-29, UI-SPEC Q5). */
+const UNDO_TOAST_MS = 6000;
 
 /** Item text wraps even though the shared SelectItem keeps it on one line. */
 const WRAPPING_TEXT = "whitespace-normal break-words";
@@ -28,12 +36,14 @@ const WRAPPING_TEXT = "whitespace-normal break-words";
 export interface ConceptCategorySelectProps {
   /** RFC of the supplier of the invoice: half of the key of the rule (D-09). */
   rfc: string;
-  /** Supplier name; Plan 03-05 shows it in the «Aplica a {n} líneas de {proveedor}» caption. */
+  /** Supplier name, shown after «Aplica a {n} líneas de» under an adjusted line (D-09). */
   supplierName: string;
   /** Original description of the line: stored readable next to the rule and used in the aria-label. */
   descripcion: string;
-  /** Normalized description; Plan 03-05 uses it to count the equal lines and to remove the rule. */
+  /** Normalized description: the key to remove or restore the rule of this line. */
   ruleKey: string;
+  /** Loaded lines of this supplier whose description normalizes to `ruleKey` (D-09). */
+  lineCount: number;
   /** Category the line resolves to, or the reserved «Sin categoría» key. */
   category: string;
   /** Where that category came from: a rule of the line, the supplier, or nothing. */
@@ -62,6 +72,10 @@ function decodeCategory(value: string): string | null | undefined {
  * to invoices loaded later, and the other lines of the invoice keep their category.
  * «Sin categoría» is an explicit adjustment that beats the supplier's category
  * (UI-SPEC Q4), and choosing the supplier's own category still stores a rule.
+ * Every change shows a toast with «Deshacer» that puts back exactly the previous
+ * rule, or removes the one the change created (UI-SPEC Q5, T-03-36). An adjusted line
+ * also shows how many loaded lines its rule reaches and ends the popup with
+ * «Quitar ajuste» after a separator (D-09).
  *
  * The Select value is null unless the line has a rule of its own, so picking any
  * item, including the one the supplier already gives, fires a change. The trigger
@@ -72,60 +86,106 @@ function decodeCategory(value: string): string | null | undefined {
  */
 export function ConceptCategorySelect({
   rfc,
+  supplierName,
   descripcion,
+  ruleKey,
+  lineCount,
   category,
   source,
   categories,
   nameOf,
 }: ConceptCategorySelectProps) {
   const setConceptRule = useSettingsStore((s) => s.setConceptRule);
+  const removeConceptRule = useSettingsStore((s) => s.removeConceptRule);
+  const restoreConceptRule = useSettingsStore((s) => s.restoreConceptRule);
   const adjusted = source === "regla";
 
   const onChange = (value: string | null) => {
     if (value === null) return;
+    if (value === REMOVE_VALUE) {
+      if (removeConceptRule(rfc, ruleKey) !== null) toast(es.invoices.adjustmentRemoved);
+      return;
+    }
     const next = decodeCategory(value);
     if (next === undefined) return;
     const result = setConceptRule(rfc, descripcion, next);
-    if (!result.ok && result.reason === "limit") toast(es.invoices.conceptLimit);
+    if (!result.ok) {
+      if (result.reason === "limit") toast(es.invoices.conceptLimit);
+      return;
+    }
+    const { previous } = result;
+    toast(categoryChangedToast(descripcion, nameOf(next === null ? SIN_CATEGORIA : next)), {
+      duration: UNDO_TOAST_MS,
+      action: {
+        label: es.categories.undo,
+        onClick: () => {
+          restoreConceptRule(rfc, ruleKey, previous);
+        },
+      },
+    });
   };
 
   return (
-    <Select value={adjusted ? encodeCategory(category) : null} onValueChange={onChange}>
-      <SelectTrigger
-        aria-label={conceptCategoryAria(descripcion)}
-        className="max-w-full min-w-[240px] data-[size=default]:max-sm:h-11"
-      >
-        <SelectValue className="min-w-0">
-          <span className={cn("min-w-0 truncate", adjusted ? "text-foreground" : "text-muted-foreground")}>
-            {nameOf(category)}
-          </span>
-          {source === "proveedor" ? (
+    <div className="flex min-w-0 flex-col gap-1">
+      <Select value={adjusted ? encodeCategory(category) : null} onValueChange={onChange}>
+        <SelectTrigger
+          aria-label={conceptCategoryAria(descripcion)}
+          className="max-w-full min-w-[240px] data-[size=default]:max-sm:h-11"
+        >
+          <SelectValue className="min-w-0">
+            <span className={cn("min-w-0 truncate", adjusted ? "text-foreground" : "text-muted-foreground")}>
+              {nameOf(category)}
+            </span>
+            {source === "proveedor" ? (
+              <>
+                {" "}
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {es.invoices.fromSupplier}
+                </span>
+              </>
+            ) : null}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent
+          alignItemWithTrigger={false}
+          className="max-h-[min(18rem,var(--available-height))]"
+        >
+          <SelectItem value={NONE_VALUE} className="min-h-9 max-sm:min-h-11">
+            <span className={cn(WRAPPING_TEXT, "text-muted-foreground")}>{es.categories.none}</span>
+          </SelectItem>
+          {categories.map((item) => (
+            <SelectItem
+              key={item.id}
+              value={`${CATEGORY_PREFIX}${item.id}`}
+              className="min-h-9 max-sm:min-h-11"
+            >
+              <span className={WRAPPING_TEXT}>{item.name}</span>
+            </SelectItem>
+          ))}
+          {adjusted ? (
             <>
-              {" "}
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {es.invoices.fromSupplier}
-              </span>
+              <SelectSeparator />
+              <SelectItem value={REMOVE_VALUE} className="min-h-9 max-sm:min-h-11">
+                <span className={cn(WRAPPING_TEXT, "flex items-center gap-2")}>
+                  <RotateCcw aria-hidden="true" className="size-4 shrink-0" />
+                  {es.invoices.removeAdjustment}
+                </span>
+              </SelectItem>
             </>
           ) : null}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent
-        alignItemWithTrigger={false}
-        className="max-h-[min(18rem,var(--available-height))]"
-      >
-        <SelectItem value={NONE_VALUE} className="min-h-9 max-sm:min-h-11">
-          <span className={cn(WRAPPING_TEXT, "text-muted-foreground")}>{es.categories.none}</span>
-        </SelectItem>
-        {categories.map((item) => (
-          <SelectItem
-            key={item.id}
-            value={`${CATEGORY_PREFIX}${item.id}`}
-            className="min-h-9 max-sm:min-h-11"
-          >
-            <span className={WRAPPING_TEXT}>{item.name}</span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+        </SelectContent>
+      </Select>
+      {adjusted ? (
+        /* w-0 min-w-full: the caption takes the width of the selector and never widens it,
+           so a long supplier name truncates instead of stretching the cell. */
+        <p
+          data-slot="concept-reach"
+          className="flex w-0 min-w-full gap-1 text-xs text-muted-foreground"
+        >
+          <span className="shrink-0">{appliesToLinesText(lineCount)}</span>{" "}
+          <TruncatedText text={supplierName} />
+        </p>
+      ) : null}
+    </div>
   );
 }
