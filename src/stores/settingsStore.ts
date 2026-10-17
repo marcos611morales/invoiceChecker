@@ -29,6 +29,7 @@ import {
   type SettingsData,
   type SupplierAssignment,
 } from "@/domain/settings/types";
+import { useStorageStatusStore } from "./storageStatusStore";
 
 /**
  * The only persisted store of the app (D-06). Invoices, exclusions, filters and
@@ -113,25 +114,37 @@ function dataOf(state: SettingsData): SettingsData {
 /**
  * Every storage access is inside try/catch: blocked storage, private mode,
  * quota and the server (no window) all become "nothing stored" or a no-op.
- * The adapter never calls `set` (Pitfall 6): persist calls `setItem` after every
- * `set`, so setting state from here would loop.
+ * The adapter never calls `set` on the settings store (Pitfall 6): persist calls
+ * `setItem` after every `set`, so setting state from here would loop. It only reports
+ * failures to the separate, non-persisted `useStorageStatusStore` (Q8): a stored value
+ * that exists but is not usable (`getItem`) and a write that fails (`setItem`). A
+ * `getItem` that itself throws is not a read failure: nothing is known to be stored.
  */
 const safeStorage: PersistStorage<unknown> = {
   getItem: (name) => {
+    let raw: string | null;
     try {
-      const raw = window.localStorage.getItem(name);
-      if (raw === null) return null;
-      const parsed = envelopeSchema.safeParse(JSON.parse(raw));
-      return parsed.success ? parsed.data : null;
+      raw = window.localStorage.getItem(name);
     } catch {
       return null;
     }
+    if (raw === null) return null;
+    try {
+      const parsed = envelopeSchema.safeParse(JSON.parse(raw));
+      if (parsed.success) return parsed.data;
+    } catch {
+      // Not JSON: reported below like a wrong envelope.
+    }
+    useStorageStatusStore.getState().markReadFailed();
+    return null;
   },
   setItem: (name, value) => {
     try {
       window.localStorage.setItem(name, JSON.stringify(value));
+      useStorageStatusStore.getState().setWriteFailed(false);
     } catch {
       // Quota or blocked storage: the settings still work for this session.
+      useStorageStatusStore.getState().setWriteFailed(true);
     }
   },
   removeItem: (name) => {
@@ -142,6 +155,16 @@ const safeStorage: PersistStorage<unknown> = {
     }
   },
 };
+
+/**
+ * Resolves a stored value into valid settings and reports an unusable one (Q8). Both
+ * `migrate` and `merge` use it. It touches only the status store, never the persisted one.
+ */
+function resolveAndReport(raw: unknown, version: number | undefined): SettingsData {
+  const { data, status } = resolvePersisted(raw, version);
+  if (status === "unreadable") useStorageStatusStore.getState().markReadFailed();
+  return data;
+}
 
 export const useSettingsStore = create<SettingsState>()(
   persist<SettingsState, [], [], unknown>(
@@ -238,11 +261,11 @@ export const useSettingsStore = create<SettingsState>()(
       }),
       // Both delegate to the total resolvePersisted: an exception here would be
       // swallowed by zustand and silently reset the store (Pitfall 5).
-      migrate: (persisted, version) => resolvePersisted(persisted, version).data,
+      migrate: (persisted, version) => resolveAndReport(persisted, version),
       // set(..., true) replaces the state, so merge returns the full state with the actions.
       merge: (persisted, current) => ({
         ...current,
-        ...resolvePersisted(persisted, SETTINGS_VERSION).data,
+        ...resolveAndReport(persisted, SETTINGS_VERSION),
       }),
     },
   ),

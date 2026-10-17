@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, type ComponentType } from "react";
 import { ShieldCheck, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { qualitySummary } from "@/domain/accounting/quality";
@@ -18,6 +19,7 @@ import { es } from "@/lib/copy/es";
 import { qualityTabAria, qualityTabLabel } from "@/lib/copy/messages";
 import { useSessionStore, type AppTab } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useStorageStatusStore } from "@/stores/storageStatusStore";
 import { TopBar } from "./TopBar";
 import { useBeforeUnload } from "./useBeforeUnload";
 
@@ -133,8 +135,17 @@ export function AppShell() {
   // The settings store is created with skipHydration, so the stored IVA mode is read once
   // here (external-store sync, no React state). Before that the control shows Con IVA, the
   // same markup the server renders.
+  // When the stored settings existed but could not be used, the user is told once per page
+  // load (Q8): the notice flag is set before the toast, so StrictMode's second effect run and
+  // any later rehydrate do not repeat it.
   useEffect(() => {
-    void useSettingsStore.persist.rehydrate();
+    void (async () => {
+      await useSettingsStore.persist.rehydrate();
+      const status = useStorageStatusStore.getState();
+      if (!status.readFailed || status.readNoticeShown) return;
+      status.markReadNoticeShown();
+      toast(es.categories.readFailedToast);
+    })();
   }, []);
   return (
     <UploadRoot>
