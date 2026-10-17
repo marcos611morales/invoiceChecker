@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 import { buildLedger, EMPTY_OVERRIDES, PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
 import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
+import { setConceptRule, setSupplierCategory } from "@/domain/settings/assignments";
+import { makeResolver } from "@/domain/settings/resolver";
+import { SIN_CATEGORIA, defaultSettings, type SettingsData } from "@/domain/settings/types";
 import { loaded, makeEntry, makeInvoice, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
 import {
   buildPaymentIndex,
@@ -46,6 +49,8 @@ function iva(importe: string) {
     importe,
   };
 }
+
+const RESOLVER = makeResolver(defaultSettings());
 
 function ledgerOf(...invoices: ParsedInvoice[]): LedgerEntry[] {
   return buildLedger(invoices.map(loaded), EMPTY_OVERRIDES, TEST_FECHA_CONTEXT);
@@ -173,20 +178,20 @@ describe("conceptRows", () => {
   it("converts each concept by mode with stable index based keys", () => {
     const entry = ledgerOf(invoice)[0];
     if (entry === undefined) throw new Error("no entry");
-    const con = conceptRows(entry, "con");
+    const con = conceptRows(entry, "con", RESOLVER);
     expect(con.map((c) => c.descripcion)).toEqual(["Café", "Leche"]);
     expect(con.map((c) => c.monto?.toString())).toEqual(["232", "116"]);
     expect(con.map((c) => c.cantidad)).toEqual(["2", "1.5"]);
-    const sin = conceptRows(entry, "sin");
+    const sin = conceptRows(entry, "sin", RESOLVER);
     expect(sin.map((c) => c.monto?.toString())).toEqual(["200", "100"]);
     expect(con.map((c) => c.key)).toEqual(["0", "1"]);
-    expect(conceptRows(entry, "con").map((c) => c.key)).toEqual(["0", "1"]);
+    expect(conceptRows(entry, "con", RESOLVER).map((c) => c.key)).toEqual(["0", "1"]);
   });
 
   it("shows the Unidad text, else the ClaveUnidad flagged as a key", () => {
     const entry = ledgerOf(invoice)[0];
     if (entry === undefined) throw new Error("no entry");
-    const rows = conceptRows(entry, "con");
+    const rows = conceptRows(entry, "con", RESOLVER);
     expect(rows[0]).toMatchObject({ unidad: "Pieza", unidadIsClave: false });
     expect(rows[1]).toMatchObject({ unidad: "LTR", unidadIsClave: true });
   });
@@ -202,7 +207,7 @@ describe("conceptRows", () => {
     });
     const entry = ledgerOf(nota)[0];
     if (entry === undefined) throw new Error("no entry");
-    const [row] = conceptRows(entry, "con");
+    const [row] = conceptRows(entry, "con", RESOLVER);
     expect(row?.precioUnitario?.toString()).toBe("100");
     expect(row?.monto?.toString()).toBe("-116");
   });
@@ -217,7 +222,7 @@ describe("conceptRows", () => {
     });
     const entry = ledgerOf(usd)[0];
     if (entry === undefined) throw new Error("no entry");
-    const [row] = conceptRows(entry, "con");
+    const [row] = conceptRows(entry, "con", RESOLVER);
     expect(row?.precioUnitario?.toString()).toBe("182");
     expect(row?.monto?.toString()).toBe("182");
   });
@@ -225,8 +230,72 @@ describe("conceptRows", () => {
   it("gives a null amount to a concept with an invalid importe", () => {
     const broken = makeInvoice({ conceptos: [concepto({ importe: "abc" })] });
     const entry = makeEntry({ invoice: broken });
-    const [row] = conceptRows(entry, "con");
+    const [row] = conceptRows(entry, "con", RESOLVER);
     expect(row?.monto).toBeNull();
+  });
+});
+
+describe("conceptRows categories (D-09, D-10, D-11)", () => {
+  const RFC = "EMI010101AAA";
+  const invoice = makeInvoice({
+    emisor: { rfc: RFC, nombre: "Proveedor" },
+    conceptos: [
+      concepto({ descripcion: "CLORO  1L" }),
+      concepto({ descripcion: "Peña" }),
+      concepto({ descripcion: "Jabón" }),
+    ],
+  });
+  const entry = ledgerOf(invoice)[0];
+
+  function rowsWith(...steps: Array<(s: SettingsData) => SettingsData>) {
+    if (entry === undefined) throw new Error("no entry");
+    const settings = steps.reduce((current, step) => step(current), defaultSettings());
+    return conceptRows(entry, "con", makeResolver(settings));
+  }
+
+  const supplier = (categoryId: string) => (s: SettingsData) => {
+    const result = setSupplierCategory(s, RFC, "Proveedor", categoryId);
+    if (!result.ok) throw new Error("the assignment must be accepted");
+    return result.next;
+  };
+  const rule = (description: string, categoryId: string | null) => (s: SettingsData) => {
+    const result = setConceptRule(s, RFC, description, categoryId);
+    if (!result.ok) throw new Error("the rule must be accepted");
+    return result.next;
+  };
+
+  it("gives every line Sin categoría with source ninguna when nothing is stored", () => {
+    for (const row of rowsWith()) {
+      expect(row.category).toBe(SIN_CATEGORIA);
+      expect(row.source).toBe("ninguna");
+    }
+  });
+
+  it("gives the supplier category with source proveedor to lines without a rule", () => {
+    const rows = rowsWith(supplier("seed:abarrotes-despensa"));
+    expect(rows.map((r) => [r.category, r.source])).toEqual([
+      ["seed:abarrotes-despensa", "proveedor"],
+      ["seed:abarrotes-despensa", "proveedor"],
+      ["seed:abarrotes-despensa", "proveedor"],
+    ]);
+  });
+
+  it("applies a rule to every equal line and keeps the others on the supplier category", () => {
+    const rows = rowsWith(supplier("seed:abarrotes-despensa"), rule("cloro 1l", "seed:limpieza-higiene"));
+    expect(rows.map((r) => [r.category, r.source])).toEqual([
+      ["seed:limpieza-higiene", "regla"],
+      ["seed:abarrotes-despensa", "proveedor"],
+      ["seed:abarrotes-despensa", "proveedor"],
+    ]);
+  });
+
+  it("shows an explicit Sin categoría rule as regla", () => {
+    const rows = rowsWith(supplier("seed:abarrotes-despensa"), rule("Jabón", null));
+    expect(rows[2]).toMatchObject({ category: SIN_CATEGORIA, source: "regla" });
+  });
+
+  it("exposes the normalized description as the rule key", () => {
+    expect(rowsWith().map((r) => r.ruleKey)).toEqual(["cloro 1l", "peña", "jabon"]);
   });
 });
 
