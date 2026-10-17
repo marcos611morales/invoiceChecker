@@ -1,0 +1,30 @@
+{
+  "app": "invoicechecker-settings",
+  "version": 1,
+  "settings": {
+    "ivaMode": "sin",
+    "categories": [
+      { "id": "seed:insumos-cafeteria", "name": "Insumos de cafetería" },
+      { "id": "seed:otros", "name": "Otros" },
+      { "id": "cat_6f1d2c58-3b0e-4a7f-9c21-0d8e5a4b7c13", "name": "Eventos del coworking" }
+    ],
+    "supplierCategories": [
+      { "rfc": "EKU9003173C9", "name": "Proveedor de prueba uno", "categoryId": "seed:insumos-cafeteria" },
+      { "rfc": "XAXX010101000", "name": "Público en general", "categoryId": "cat_6f1d2c58-3b0e-4a7f-9c21-0d8e5a4b7c13" }
+    ],
+    "conceptRules": [
+      {
+        "rfc": "EKU9003173C9",
+        "key": "leche entera 1 l",
+        "description": "Leche entera 1 L",
+        "categoryId": "seed:otros"
+      },
+      {
+        "rfc": "XAXX010101000",
+        "key": "renta de salon",
+        "description": "Renta de salón",
+        "categoryId": null
+      }
+    ]
+  }
+}
