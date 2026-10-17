@@ -3,8 +3,21 @@ import { persist, type PersistStorage } from "zustand/middleware";
 import { z } from "zod";
 import type { IvaMode } from "@/domain/accounting/aggregate";
 import { setSupplierCategory, type SupplierResult } from "@/domain/settings/assignments";
+import {
+  addCategory,
+  deleteCategory,
+  renameCategory,
+  restoreCategory,
+  type DeleteSnapshot,
+  type NameError,
+} from "@/domain/settings/categories";
 import { resolvePersisted } from "@/domain/settings/migrate";
-import { SETTINGS_VERSION, defaultSettings, type SettingsData } from "@/domain/settings/types";
+import {
+  SETTINGS_VERSION,
+  defaultSettings,
+  type Category,
+  type SettingsData,
+} from "@/domain/settings/types";
 
 /**
  * The only persisted store of the app (D-06). Invoices, exclusions, filters and
@@ -36,6 +49,27 @@ interface SettingsState extends SettingsData {
    * and a refused result ("limit", "unknown-category") changes nothing.
    */
   setSupplierCategory: (rfc: string, name: string, categoryId: string | null) => SupplierResult;
+  /**
+   * Adds a category with a fresh `cat_` id (CAT-01). A refused name (empty, reserved,
+   * duplicate, too long) or the 200-category limit changes and writes nothing.
+   */
+  addCategory: (name: string) => { ok: true; category: Category } | { ok: false; reason: NameError };
+  /** Renames keeping the id (D-04); a refused name changes and writes nothing. */
+  renameCategory: (id: string, name: string) => { ok: true } | { ok: false; reason: NameError };
+  /**
+   * Deletes a category and moves its supplier assignments and concept rules to `target`
+   * (an id) or to «Sin categoría» (null), in one `set` (CAT-05, D-05). Returns the snapshot
+   * that `restoreCategory` needs, or null when nothing was deleted.
+   */
+  deleteCategory: (id: string, target: string | null) => DeleteSnapshot | null;
+  /** Undo of `deleteCategory`: puts back the category, its assignments and its rules. */
+  restoreCategory: (snapshot: DeleteSnapshot) => void;
+}
+
+/** The four stored fields of the current state, as the domain reducers take them. */
+function dataOf(state: SettingsData): SettingsData {
+  const { ivaMode, categories, supplierCategories, conceptRules } = state;
+  return { ivaMode, categories, supplierCategories, conceptRules };
 }
 
 /**
@@ -86,6 +120,41 @@ export const useSettingsStore = create<SettingsState>()(
         );
         if (result.ok) set({ supplierCategories: result.next.supplierCategories });
         return result;
+      },
+      addCategory: (name) => {
+        const result = addCategory(dataOf(get()), name, `cat_${crypto.randomUUID()}`);
+        if (!result.ok) return result;
+        set({ categories: result.next.categories });
+        return { ok: true, category: result.category };
+      },
+      renameCategory: (id, name) => {
+        const current = dataOf(get());
+        const result = renameCategory(current, id, name);
+        if (!result.ok) return result;
+        // An unknown id comes back as the same object: nothing to write.
+        if (result.next !== current) set({ categories: result.next.categories });
+        return { ok: true };
+      },
+      deleteCategory: (id, target) => {
+        const result = deleteCategory(dataOf(get()), id, target);
+        if (result === null) return null;
+        set({
+          categories: result.next.categories,
+          supplierCategories: result.next.supplierCategories,
+          conceptRules: result.next.conceptRules,
+        });
+        return result.snapshot;
+      },
+      restoreCategory: (snapshot) => {
+        const current = dataOf(get());
+        const next = restoreCategory(current, snapshot);
+        // A refused restore comes back as the same object: nothing to write.
+        if (next === current) return;
+        set({
+          categories: next.categories,
+          supplierCategories: next.supplierCategories,
+          conceptRules: next.conceptRules,
+        });
       },
     }),
     {
