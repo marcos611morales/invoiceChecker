@@ -22,6 +22,7 @@ import {
   usageByCategory,
   type NameError,
 } from "@/domain/settings/categories";
+import type { Category } from "@/domain/settings/types";
 import { es } from "@/lib/copy/es";
 import {
   categoryAddedText,
@@ -33,6 +34,7 @@ import {
   usageCaption,
 } from "@/lib/copy/messages";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { DeleteCategoryDialog } from "./DeleteCategoryDialog";
 import { useCategorySettings } from "./useCategorySettings";
 
 const ERROR_TEXT: Record<NameError, string> = {
@@ -166,11 +168,14 @@ export function CategoryList() {
   const [addError, setAddError] = useState<NameError | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
-  const [, setPendingDelete] = useState<string | null>(null);
+  // The category stays set while the dialog fades out, so its text does not change then.
+  const [deleting, setDeleting] = useState<Category | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const headingId = useId();
   const inputId = useId();
   const addErrorId = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
   const pencilRefs = useRef(new Map<string, HTMLButtonElement>());
   const pendingFocus = useRef<string | null>(null);
@@ -216,7 +221,12 @@ export function CategoryList() {
       className="flex w-full max-w-[720px] flex-col gap-4 rounded-lg border bg-background p-6"
     >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 id={headingId} tabIndex={-1} className="text-xl leading-[1.2] font-semibold outline-none">
+        <h2
+          id={headingId}
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-xl leading-[1.2] font-semibold outline-none"
+        >
           {es.categories.list.heading}
         </h2>
         <span className="text-xs text-muted-foreground">
@@ -302,7 +312,8 @@ export function CategoryList() {
                   <IconAction
                     label={deleteCategoryAria(category.name)}
                     onClick={() => {
-                      setPendingDelete(category.id);
+                      setDeleting(category);
+                      setDeleteOpen(true);
                     }}
                   >
                     <Trash2 aria-hidden="true" />
@@ -320,6 +331,15 @@ export function CategoryList() {
           </div>
         </li>
       </ul>
+
+      {deleting !== null ? (
+        <DeleteCategoryDialog
+          category={deleting}
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          finalFocusRef={headingRef}
+        />
+      ) : null}
     </section>
   );
 }

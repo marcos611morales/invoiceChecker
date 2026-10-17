@@ -282,6 +282,8 @@ export const es = {
       emptyBody:
         "Crea una arriba para empezar a clasificar tu gasto. Mientras tanto, todo queda en «Sin categoría».",
     },
+    deletedToast: "Categoría borrada",
+    undo: "Deshacer",
   },
 
   errors: {
@@ -301,6 +303,12 @@ export const es = {
       body: "Se borrarán las facturas cargadas y el reporte de esta sesión.",
       dismiss: "Conservar facturas",
       confirm: "Quitar todas",
+    },
+    deleteCategory: {
+      unusedBody: "No está asignada a ningún proveedor ni concepto.",
+      moveLabel: "Pasarlos a",
+      dismiss: "Conservar categoría",
+      confirm: "Borrar categoría",
     },
   },
 } as const;

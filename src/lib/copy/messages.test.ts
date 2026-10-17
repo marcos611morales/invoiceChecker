@@ -7,6 +7,8 @@ import {
   categoryCountLabel,
   categoryRenamedText,
   deleteCategoryAria,
+  deleteCategoryBody,
+  deleteCategoryTitle,
   renameCategoryAria,
   renameInputAria,
   usageCaption,
@@ -463,5 +465,29 @@ describe("Mis categorías copy (UI-SPEC)", () => {
 
   it("keeps markup-like names as plain characters", () => {
     expect(categoryAddedText("<b>x</b>")).toBe("Categoría «<b>x</b>» agregada");
+  });
+});
+
+describe("Delete category dialog copy (D-05)", () => {
+  it("names the category in the title", () => {
+    expect(deleteCategoryTitle("Otros")).toBe("¿Borrar la categoría «Otros»?");
+  });
+
+  it("says nothing points at an unused category", () => {
+    expect(deleteCategoryBody(0, 0)).toBe("No está asignada a ningún proveedor ni concepto.");
+    expect(deleteCategoryBody(0, 0)).toBe(es.dialogs.deleteCategory.unusedBody);
+  });
+
+  it("lists both parts with plurals and the singular for one", () => {
+    expect(deleteCategoryBody(2, 1)).toBe("La usan 2 proveedores y 1 concepto.");
+    expect(deleteCategoryBody(1, 3)).toBe("La usan 1 proveedor y 3 conceptos.");
+    expect(deleteCategoryBody(1, 1)).toBe("La usan 1 proveedor y 1 concepto.");
+  });
+
+  it("omits a zero part", () => {
+    expect(deleteCategoryBody(1, 0)).toBe("La usan 1 proveedor.");
+    expect(deleteCategoryBody(4, 0)).toBe("La usan 4 proveedores.");
+    expect(deleteCategoryBody(0, 1)).toBe("La usan 1 concepto.");
+    expect(deleteCategoryBody(0, 5)).toBe("La usan 5 conceptos.");
   });
 });

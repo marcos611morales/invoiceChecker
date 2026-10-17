@@ -404,3 +404,24 @@ export function categoryAddedText(name: string): string {
 export function categoryRenamedText(name: string): string {
   return `Categoría renombrada a «${name}»`;
 }
+
+/** Title of the delete-category dialog. */
+export function deleteCategoryTitle(name: string): string {
+  return `¿Borrar la categoría «${name}»?`;
+}
+
+/**
+ * Body of the delete-category dialog (D-05): what still points at the category, a zero
+ * part omitted and the singular for one; the unused body when nothing does.
+ */
+export function deleteCategoryBody(suppliers: number, concepts: number): string {
+  const parts: string[] = [];
+  if (suppliers > 0) {
+    parts.push(suppliers === 1 ? "1 proveedor" : `${String(suppliers)} proveedores`);
+  }
+  if (concepts > 0) {
+    parts.push(concepts === 1 ? "1 concepto" : `${String(concepts)} conceptos`);
+  }
+  if (parts.length === 0) return es.dialogs.deleteCategory.unusedBody;
+  return `La usan ${parts.join(" y ")}.`;
+}

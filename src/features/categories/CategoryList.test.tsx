@@ -1,16 +1,24 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useSettingsStore } from "@/stores/settingsStore";
 import "../../../tests/support/domPolyfills";
 import { resetSettingsStore } from "../../../tests/support/settingsStorage";
 import { CategoryList } from "./CategoryList";
+
+interface ToastOptions {
+  duration?: number;
+  action?: { label: string; onClick: () => void };
+}
+const toastMock = vi.hoisted(() => vi.fn<(message: string, options?: ToastOptions) => void>());
+vi.mock("sonner", () => ({ toast: toastMock }));
 
 const SERVICIOS = "seed:servicios";
 const LIMPIEZA = "seed:limpieza-higiene";
 
 beforeEach(() => {
   resetSettingsStore();
+  toastMock.mockReset();
 });
 
 afterEach(() => {
@@ -368,5 +376,198 @@ describe("CategoryList: inline rename", () => {
     expect(screen.getAllByRole("textbox", { name: /Nuevo nombre de la categoría/ })).toHaveLength(1);
     expect(renameInput("Otros")).toBeInTheDocument();
     expect(rowNames()).toContain("Limpieza e higiene");
+  });
+});
+
+const SERVICIOS_NAME = "Servicios (luz, agua, internet, teléfono)";
+
+function trash(name: string): HTMLElement {
+  return screen.getByRole("button", { name: `Borrar categoría ${name}` });
+}
+
+function dialog(): HTMLElement {
+  return screen.getByRole("alertdialog");
+}
+
+function target(): HTMLElement {
+  return within(dialog()).getByRole("combobox", { name: "Pasarlos a" });
+}
+
+function optionTexts(): string[] {
+  return screen.getAllByRole("option").map((option) => option.textContent);
+}
+
+function chooseTarget(optionText: string): void {
+  fireEvent.click(target());
+  const option = screen.getByRole("option", { name: optionText });
+  // Base UI commits a mouse selection only when the pointer went down on the item.
+  fireEvent.pointerDown(option);
+  fireEvent.click(option);
+}
+
+function confirmDelete(): void {
+  fireEvent.click(within(dialog()).getByRole("button", { name: "Borrar categoría" }));
+}
+
+/** One supplier and one concept on Servicios, one supplier on Limpieza. */
+function seedUsage(): void {
+  const store = useSettingsStore.getState();
+  store.setSupplierCategory("AAA010101AAA", "A", SERVICIOS);
+  store.setSupplierCategory("BBB010101BBB", "B", SERVICIOS);
+  store.setSupplierCategory("CCC010101CCC", "C", LIMPIEZA);
+  useSettingsStore.setState({
+    conceptRules: [
+      { rfc: "AAA010101AAA", key: "luz", description: "Luz", categoryId: SERVICIOS },
+      { rfc: "CCC010101CCC", key: "cloro", description: "Cloro", categoryId: null },
+    ],
+  });
+}
+
+describe("CategoryList: delete dialog", () => {
+  it("asks about an unused category with only the body and focus on Conservar categoría", async () => {
+    render(<CategoryList />);
+    fireEvent.click(trash("Otros"));
+    expect(within(dialog()).getByText("¿Borrar la categoría «Otros»?")).toBeInTheDocument();
+    expect(
+      within(dialog()).getByText("No está asignada a ningún proveedor ni concepto."),
+    ).toBeInTheDocument();
+    expect(within(dialog()).queryByRole("combobox")).toBeNull();
+    await waitFor(() =>
+      expect(within(dialog()).getByRole("button", { name: "Conservar categoría" })).toHaveFocus(),
+    );
+    expect(within(dialog()).getByRole("button", { name: "Borrar categoría" })).toBeInTheDocument();
+  });
+
+  it("dismisses with Esc and changes nothing", async () => {
+    render(<CategoryList />);
+    fireEvent.click(trash("Otros"));
+    fireEvent.keyDown(dialog(), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(useSettingsStore.getState().categories).toHaveLength(9);
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("dismisses with Conservar categoría and changes nothing", async () => {
+    render(<CategoryList />);
+    fireEvent.click(trash("Otros"));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Conservar categoría" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(useSettingsStore.getState().categories).toHaveLength(9);
+  });
+
+  it("says how many suppliers and concepts use a category, omitting a zero part", async () => {
+    seedUsage();
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    expect(within(dialog()).getByText("La usan 2 proveedores y 1 concepto.")).toBeInTheDocument();
+    fireEvent.keyDown(dialog(), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    fireEvent.click(trash("Limpieza e higiene"));
+    expect(within(dialog()).getByText("La usan 1 proveedor.")).toBeInTheDocument();
+  });
+
+  it("starts the Pasarlos a Select on Sin categoría and lists the other categories in list order", () => {
+    seedUsage();
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    expect(target()).toHaveTextContent("Sin categoría");
+    fireEvent.click(target());
+    expect(optionTexts()).toEqual([
+      "Sin categoría",
+      ...SORTED_SEEDS.filter((name) => name !== SERVICIOS_NAME),
+    ]);
+  });
+
+  it("keeps the dialog open when an option is chosen", () => {
+    seedUsage();
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    chooseTarget("Otros");
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(target()).toHaveTextContent("Otros");
+  });
+
+  it("offers only Sin categoría when no other category exists", () => {
+    useSettingsStore.setState({ categories: [{ id: "cat_1", name: "Café" }] });
+    useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "A", "cat_1");
+    render(<CategoryList />);
+    fireEvent.click(trash("Café"));
+    fireEvent.click(target());
+    expect(optionTexts()).toEqual(["Sin categoría"]);
+  });
+
+  it("moves the assignments and the adjustments to the chosen category", () => {
+    seedUsage();
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    chooseTarget("Otros");
+    confirmDelete();
+    const state = useSettingsStore.getState();
+    expect(state.categories.some((category) => category.id === SERVICIOS)).toBe(false);
+    expect(state.supplierCategories.filter((a) => a.categoryId === "seed:otros").map((a) => a.rfc)).toEqual([
+      "AAA010101AAA",
+      "BBB010101BBB",
+    ]);
+    expect(state.conceptRules.find((rule) => rule.key === "luz")?.categoryId).toBe("seed:otros");
+    expect(rowNames()).not.toContain(SERVICIOS_NAME);
+    expect(within(row("Otros")).getByText("2 proveedores · 1 concepto")).toBeInTheDocument();
+  });
+
+  it("with Sin categoría removes the supplier assignments and makes the adjustments explicit nulls", () => {
+    seedUsage();
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    confirmDelete();
+    const state = useSettingsStore.getState();
+    expect(state.supplierCategories).toEqual([{ rfc: "CCC010101CCC", name: "C", categoryId: LIMPIEZA }]);
+    expect(state.conceptRules.find((rule) => rule.key === "luz")?.categoryId).toBeNull();
+  });
+
+  it("shows the Categoría borrada toast with Deshacer for 6 s and focuses the Mis categorías heading", async () => {
+    render(<CategoryList />);
+    fireEvent.click(trash("Otros"));
+    confirmDelete();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    const [message, options] = toastMock.mock.calls[0] ?? [];
+    expect(message).toBe("Categoría borrada");
+    expect(options?.duration).toBe(6000);
+    expect(options?.action?.label).toBe("Deshacer");
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Mis categorías" })).toHaveFocus(),
+    );
+  });
+
+  it("restores the category in its place with its assignments and adjustments on Deshacer", () => {
+    seedUsage();
+    const before = {
+      categories: useSettingsStore.getState().categories,
+      supplierCategories: useSettingsStore.getState().supplierCategories,
+      conceptRules: useSettingsStore.getState().conceptRules,
+    };
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    chooseTarget("Otros");
+    confirmDelete();
+    const [, options] = toastMock.mock.calls[0] ?? [];
+    const undo = options?.action?.onClick;
+    if (undo === undefined) throw new Error("the toast must offer Deshacer");
+    act(() => {
+      undo();
+    });
+    const state = useSettingsStore.getState();
+    expect(state.categories).toEqual(before.categories);
+    expect(state.supplierCategories).toEqual(before.supplierCategories);
+    expect(state.conceptRules).toEqual(before.conceptRules);
+    expect(rowNames()).toEqual([...SORTED_SEEDS, "Sin categoría"]);
+  });
+
+  it("renders a hostile category name as plain text in the title", () => {
+    useSettingsStore.setState({
+      categories: [{ id: "cat_1", name: '<img src=x onerror="alert(1)">' }],
+    });
+    render(<CategoryList />);
+    fireEvent.click(trash('<img src=x onerror="alert(1)">'));
+    expect(within(dialog()).getByText('¿Borrar la categoría «<img src=x onerror="alert(1)">»?')).toBeInTheDocument();
+    expect(dialog().querySelector("img")).toBeNull();
   });
 });
