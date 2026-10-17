@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, type PersistStorage } from "zustand/middleware";
 import { z } from "zod";
 import type { IvaMode } from "@/domain/accounting/aggregate";
+import { setSupplierCategory, type SupplierResult } from "@/domain/settings/assignments";
 import { resolvePersisted } from "@/domain/settings/migrate";
 import { SETTINGS_VERSION, defaultSettings, type SettingsData } from "@/domain/settings/types";
 
@@ -29,6 +30,12 @@ const envelopeSchema = z.object({
 
 interface SettingsState extends SettingsData {
   setIvaMode: (mode: IvaMode) => void;
+  /**
+   * Sets (id) or removes (null) the default category of a supplier and keeps its name
+   * next to the RFC. Only an ok result is applied, in one `set`, so persist writes once
+   * and a refused result ("limit", "unknown-category") changes nothing.
+   */
+  setSupplierCategory: (rfc: string, name: string, categoryId: string | null) => SupplierResult;
 }
 
 /**
@@ -66,9 +73,20 @@ const safeStorage: PersistStorage<unknown> = {
 
 export const useSettingsStore = create<SettingsState>()(
   persist<SettingsState, [], [], unknown>(
-    (set) => ({
+    (set, get) => ({
       ...defaultSettings(),
       setIvaMode: (ivaMode) => set({ ivaMode }),
+      setSupplierCategory: (rfc, name, categoryId) => {
+        const { ivaMode, categories, supplierCategories, conceptRules } = get();
+        const result = setSupplierCategory(
+          { ivaMode, categories, supplierCategories, conceptRules },
+          rfc,
+          name,
+          categoryId,
+        );
+        if (result.ok) set({ supplierCategories: result.next.supplierCategories });
+        return result;
+      },
     }),
     {
       name: STORAGE_KEY,
