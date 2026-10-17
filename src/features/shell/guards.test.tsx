@@ -13,6 +13,7 @@ import {
 import type { ParsedInvoice } from "@/domain/cfdi/types";
 import { logout } from "@/lib/client/logout";
 import { useSessionStore } from "@/stores/sessionStore";
+import "../../../tests/support/domPolyfills";
 import { AppShell } from "./AppShell";
 import { LogoutButton } from "./LogoutButton";
 import { useBeforeUnload } from "./useBeforeUnload";

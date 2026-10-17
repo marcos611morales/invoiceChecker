@@ -15,8 +15,7 @@ import {
 } from "@/domain/accounting/filters";
 import { previousPeriod } from "@/domain/accounting/months";
 import { qualitySummary } from "@/domain/accounting/quality";
-import { makeResolver } from "@/domain/settings/resolver";
-import { SIN_CATEGORIA, type SettingsData } from "@/domain/settings/types";
+import { useCategorySettings } from "@/features/categories/useCategorySettings";
 import { InvoiceTable } from "@/features/invoices/InvoiceTable";
 import { es } from "@/lib/copy/es";
 import { hiddenInvoiceNotice } from "@/lib/copy/messages";
@@ -46,9 +45,6 @@ export function DashboardTab() {
   const focusRequest = useSessionStore((s) => s.focusRequest);
   const clearFocusRequest = useSessionStore((s) => s.clearFocusRequest);
   const ivaMode = useSettingsStore((s) => s.ivaMode);
-  const categories = useSettingsStore((s) => s.categories);
-  const supplierCategories = useSettingsStore((s) => s.supplierCategories);
-  const conceptRules = useSettingsStore((s) => s.conceptRules);
   const ledger = useLedger();
   // The unfiltered ledger decides the notice: an incident changes the amounts whether or
   // not the current filters show its invoice (D-04). The informational D-46 type never
@@ -75,16 +71,7 @@ export function DashboardTab() {
   const previousLabel = prevRange === null ? "" : periodLabel(prevRange.from, prevRange.to);
   const series = useMemo(() => monthlySeries(visible, range, ivaMode), [visible, range, ivaMode]);
   const ranking = useMemo(() => supplierRanking(visible, ivaMode), [visible, ivaMode]);
-  // Plan 03-02 extracts these three memos into a shared hook when the Categorías tab becomes their second consumer.
-  const settings = useMemo<SettingsData>(
-    () => ({ ivaMode, categories, supplierCategories, conceptRules }),
-    [ivaMode, categories, supplierCategories, conceptRules],
-  );
-  const resolver = useMemo(() => makeResolver(settings), [settings]);
-  const nameOf = useMemo(() => {
-    const names = new Map<string, string>(categories.map((category) => [category.id, category.name]));
-    return (key: string): string => (key === SIN_CATEGORIA ? undefined : names.get(key)) ?? es.categories.none;
-  }, [categories]);
+  const { resolver, nameOf } = useCategorySettings();
   const categoryRows = useMemo(
     () => categoryBreakdown(visible, resolver, ivaMode, current.months, nameOf),
     [visible, resolver, ivaMode, current.months, nameOf],
