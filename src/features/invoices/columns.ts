@@ -14,6 +14,8 @@ import type { IvaMode } from "@/domain/accounting/aggregate";
 import { conceptAmounts, iepsOf } from "@/domain/accounting/amounts";
 import { ZERO, parseDecimal, sum, toMoneyString } from "@/domain/accounting/decimal";
 import type { EntryKind, LedgerEntry } from "@/domain/accounting/ledger";
+import { normalizeDescription } from "@/domain/settings/normalize";
+import type { CategorySource, Resolver } from "@/domain/settings/resolver";
 import { es } from "@/lib/copy/es";
 import {
   formaPagoLabel,
@@ -100,14 +102,25 @@ export interface ConceptRow {
   precioUnitario: Big | null;
   /** Amount of the active mode, signed like the invoice; null when unusable. */
   monto: Big | null;
+  /** Category id of the line (rule, then supplier), or the reserved «Sin categoría» key (D-09, D-11). */
+  category: string;
+  /** Where that category came from: a rule of the line, its supplier, or nothing. */
+  source: CategorySource;
+  /** Normalized description: the key of the rule that a change on this line stores (D-10). */
+  ruleKey: string;
 }
 
-/** Concepts of an entry in the active IVA mode (D-25). Keys are index based and stable. */
-export function conceptRows(entry: LedgerEntry, mode: IvaMode): ConceptRow[] {
+/** Concepts of an entry in the active IVA mode, with the category each line resolves to (D-25, D-11). Keys are index based and stable. */
+export function conceptRows(
+  entry: LedgerEntry,
+  mode: IvaMode,
+  resolver: Resolver,
+): ConceptRow[] {
   return entry.invoice.conceptos.map((concepto, index) => {
     const amounts = conceptAmounts(concepto, entry.invoice);
     const unidadText = concepto.unidad === null ? "" : concepto.unidad.trim();
     const unidadIsClave = unidadText === "";
+    const { category, source } = resolver.explain(entry.supplierRfc, concepto.descripcion);
     return {
       key: String(index),
       descripcion: concepto.descripcion,
@@ -116,6 +129,9 @@ export function conceptRows(entry: LedgerEntry, mode: IvaMode): ConceptRow[] {
       unidadIsClave,
       precioUnitario: amounts.precioUnitario,
       monto: mode === "con" ? amounts.conIva : amounts.sinIva,
+      category,
+      source,
+      ruleKey: normalizeDescription(concepto.descripcion),
     };
   });
 }
@@ -131,12 +147,13 @@ export function roundingDifference(
 ): Big | null {
   const invoiceAmount = entryAmount(entry, mode);
   if (invoiceAmount === null) return null;
-  const rows = conceptRows(entry, mode);
-  if (rows.length === 0) return null;
+  if (entry.invoice.conceptos.length === 0) return null;
   const montos: Big[] = [];
-  for (const row of rows) {
-    if (row.monto === null) return null;
-    montos.push(row.monto);
+  for (const concepto of entry.invoice.conceptos) {
+    const amounts = conceptAmounts(concepto, entry.invoice);
+    const monto = mode === "con" ? amounts.conIva : amounts.sinIva;
+    if (monto === null) return null;
+    montos.push(monto);
   }
   const rounded = parseDecimal(toMoneyString(invoiceAmount));
   const conceptSum = parseDecimal(toMoneyString(sum(montos)));

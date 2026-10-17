@@ -6,6 +6,7 @@ import {
   categoryAddedText,
   categoryCountLabel,
   categoryRenamedText,
+  conceptCategoryAria,
   deleteCategoryAria,
   deleteCategoryBody,
   deleteCategoryTitle,
@@ -489,5 +490,38 @@ describe("Delete category dialog copy (D-05)", () => {
     expect(deleteCategoryBody(4, 0)).toBe("La usan 4 proveedores.");
     expect(deleteCategoryBody(0, 1)).toBe("La usan 1 concepto.");
     expect(deleteCategoryBody(0, 5)).toBe("La usan 5 conceptos.");
+  });
+});
+
+describe("Concept category Select copy (UI-SPEC E7)", () => {
+  it("names the selector with the description between guillemets", () => {
+    expect(conceptCategoryAria("CLORO 1L")).toBe("Categoría del concepto «CLORO 1L»");
+  });
+
+  it("keeps a description of exactly 60 characters whole", () => {
+    const sixty = "x".repeat(60);
+    expect(conceptCategoryAria(sixty)).toBe(`Categoría del concepto «${sixty}»`);
+  });
+
+  it("caps a longer description at 60 characters, the last one being «…»", () => {
+    const text = conceptCategoryAria("y".repeat(200));
+    expect(text).toBe(`Categoría del concepto «${"y".repeat(59)}…»`);
+    const shown = text.slice("Categoría del concepto «".length, -1);
+    expect(Array.from(shown)).toHaveLength(60);
+  });
+
+  it("does not split a character made of two UTF-16 units", () => {
+    const text = conceptCategoryAria("😀".repeat(61));
+    expect(text).toBe(`Categoría del concepto «${"😀".repeat(59)}…»`);
+  });
+
+  it("keeps markup-like text as plain characters", () => {
+    expect(conceptCategoryAria("<img src=x>")).toBe("Categoría del concepto «<img src=x>»");
+  });
+
+  it("holds the fixed copy of the selector", () => {
+    expect(es.invoices.conceptColumns.category).toBe("Categoría");
+    expect(es.invoices.fromSupplier).toBe("· del proveedor");
+    expect(es.invoices.conceptLimit).toBe("Llegaste al máximo de 20,000 conceptos ajustados.");
   });
 });

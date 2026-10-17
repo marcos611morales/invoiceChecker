@@ -26,6 +26,10 @@ import {
 } from "@/components/ui/table";
 import type { IvaMode } from "@/domain/accounting/aggregate";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
+import { orderedCategories } from "@/domain/settings/categories";
+import type { Resolver } from "@/domain/settings/resolver";
+import type { Category } from "@/domain/settings/types";
+import { useCategorySettings } from "@/features/categories/useCategorySettings";
 import { es } from "@/lib/copy/es";
 import {
   appliesToText,
@@ -61,6 +65,7 @@ import {
   toInvoiceRows,
 } from "./columns";
 import type { InvoiceRow, RowState } from "./columns";
+import { ConceptCategorySelect } from "./ConceptCategorySelect";
 
 export interface InvoiceTableProps {
   /** The visible ledger entries: every one is a row, whether it sums or not (D-27). */
@@ -155,16 +160,23 @@ function ConceptsPanel({
   panelId,
   payments,
   substitutedByRef,
+  resolver,
+  categories,
+  nameOf,
 }: {
   row: InvoiceRow;
   mode: IvaMode;
   panelId: string;
   payments: ReadonlyArray<{ fechaPago: string; formaDePagoP: string }>;
   substitutedByRef: string | null;
+  resolver: Resolver;
+  /** The user's categories in list order. */
+  categories: readonly Category[];
+  nameOf: (key: string) => string;
 }) {
   const { entry } = row;
   const titleId = `${panelId}-title`;
-  const concepts = conceptRows(entry, mode);
+  const concepts = conceptRows(entry, mode, resolver);
   const difference = roundingDifference(entry, mode);
   const foreign = foreignInfo(entry, mode);
   return (
@@ -191,6 +203,7 @@ function ConceptsPanel({
             <TableHead>{es.invoices.conceptColumns.unit}</TableHead>
             <TableHead className="text-right">{es.invoices.conceptColumns.unitPrice}</TableHead>
             <TableHead className="text-right">{es.invoices.conceptColumns.amount}</TableHead>
+            <TableHead>{es.invoices.conceptColumns.category}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -208,6 +221,20 @@ function ConceptsPanel({
               </TableCell>
               <TableCell className="text-right align-top tabular-nums">
                 {concept.monto === null ? "—" : formatMoney(concept.monto)}
+              </TableCell>
+              {/* The rule belongs to supplier plus description, so the selector works on
+                  every row with concepts, summing or not (UI-SPEC Q6). */}
+              <TableCell className="align-top">
+                <ConceptCategorySelect
+                  rfc={entry.supplierRfc}
+                  supplierName={entry.supplierName}
+                  descripcion={concept.descripcion}
+                  ruleKey={concept.ruleKey}
+                  category={concept.category}
+                  source={concept.source}
+                  categories={categories}
+                  nameOf={nameOf}
+                />
               </TableCell>
             </TableRow>
           ))}
@@ -231,6 +258,8 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
   const excludeInvoice = useSessionStore((s) => s.excludeInvoice);
   const undoExclusion = useSessionStore((s) => s.undoExclusion);
   const reincludeInvoice = useSessionStore((s) => s.reincludeInvoice);
+  const { settings, resolver, nameOf } = useCategorySettings();
+  const categories = useMemo(() => orderedCategories(settings.categories), [settings.categories]);
   const focusRequest = useSessionStore((s) => s.focusRequest);
   const clearFocusRequest = useSessionStore((s) => s.clearFocusRequest);
   const rows = useMemo(() => toInvoiceRows(entries, mode), [entries, mode]);
@@ -506,6 +535,9 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
                         panelId={panelId}
                         payments={payments.get(entry.uuid) ?? []}
                         substitutedByRef={substitutedByRef}
+                        resolver={resolver}
+                        categories={categories}
+                        nameOf={nameOf}
                       />
                     </TableCell>
                   </TableRow>

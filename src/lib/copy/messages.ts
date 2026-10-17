@@ -360,6 +360,19 @@ export function supplierCategoryAria(name: string): string {
   return `Categoría por defecto de ${name}`;
 }
 
+/** Longest description kept in the accessible name of a concept selector (UI-SPEC E7 long-text). */
+const CONCEPT_ARIA_MAX = 60;
+
+/** Accessible name of the category Select of one concept line: the description is cut at 60 characters with «…». */
+export function conceptCategoryAria(descripcion: string): string {
+  const characters = Array.from(descripcion);
+  const shown =
+    characters.length > CONCEPT_ARIA_MAX
+      ? `${characters.slice(0, CONCEPT_ARIA_MAX - 1).join("")}…`
+      : descripcion;
+  return `Categoría del concepto «${shown}»`;
+}
+
 /** Count under the «Mis categorías» heading: «1 categoría» or «{n} categorías». */
 export function categoryCountLabel(n: number): string {
   return n === 1 ? "1 categoría" : `${String(n)} categorías`;

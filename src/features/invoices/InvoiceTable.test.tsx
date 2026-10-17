@@ -16,9 +16,12 @@ import { buildLedger } from "@/domain/accounting/ledger";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
 import { qualitySummary } from "@/domain/accounting/quality";
 import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
+import { defaultSettings } from "@/domain/settings/types";
+import { DashboardTab } from "@/features/dashboard/DashboardTab";
 import { formatMoney } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
-import { readStoredSettings } from "../../../tests/support/settingsStorage";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { readStoredSettings, resetSettingsStore } from "../../../tests/support/settingsStorage";
 import { makeEntry, makeInvoice, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
 import { InvoiceTable } from "./InvoiceTable";
@@ -169,6 +172,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   act(() => {
     useSessionStore.getState().clearAll();
+    resetSettingsStore();
   });
 });
 
@@ -893,5 +897,392 @@ describe("InvoiceTable focus request (D-33, Pitfall 17)", () => {
     expect(scroll).not.toHaveBeenCalled();
     expect(useSessionStore.getState().focusRequest?.uuid).toBe("P030");
     expect(dataRows()).toHaveLength(2);
+  });
+});
+
+describe("InvoiceTable concept category selector (CAT-03, D-09 to D-12, E7)", () => {
+  const A = { rfc: "AAA010101AAA", nombre: "Proveedor A" };
+  const B = { rfc: "BBB010101BBB", nombre: "Proveedor B" };
+  const ABARROTES = "seed:abarrotes-despensa";
+  const LIMPIEZA = "seed:limpieza-higiene";
+
+  /** A taxed line: importe plus 16% IVA, so Con IVA is importe + iva. */
+  function line(descripcion: string, importe: string, ivaImporte: string): Concepto {
+    return concepto({
+      descripcion,
+      valorUnitario: importe,
+      importe,
+      objetoImp: "02",
+      traslados: [iva(ivaImporte)],
+    });
+  }
+
+  /** CLORO 1L ($116.00) and Jabón ($232.00): subtotal 300.00, total 348.00. */
+  function cloroYJabon(
+    uuid: string,
+    emisor = A,
+    overrides: Partial<ParsedInvoice> = {},
+  ): ParsedInvoice {
+    return inv(uuid, {
+      emisor,
+      subTotal: "300.00",
+      total: "348.00",
+      conceptos: [line("CLORO 1L", "100.00", "16.00"), line("Jabón", "200.00", "32.00")],
+      ...overrides,
+    });
+  }
+
+  function assignSupplier(rfc: string, name: string, categoryId: string): void {
+    act(() => {
+      useSettingsStore.getState().setSupplierCategory(rfc, name, categoryId);
+    });
+  }
+
+  function conceptSelect(descripcion: string, index = 0): HTMLElement {
+    const all = screen.getAllByRole("combobox", {
+      name: `Categoría del concepto «${descripcion}»`,
+    });
+    const found = all[index];
+    if (found === undefined) throw new Error(`no selector ${descripcion} at ${String(index)}`);
+    return found;
+  }
+
+  /** Picks an item and waits for the popup to unmount, so the next pick sees only its own popup. */
+  async function choose(trigger: HTMLElement, optionName: string): Promise<void> {
+    fireEvent.click(trigger);
+    const option = screen.getByRole("option", { name: optionName });
+    // Base UI commits a mouse selection only when the pointer went down on the item.
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+    await waitFor(() => {
+      expect(screen.queryByRole("option")).toBeNull();
+    });
+  }
+
+  /** Visible text of the trigger without the chevron glyph jsdom renders as text. */
+  function valueText(trigger: HTMLElement): string {
+    return trigger.querySelector('[data-slot="select-value"]')?.textContent ?? "";
+  }
+
+  function storedRules() {
+    return useSettingsStore.getState().conceptRules;
+  }
+
+  function blockAmount(name: string): string {
+    const list = screen.getByRole("list", { name: "Gasto por categoría" });
+    const row = within(list)
+      .getAllByRole("listitem")
+      .find((item) => item.textContent.startsWith(name));
+    if (row === undefined) throw new Error(`no category row ${name}`);
+    return within(row).getByText(/^−?\$[\d,]+\.\d{2}$/).textContent;
+  }
+
+  it("adds the column Categoría after Monto and one selector per line, named after the line", () => {
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    const panel = screen.getByRole("region", { name: "Conceptos de la factura F1" });
+    const headers = within(panel)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent);
+    expect(headers).toEqual([
+      "Descripción",
+      "Cantidad",
+      "Unidad",
+      "Precio unitario",
+      "Monto",
+      "Categoría",
+    ]);
+    expect(within(panel).getAllByRole("combobox")).toHaveLength(2);
+    expect(conceptSelect("CLORO 1L")).toBeInTheDocument();
+    expect(conceptSelect("Jabón")).toBeInTheDocument();
+  });
+
+  it("E7 empty: a line with no rule and no supplier category reads «Sin categoría» muted, with no suffix", () => {
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    const trigger = conceptSelect("CLORO 1L");
+    expect(valueText(trigger)).toBe("Sin categoría");
+    expect(within(trigger).getByText("Sin categoría").className).toContain("text-muted-foreground");
+    expect(within(trigger).queryByText("· del proveedor")).toBeNull();
+  });
+
+  it("reads «{nombre} · del proveedor» for a supplier-derived value: name muted, suffix 12px muted and not shrinking", () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    const trigger = conceptSelect("CLORO 1L");
+    expect(trigger).toHaveTextContent("Abarrotes y despensa · del proveedor");
+    const name = within(trigger).getByText("Abarrotes y despensa");
+    expect(name.className).toContain("text-muted-foreground");
+    expect(name.className).toContain("truncate");
+    const suffix = within(trigger).getByText("· del proveedor");
+    expect(suffix.className).toContain("text-xs");
+    expect(suffix.className).toContain("text-muted-foreground");
+    expect(suffix.className).toContain("shrink-0");
+  });
+
+  it("lists «Sin categoría» first, then the categories in list order with «Otros» last", () => {
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    fireEvent.click(conceptSelect("CLORO 1L"));
+    const names = screen.getAllByRole("option").map((option) => option.textContent);
+    expect(names).toEqual([
+      "Sin categoría",
+      "Abarrotes y despensa",
+      "Comisiones bancarias",
+      "Insumos de cafetería",
+      "Limpieza e higiene",
+      "Mantenimiento y reparaciones",
+      "Papelería y oficina",
+      "Servicios (luz, agua, internet, teléfono)",
+      "Software y suscripciones",
+      "Otros",
+    ]);
+  });
+
+  it("E7 overflow: the popup is at most 288 px tall, its items wrap and the touch target grows under 640 px", () => {
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    const trigger = conceptSelect("CLORO 1L");
+    expect(trigger.className).toContain("min-w-[240px]");
+    expect(trigger.className).toContain("max-sm:h-11");
+    fireEvent.click(trigger);
+    const popup = document.querySelector('[data-slot="select-content"]');
+    expect(popup?.className).toContain("max-h-[min(18rem,var(--available-height))]");
+    const item = screen.getByRole("option", { name: "Servicios (luz, agua, internet, teléfono)" });
+    expect(within(item).getByText("Servicios (luz, agua, internet, teléfono)").className).toContain(
+      "whitespace-normal",
+    );
+    expect(item.className).toContain("max-sm:min-h-11");
+  });
+
+  it("CAT-03 criterion 1: changing CLORO 1L moves only that line in «Gasto por categoría»", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed([cloroYJabon("F1")]);
+    render(<DashboardTab />);
+    expect(blockAmount("Abarrotes y despensa")).toBe("$348.00");
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Limpieza e higiene");
+    expect(blockAmount("Limpieza e higiene")).toBe("$116.00");
+    expect(blockAmount("Abarrotes y despensa")).toBe("$232.00");
+    // The adjusted line is in the foreground color with no suffix; the other keeps the supplier's.
+    const adjusted = conceptSelect("CLORO 1L");
+    expect(valueText(adjusted)).toBe("Limpieza e higiene");
+    expect(within(adjusted).getByText("Limpieza e higiene").className).toContain("text-foreground");
+    expect(conceptSelect("Jabón")).toHaveTextContent("Abarrotes y despensa · del proveedor");
+    expect(storedRules()).toEqual([
+      { rfc: A.rfc, key: "cloro 1l", description: "CLORO 1L", categoryId: LIMPIEZA },
+    ]);
+  });
+
+  it("applies the rule to an equal line of the same supplier in another invoice, also when loaded later, and not to another supplier", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    assignSupplier(B.rfc, B.nombre, ABARROTES);
+    seed([
+      cloroYJabon("F1", A, { fecha: "2025-01-10T10:00:00" }),
+      inv("F2", {
+        emisor: A,
+        fecha: "2025-01-20T10:00:00",
+        subTotal: "100.00",
+        total: "116.00",
+        conceptos: [line("cloro  1l", "100.00", "16.00")],
+      }),
+      inv("F3", {
+        emisor: B,
+        fecha: "2025-01-30T10:00:00",
+        subTotal: "100.00",
+        total: "116.00",
+        conceptos: [line("CLORO 1L", "100.00", "16.00")],
+      }),
+    ]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    fireEvent.click(chevron("F2"));
+    fireEvent.click(chevron("F3"));
+    // Fecha descending lists F3 (supplier B) before F1 (supplier A): pick the line of F1.
+    const f1Line = within(
+      screen.getByRole("region", { name: "Conceptos de la factura F1" }),
+    ).getByRole("combobox", { name: "Categoría del concepto «CLORO 1L»" });
+    await choose(f1Line, "Limpieza e higiene");
+    // The equal line of supplier A (different case and spacing) follows the rule.
+    // The accessible name collapses the double space of the description.
+    expect(valueText(conceptSelect("cloro 1l"))).toBe("Limpieza e higiene");
+    // The same text from supplier B keeps B's supplier category.
+    const f3Line = within(
+      screen.getByRole("region", { name: "Conceptos de la factura F3" }),
+    ).getByRole("combobox", { name: "Categoría del concepto «CLORO 1L»" });
+    expect(f3Line).toHaveTextContent("Abarrotes y despensa · del proveedor");
+    // A later load of the same supplier follows the stored rule at once.
+    seed([
+      inv("F4", {
+        emisor: A,
+        fecha: "2025-02-01T10:00:00",
+        subTotal: "100.00",
+        total: "116.00",
+        conceptos: [line("Cloro 1L", "100.00", "16.00")],
+      }),
+    ]);
+    fireEvent.click(chevron("F4"));
+    expect(valueText(conceptSelect("Cloro 1L"))).toBe("Limpieza e higiene");
+  });
+
+  it("choosing «Sin categoría» on a supplier line stores an explicit adjustment shown in the foreground color", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Sin categoría");
+    expect(storedRules()).toEqual([
+      { rfc: A.rfc, key: "cloro 1l", description: "CLORO 1L", categoryId: null },
+    ]);
+    const trigger = conceptSelect("CLORO 1L");
+    expect(valueText(trigger)).toBe("Sin categoría");
+    expect(within(trigger).getByText("Sin categoría").className).toContain("text-foreground");
+  });
+
+  it("choosing the supplier's own category on an unadjusted line still stores a rule, shown as adjusted", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Abarrotes y despensa");
+    expect(storedRules()).toEqual([
+      { rfc: A.rfc, key: "cloro 1l", description: "CLORO 1L", categoryId: ABARROTES },
+    ]);
+    const trigger = conceptSelect("CLORO 1L");
+    expect(valueText(trigger)).toBe("Abarrotes y despensa");
+    expect(within(trigger).getByText("Abarrotes y despensa").className).toContain("text-foreground");
+  });
+
+  it("encodes the values so a category whose id is «none» cannot be confused with «Sin categoría»", async () => {
+    act(() => {
+      useSettingsStore.setState({
+        categories: [...defaultSettings().categories, { id: "none", name: "Ninguna" }],
+      });
+    });
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Ninguna");
+    expect(storedRules()[0]?.categoryId).toBe("none");
+    await choose(conceptSelect("CLORO 1L"), "Sin categoría");
+    expect(storedRules()[0]?.categoryId).toBeNull();
+  });
+
+  it("works on a «No suma» Pago row and on an «Excluida» row (UI-SPEC Q6)", async () => {
+    seed([
+      inv("PG", {
+        tipo: "P",
+        moneda: "XXX",
+        total: "0",
+        subTotal: "0",
+        conceptos: [concepto({ descripcion: "Pago" })],
+      }),
+      inv("EX", { emisor: B, conceptos: [concepto({ descripcion: "Renta" })] }),
+    ]);
+    render(<Harness />);
+    act(() => {
+      useSessionStore.getState().excludeInvoice("EX");
+    });
+    expect(within(dataRow("PG")).getByText("No suma")).toBeInTheDocument();
+    expect(within(dataRow("EX")).getByText("Excluida")).toBeInTheDocument();
+    fireEvent.click(chevron("PG"));
+    fireEvent.click(chevron("EX"));
+    await choose(conceptSelect("Pago"), "Servicios (luz, agua, internet, teléfono)");
+    await choose(conceptSelect("Renta"), "Limpieza e higiene");
+    expect(storedRules().map((rule) => [rule.rfc, rule.key, rule.categoryId])).toEqual([
+      ["EMI010101AAA", "pago", "seed:servicios"],
+      [B.rfc, "renta", LIMPIEZA],
+    ]);
+  });
+
+  it("classifies a credit-note line by the same rule and it subtracts from that category (D-12)", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed([
+      cloroYJabon("O1", A, { fecha: "2025-01-10T10:00:00" }),
+      inv("E1", {
+        emisor: A,
+        tipo: "E",
+        fecha: "2025-01-20T10:00:00",
+        subTotal: "100.00",
+        total: "116.00",
+        conceptos: [line("CLORO 1L", "100.00", "16.00")],
+        relacionados: [{ tipoRelacion: "01", uuids: ["O1"] }],
+      }),
+    ]);
+    render(<DashboardTab />);
+    fireEvent.click(chevron("O1"));
+    await choose(conceptSelect("CLORO 1L"), "Limpieza e higiene");
+    // The CLORO line of the invoice (+116.00) and of the credit note (-116.00) net to zero in
+    // Limpieza e higiene; nothing is inherited from the related invoice.
+    expect(blockAmount("Limpieza e higiene")).toBe("$0.00");
+    expect(blockAmount("Abarrotes y despensa")).toBe("$232.00");
+  });
+
+  it("refuses the 20,001st adjusted line with a toast and stores nothing", async () => {
+    act(() => {
+      useSettingsStore.setState({
+        conceptRules: Array.from({ length: 20000 }, (_, index) => ({
+          rfc: "ZZZ010101ZZZ",
+          key: `linea ${String(index)}`,
+          description: `Línea ${String(index)}`,
+          categoryId: LIMPIEZA,
+        })),
+      });
+    });
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Limpieza e higiene");
+    expect(toastMock).toHaveBeenCalledWith("Llegaste al máximo de 20,000 conceptos ajustados.");
+    expect(storedRules()).toHaveLength(20000);
+    expect(valueText(conceptSelect("CLORO 1L"))).toBe("Sin categoría");
+  });
+
+  it("caps the description in the aria-label at 60 characters", () => {
+    const long = "L".repeat(80);
+    seed([inv("F1", { conceptos: [concepto({ descripcion: long })] })]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    expect(
+      screen.getByRole("combobox", { name: `Categoría del concepto «${"L".repeat(59)}…»` }),
+    ).toBeInTheDocument();
+  });
+
+  it("E7 long-text: the trigger truncates a long category name and keeps the suffix visible", () => {
+    const longName = "Servicios de mantenimiento preventivo y correctivo de equipo".padEnd(60, "x");
+    act(() => {
+      const added = useSettingsStore.getState().addCategory(longName);
+      if (!added.ok) throw new Error("the add must be accepted");
+      useSettingsStore.getState().setSupplierCategory(A.rfc, A.nombre, added.category.id);
+    });
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    const trigger = conceptSelect("CLORO 1L");
+    expect(within(trigger).getByText(longName).className).toContain("truncate");
+    expect(within(trigger).getByText("· del proveedor").className).toContain("shrink-0");
+  });
+
+  it("renders a markup-like description and category name as text only", () => {
+    const hostile = "<img src=x onerror=alert(1)>";
+    act(() => {
+      const added = useSettingsStore.getState().addCategory(hostile);
+      if (!added.ok) throw new Error("the add must be accepted");
+      useSettingsStore.getState().setSupplierCategory(A.rfc, A.nombre, added.category.id);
+    });
+    seed([inv("F1", { emisor: A, conceptos: [concepto({ descripcion: hostile })] })]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    expect(document.querySelector("img")).toBeNull();
+    const trigger = screen.getByRole("combobox", {
+      name: `Categoría del concepto «${hostile}»`,
+    });
+    expect(trigger).toHaveTextContent(`${hostile} · del proveedor`);
   });
 });
