@@ -135,13 +135,17 @@ describe("SupplierCategoryTable order and sorting (E2 populated)", () => {
     expect(rfcs()).toEqual(["ZZZ010101AAA", "MMM010101AAA", "AAA010101AAA"]);
     sortBy("Proveedor");
     expect(header("Proveedor")).toHaveAttribute("aria-sort", "none");
-    expect(rfcs()).toEqual(["MMM010101AAA", "AAA010101AAA", "ZZZ010101AAA"]);
+    // Unsorted is the data order, which is by name.
+    expect(rfcs()).toEqual(["AAA010101AAA", "MMM010101AAA", "ZZZ010101AAA"]);
   });
 
-  it("sorts Facturas ascending on the first click", () => {
+  it("cycles Facturas from its default descending order to unsorted and then ascending", () => {
     load([...supplier("ZZZ", "Zeta", 2), ...supplier("AAA", "Alfa", 1), ...supplier("MMM", "Medio", 3)]);
     renderTable();
-    // Facturas descending is the default order, so the first click starts a cycle.
+    expect(header("Facturas")).toHaveAttribute("aria-sort", "descending");
+    // Descending is already the default, so the cycle goes on to unsorted, then ascending.
+    sortBy("Facturas");
+    expect(header("Facturas")).toHaveAttribute("aria-sort", "none");
     sortBy("Facturas");
     expect(header("Facturas")).toHaveAttribute("aria-sort", "ascending");
     expect(rfcs()).toEqual(["AAA010101AAA", "ZZZ010101AAA", "MMM010101AAA"]);

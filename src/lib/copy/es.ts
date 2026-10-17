@@ -289,6 +289,10 @@ export const es = {
     },
     deletedToast: "Categoría borrada",
     undo: "Deshacer",
+    savedOnly: "Sin facturas cargadas",
+    removeAssignment: "Quitar asignación",
+    assignmentRemoved: "Asignación quitada",
+    supplierLimit: "Llegaste al máximo de 5,000 proveedores con categoría.",
   },
 
   errors: {

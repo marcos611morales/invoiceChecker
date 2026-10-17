@@ -4,7 +4,9 @@ import { z } from "zod";
 import type { IvaMode } from "@/domain/accounting/aggregate";
 import {
   removeConceptRule,
+  removeSupplierAssignment,
   restoreConceptRule,
+  restoreSupplierAssignment,
   setConceptRule,
   setSupplierCategory,
   type RuleResult,
@@ -25,6 +27,7 @@ import {
   type Category,
   type ConceptRule,
   type SettingsData,
+  type SupplierAssignment,
 } from "@/domain/settings/types";
 
 /**
@@ -57,6 +60,16 @@ interface SettingsState extends SettingsData {
    * and a refused result ("limit", "unknown-category") changes nothing.
    */
   setSupplierCategory: (rfc: string, name: string, categoryId: string | null) => SupplierResult;
+  /**
+   * Removes the saved category of one supplier and returns the removed assignment for
+   * «Deshacer», or null when there was none (nothing is written then).
+   */
+  removeSupplierAssignment: (rfc: string) => SupplierAssignment | null;
+  /**
+   * Undo of `removeSupplierAssignment`: puts back the removed assignment. A refused restore
+   * (the category no longer exists, the list is at its limit) changes and writes nothing.
+   */
+  restoreSupplierAssignment: (removed: SupplierAssignment) => void;
   /**
    * Adds a category with a fresh `cat_` id (CAT-01). A refused name (empty, reserved,
    * duplicate, too long) or the 200-category limit changes and writes nothing.
@@ -145,6 +158,18 @@ export const useSettingsStore = create<SettingsState>()(
         );
         if (result.ok) set({ supplierCategories: result.next.supplierCategories });
         return result;
+      },
+      removeSupplierAssignment: (rfc) => {
+        const result = removeSupplierAssignment(dataOf(get()), rfc);
+        if (result.removed !== null) set({ supplierCategories: result.next.supplierCategories });
+        return result.removed;
+      },
+      restoreSupplierAssignment: (removed) => {
+        const current = dataOf(get());
+        const next = restoreSupplierAssignment(current, removed);
+        // A refused restore comes back as the same object: nothing to write.
+        if (next === current) return;
+        set({ supplierCategories: next.supplierCategories });
       },
       addCategory: (name) => {
         const result = addCategory(dataOf(get()), name, `cat_${crypto.randomUUID()}`);
