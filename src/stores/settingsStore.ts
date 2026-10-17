@@ -3,6 +3,8 @@ import { persist, type PersistStorage } from "zustand/middleware";
 import { z } from "zod";
 import type { IvaMode } from "@/domain/accounting/aggregate";
 import {
+  removeConceptRule,
+  restoreConceptRule,
   setConceptRule,
   setSupplierCategory,
   type RuleResult,
@@ -21,6 +23,7 @@ import {
   SETTINGS_VERSION,
   defaultSettings,
   type Category,
+  type ConceptRule,
   type SettingsData,
 } from "@/domain/settings/types";
 
@@ -75,6 +78,17 @@ interface SettingsState extends SettingsData {
    * in one `set`; a refused result ("limit", "unknown-category") changes nothing.
    */
   setConceptRule: (rfc: string, description: string, categoryId: string | null) => RuleResult;
+  /**
+   * Removes the rule of one concept (rfc plus normalized key) and returns the removed rule
+   * for «Deshacer», or null when there was none (nothing is written then).
+   */
+  removeConceptRule: (rfc: string, key: string) => ConceptRule | null;
+  /**
+   * Undo of a rule change: puts back exactly `previous` (the rule before the change), or
+   * removes the rule when there was none. A refused restore (the category no longer
+   * exists, the list is at its limit) changes and writes nothing.
+   */
+  restoreConceptRule: (rfc: string, key: string, previous: ConceptRule | null) => void;
 }
 
 /** The four stored fields of the current state, as the domain reducers take them. */
@@ -171,6 +185,18 @@ export const useSettingsStore = create<SettingsState>()(
         const result = setConceptRule(dataOf(get()), rfc, description, categoryId);
         if (result.ok) set({ conceptRules: result.next.conceptRules });
         return result;
+      },
+      removeConceptRule: (rfc, key) => {
+        const result = removeConceptRule(dataOf(get()), rfc, key);
+        if (result.previous !== null) set({ conceptRules: result.next.conceptRules });
+        return result.previous;
+      },
+      restoreConceptRule: (rfc, key, previous) => {
+        const current = dataOf(get());
+        const next = restoreConceptRule(current, rfc, key, previous);
+        // A refused or empty restore comes back as the same object: nothing to write.
+        if (next === current) return;
+        set({ conceptRules: next.conceptRules });
       },
     }),
     {

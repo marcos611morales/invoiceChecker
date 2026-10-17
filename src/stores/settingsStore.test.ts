@@ -606,3 +606,59 @@ describe("settingsStore setConceptRule (CAT-03)", () => {
     expect(snapshot().conceptRules).toHaveLength(20000);
   });
 });
+
+describe("settingsStore removeConceptRule and restoreConceptRule (CAT-03, Q5)", () => {
+  const RFC = "AAA010101AAA";
+
+  it("removes the rule in one write and returns it for the undo", () => {
+    useSettingsStore.getState().setConceptRule(RFC, "Cloro", "seed:servicios");
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const previous = useSettingsStore.getState().removeConceptRule(RFC, "cloro");
+    expect(previous).toEqual({
+      rfc: RFC,
+      key: "cloro",
+      description: "Cloro",
+      categoryId: "seed:servicios",
+    });
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().conceptRules).toEqual([]);
+  });
+
+  it("returns null and writes nothing when there is no such rule", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().removeConceptRule(RFC, "cloro")).toBeNull();
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("restores exactly the rule from before a change, in one write", () => {
+    useSettingsStore.getState().setConceptRule(RFC, "Cloro", "seed:servicios");
+    const before = snapshot();
+    const changed = useSettingsStore.getState().setConceptRule(RFC, "CLORO", "seed:otros");
+    if (!changed.ok) throw new Error("the change must be accepted");
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSettingsStore.getState().restoreConceptRule(RFC, "cloro", changed.previous);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot()).toEqual(before);
+    expect(storedEnvelope()).toEqual({ state: before, version: 2 });
+  });
+
+  it("removes the rule when the change had no previous one", () => {
+    const before = snapshot();
+    const changed = useSettingsStore.getState().setConceptRule(RFC, "Cloro", "seed:servicios");
+    if (!changed.ok) throw new Error("the change must be accepted");
+    useSettingsStore.getState().restoreConceptRule(RFC, "cloro", changed.previous);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it("writes nothing when the restore is refused", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSettingsStore.getState().restoreConceptRule(RFC, "cloro", {
+      rfc: RFC,
+      key: "cloro",
+      description: "Cloro",
+      categoryId: "cat_borrada",
+    });
+    expect(setItem).not.toHaveBeenCalled();
+    expect(snapshot().conceptRules).toEqual([]);
+  });
+});

@@ -1,10 +1,11 @@
 import Big from "big.js";
 import { describe, expect, it } from "vitest";
 import type { Concepto, ParsedInvoice } from "../cfdi/types";
+import { ruleMapKey } from "../settings/normalize";
 import { makeResolver } from "../settings/resolver";
 import { SIN_CATEGORIA, defaultSettings } from "../settings/types";
 import { totalSpend } from "./aggregate";
-import { categoryBreakdown, splitEntry } from "./categories";
+import { categoryBreakdown, ruleLineCounts, splitEntry } from "./categories";
 import { ZERO, sum } from "./decimal";
 import { EMPTY_OVERRIDES, buildLedger, type LedgerEntry } from "./ledger";
 import {
@@ -271,5 +272,57 @@ describe("categoryBreakdown (D-13, D-16)", () => {
 
   it("returns no rows for an empty visible set", () => {
     expect(categoryBreakdown([], resolver, "con", 1, nameOf)).toEqual([]);
+  });
+});
+
+describe("ruleLineCounts (D-09)", () => {
+  const withLines = (
+    emisor: { rfc: string; nombre: string },
+    descripciones: string[],
+    extra: Partial<ParsedInvoice> = {},
+  ) =>
+    makeInvoice({
+      emisor,
+      conceptos: descripciones.map((descripcion) => concepto(descripcion, "100.00", "16.00")),
+      ...extra,
+    });
+
+  it("counts the equal lines of one supplier across invoices under its rule key", () => {
+    const ledger = ledgerOf([withLines(A, ["CLORO 1L", "Jabón"]), withLines(A, ["cloro  1l"])]);
+    const counts = ruleLineCounts(ledger);
+    expect(counts.get(ruleMapKey(A.rfc, "cloro 1l"))).toBe(2);
+    expect(counts.get(ruleMapKey(A.rfc, "jabon"))).toBe(1);
+  });
+
+  it("keeps the same text of another supplier under that supplier's own key", () => {
+    const ledger = ledgerOf([withLines(A, ["CLORO 1L"]), withLines(B, ["Cloro 1L"])]);
+    const counts = ruleLineCounts(ledger);
+    expect(counts.get(ruleMapKey(A.rfc, "cloro 1l"))).toBe(1);
+    expect(counts.get(ruleMapKey(B.rfc, "cloro 1l"))).toBe(1);
+  });
+
+  it("counts two equal lines of the same invoice, and ñ stays apart from n", () => {
+    const ledger = ledgerOf([withLines(A, ["Peña", "PEÑA", "Pena"])]);
+    const counts = ruleLineCounts(ledger);
+    expect(counts.get(ruleMapKey(A.rfc, "peña"))).toBe(2);
+    expect(counts.get(ruleMapKey(A.rfc, "pena"))).toBe(1);
+  });
+
+  it("counts the lines of Pago and excluded entries, which do not add to the spend", () => {
+    const pago = withLines(A, ["CLORO 1L"], { tipo: "P" });
+    const excluded = withLines(A, ["CLORO 1L"]);
+    const ledger = buildLedger(
+      [loaded(pago), loaded(excluded), loaded(withLines(A, ["CLORO 1L"]))],
+      { excluded: new Set([excluded.uuid]), restored: new Set<string>() },
+      TEST_FECHA_CONTEXT,
+    );
+    expect(ledger.some((entry) => !entry.counted)).toBe(true);
+    expect(ruleLineCounts(ledger).get(ruleMapKey(A.rfc, "cloro 1l"))).toBe(3);
+  });
+
+  it("returns an empty map for an empty ledger and treats __proto__ as plain data", () => {
+    expect(ruleLineCounts([]).size).toBe(0);
+    const ledger = ledgerOf([withLines({ rfc: "__proto__", nombre: "Raro" }, ["__proto__"])]);
+    expect(ruleLineCounts(ledger).get(ruleMapKey("__proto__", "__proto__"))).toBe(1);
   });
 });

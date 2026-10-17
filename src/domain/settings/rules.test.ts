@@ -4,7 +4,7 @@ import { buildLedger, EMPTY_OVERRIDES } from "../accounting/ledger";
 import type { LedgerEntry } from "../accounting/ledger";
 import type { Concepto, ParsedInvoice } from "../cfdi/types";
 import { loaded, makeInvoice, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
-import { setConceptRule } from "./assignments";
+import { removeConceptRule, restoreConceptRule, setConceptRule } from "./assignments";
 import { ruleMapKey } from "./normalize";
 import { makeResolver } from "./resolver";
 import { settingsDataSchema } from "./schema";
@@ -283,5 +283,139 @@ describe("splitEntry with concept rules (D-12)", () => {
       [ABARROTES, "-116"],
       [ABARROTES, "-116"],
     ]);
+  });
+});
+
+describe("removeConceptRule (CAT-03, Q5)", () => {
+  const withCloro = (): SettingsData =>
+    mustApply(setConceptRule(defaultSettings(), RFC, "CLORO 1L", LIMPIEZA)).next;
+
+  it("returns the removed rule as previous and next without it", () => {
+    const { next, previous } = removeConceptRule(withCloro(), RFC, "cloro 1l");
+    expect(previous).toEqual({
+      rfc: RFC,
+      key: "cloro 1l",
+      description: "CLORO 1L",
+      categoryId: LIMPIEZA,
+    });
+    expect(next.conceptRules).toEqual([]);
+  });
+
+  it("keeps the rules of other keys and of other suppliers", () => {
+    const settings = mustApply(setConceptRule(withCloro(), OTHER_RFC, "CLORO 1L", SERVICIOS)).next;
+    const more = mustApply(setConceptRule(settings, RFC, "Jabón", SERVICIOS)).next;
+    const { next } = removeConceptRule(more, RFC, "cloro 1l");
+    expect(next.conceptRules.map((rule) => [rule.rfc, rule.key])).toEqual([
+      [OTHER_RFC, "cloro 1l"],
+      [RFC, "jabon"],
+    ]);
+  });
+
+  it("returns previous null and the same settings when the rule is missing", () => {
+    const settings = withCloro();
+    const result = removeConceptRule(settings, RFC, "no existe");
+    expect(result.previous).toBeNull();
+    expect(result.next).toBe(settings);
+    expect(removeConceptRule(settings, OTHER_RFC, "cloro 1l").previous).toBeNull();
+  });
+
+  it("removes an explicit «Sin categoría» rule and reports it", () => {
+    const settings = mustApply(setConceptRule(defaultSettings(), RFC, "Cloro", null)).next;
+    const { next, previous } = removeConceptRule(settings, RFC, "cloro");
+    expect(previous).toEqual({ rfc: RFC, key: "cloro", description: "Cloro", categoryId: null });
+    expect(next.conceptRules).toEqual([]);
+  });
+
+  it("never mutates its input", () => {
+    const frozen = deepFreeze(withCloro());
+    expect(() => removeConceptRule(frozen, RFC, "cloro 1l")).not.toThrow();
+    expect(() => removeConceptRule(frozen, RFC, "otra")).not.toThrow();
+    expect(frozen.conceptRules).toHaveLength(1);
+  });
+});
+
+describe("restoreConceptRule (CAT-03, Q5, T-03-36)", () => {
+  it("with previous null removes the rule that the change created", () => {
+    const before = defaultSettings();
+    const changed = mustApply(setConceptRule(before, RFC, "Cloro", LIMPIEZA));
+    const restored = restoreConceptRule(changed.next, RFC, "cloro", changed.previous);
+    expect(restored).toEqual(before);
+  });
+
+  it("with a rule puts it back exactly: rfc, key, description and category", () => {
+    const first = mustApply(setConceptRule(defaultSettings(), RFC, "CLORO 1L", LIMPIEZA)).next;
+    const changed = mustApply(setConceptRule(first, RFC, "cloro  1l", SERVICIOS));
+    const restored = restoreConceptRule(changed.next, RFC, "cloro 1l", changed.previous);
+    expect(restored).toEqual(first);
+    expect(restored.conceptRules).toEqual([
+      { rfc: RFC, key: "cloro 1l", description: "CLORO 1L", categoryId: LIMPIEZA },
+    ]);
+  });
+
+  it("round-trips an explicit «Sin categoría» rule", () => {
+    const first = mustApply(setConceptRule(defaultSettings(), RFC, "Cloro", null)).next;
+    const changed = mustApply(setConceptRule(first, RFC, "Cloro", LIMPIEZA));
+    expect(restoreConceptRule(changed.next, RFC, "cloro", changed.previous)).toEqual(first);
+  });
+
+  it("keeps the position of the rule in the list when it replaces the changed one", () => {
+    const base = mustApply(setConceptRule(defaultSettings(), RFC, "Uno", LIMPIEZA)).next;
+    const withTwo = mustApply(setConceptRule(base, RFC, "Dos", LIMPIEZA)).next;
+    const withThree = mustApply(setConceptRule(withTwo, RFC, "Tres", LIMPIEZA)).next;
+    const changed = mustApply(setConceptRule(withThree, RFC, "Dos", SERVICIOS));
+    expect(restoreConceptRule(changed.next, RFC, "dos", changed.previous)).toEqual(withThree);
+  });
+
+  it("puts back a removed rule", () => {
+    const settings = mustApply(setConceptRule(defaultSettings(), RFC, "CLORO 1L", LIMPIEZA)).next;
+    const removed = removeConceptRule(settings, RFC, "cloro 1l");
+    expect(restoreConceptRule(removed.next, RFC, "cloro 1l", removed.previous)).toEqual(settings);
+  });
+
+  it("returns the same settings when previous is null and there is no rule", () => {
+    const settings = defaultSettings();
+    expect(restoreConceptRule(settings, RFC, "cloro", null)).toBe(settings);
+  });
+
+  it("refuses silently when the category of the rule no longer exists", () => {
+    const rule: ConceptRule = {
+      rfc: RFC,
+      key: "cloro",
+      description: "Cloro",
+      categoryId: "cat_borrada",
+    };
+    const settings = defaultSettings();
+    expect(restoreConceptRule(settings, RFC, "cloro", rule)).toBe(settings);
+    const withOther = mustApply(setConceptRule(settings, RFC, "Cloro", LIMPIEZA)).next;
+    expect(restoreConceptRule(withOther, RFC, "cloro", rule)).toBe(withOther);
+  });
+
+  it("refuses silently when putting the rule back would pass the 20,000 limit", () => {
+    const full = withRules(LIMITS.conceptRules);
+    const rule: ConceptRule = {
+      rfc: RFC,
+      key: "nueva",
+      description: "Nueva",
+      categoryId: LIMPIEZA,
+    };
+    expect(restoreConceptRule(full, RFC, "nueva", rule)).toBe(full);
+  });
+
+  it("restores an explicit null category even though no category matches it", () => {
+    const rule: ConceptRule = { rfc: RFC, key: "cloro", description: "Cloro", categoryId: null };
+    const restored = restoreConceptRule(defaultSettings(), RFC, "cloro", rule);
+    expect(restored.conceptRules).toEqual([rule]);
+  });
+
+  it("never mutates its input and returns schema-valid settings", () => {
+    const frozen = deepFreeze(
+      mustApply(setConceptRule(defaultSettings(), RFC, "Cloro", LIMPIEZA)).next,
+    );
+    const rule: ConceptRule = { rfc: RFC, key: "cloro", description: "CLORO", categoryId: SERVICIOS };
+    const restored = restoreConceptRule(frozen, RFC, "cloro", rule);
+    expect(restored).not.toBe(frozen);
+    expect(frozen.conceptRules[0]?.categoryId).toBe(LIMPIEZA);
+    expect(() => restoreConceptRule(frozen, RFC, "cloro", null)).not.toThrow();
+    expect(settingsDataSchema.safeParse(restored).success).toBe(true);
   });
 });

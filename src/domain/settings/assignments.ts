@@ -106,3 +106,27 @@ export function setConceptRule(
     previous: settings.conceptRules[index] ?? null,
   };
 }
+
+/** Stub of the RED step: replaced by the real reducer in the GREEN commit. */
+export function removeConceptRule(
+  settings: SettingsData,
+  rfc: string,
+  key: string,
+): { next: SettingsData; previous: ConceptRule | null } {
+  void rfc;
+  void key;
+  return { next: settings, previous: null };
+}
+
+/** Stub of the RED step: replaced by the real reducer in the GREEN commit. */
+export function restoreConceptRule(
+  settings: SettingsData,
+  rfc: string,
+  key: string,
+  previous: ConceptRule | null,
+): SettingsData {
+  void rfc;
+  void key;
+  void previous;
+  return settings;
+}

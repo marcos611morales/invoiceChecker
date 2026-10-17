@@ -128,3 +128,9 @@ export function categoryBreakdown(
     return a.category < b.category ? -1 : a.category > b.category ? 1 : 0;
   });
 }
+
+/** Stub of the RED step: replaced by the real count in the GREEN commit. */
+export function ruleLineCounts(entries: readonly LedgerEntry[]): Map<string, number> {
+  void entries;
+  return new Map<string, number>();
+}
