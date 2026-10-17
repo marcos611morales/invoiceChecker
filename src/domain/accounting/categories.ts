@@ -13,6 +13,7 @@
  * division runs on a zero divisor.
  */
 import type Big from "big.js";
+import { normalizeDescription, ruleMapKey } from "../settings/normalize";
 import type { Resolver } from "../settings/resolver";
 import { totalSpend, type IvaMode } from "./aggregate";
 import { conceptAmounts } from "./amounts";
@@ -129,8 +130,21 @@ export function categoryBreakdown(
   });
 }
 
-/** Stub of the RED step: replaced by the real count in the GREEN commit. */
+/**
+ * Number of concept lines each rule key reaches among the loaded entries (D-09).
+ * Every line of every entry counts, whatever its kind and whether the entry sums or
+ * not (Pago, excluded, credit notes), because the caption says how far the rule
+ * reaches before and after a change. The key is `ruleMapKey(supplierRfc,
+ * normalizeDescription(descripcion))`, the same one the resolver and the stored
+ * rules use; a Map keeps RFCs and descriptions such as "__proto__" as plain data.
+ */
 export function ruleLineCounts(entries: readonly LedgerEntry[]): Map<string, number> {
-  void entries;
-  return new Map<string, number>();
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    for (const concepto of entry.invoice.conceptos) {
+      const key = ruleMapKey(entry.supplierRfc, normalizeDescription(concepto.descripcion));
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return counts;
 }

@@ -107,26 +107,65 @@ export function setConceptRule(
   };
 }
 
-/** Stub of the RED step: replaced by the real reducer in the GREEN commit. */
+/**
+ * Removes the rule of one concept (rfc plus normalized key) and returns it as
+ * `previous`, which is what «Deshacer» needs to put it back (UI-SPEC Q5).
+ * A missing rule gives `previous` null and the same settings object.
+ */
 export function removeConceptRule(
   settings: SettingsData,
   rfc: string,
   key: string,
 ): { next: SettingsData; previous: ConceptRule | null } {
-  void rfc;
-  void key;
-  return { next: settings, previous: null };
+  const previous =
+    settings.conceptRules.find((rule) => rule.rfc === rfc && rule.key === key) ?? null;
+  if (previous === null) return { next: settings, previous: null };
+  return {
+    next: {
+      ...settings,
+      conceptRules: settings.conceptRules.filter((rule) => rule !== previous),
+    },
+    previous,
+  };
 }
 
-/** Stub of the RED step: replaced by the real reducer in the GREEN commit. */
+/**
+ * Undo of a rule change (UI-SPEC Q5, T-03-36): puts back exactly `previous`, the
+ * rule as it was before the change, or removes the rule when there was none.
+ * A rule that exists now is replaced in place, so the list order is the one from
+ * before the change. It refuses silently, returning the same settings object, when
+ * there is nothing to do, when the category of `previous` no longer exists, or when
+ * appending it would pass LIMITS.conceptRules.
+ */
 export function restoreConceptRule(
   settings: SettingsData,
   rfc: string,
   key: string,
   previous: ConceptRule | null,
 ): SettingsData {
-  void rfc;
-  void key;
-  void previous;
-  return settings;
+  const index = settings.conceptRules.findIndex((rule) => rule.rfc === rfc && rule.key === key);
+  if (previous === null) {
+    if (index < 0) return settings;
+    return {
+      ...settings,
+      conceptRules: settings.conceptRules.filter((_rule, position) => position !== index),
+    };
+  }
+  if (
+    previous.categoryId !== null &&
+    !settings.categories.some((category) => category.id === previous.categoryId)
+  ) {
+    return settings;
+  }
+  const rule: ConceptRule = { ...previous };
+  if (index < 0) {
+    if (settings.conceptRules.length >= LIMITS.conceptRules) return settings;
+    return { ...settings, conceptRules: [...settings.conceptRules, rule] };
+  }
+  return {
+    ...settings,
+    conceptRules: settings.conceptRules.map((existing, position) =>
+      position === index ? rule : existing,
+    ),
+  };
 }
