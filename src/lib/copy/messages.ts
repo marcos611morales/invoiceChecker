@@ -373,6 +373,16 @@ export function conceptCategoryAria(descripcion: string): string {
   return `Categoría del concepto «${shown}»`;
 }
 
+/** Stub of the RED step: replaced by the real sentence in the GREEN commit. */
+export function categoryChangedToast(descripcion: string, categoria: string): string {
+  return `${descripcion}${categoria}`;
+}
+
+/** Stub of the RED step: replaced by the real caption in the GREEN commit. */
+export function appliesToLinesText(n: number): string {
+  return String(n);
+}
+
 /** Count under the «Mis categorías» heading: «1 categoría» or «{n} categorías». */
 export function categoryCountLabel(n: number): string {
   return n === 1 ? "1 categoría" : `${String(n)} categorías`;

@@ -6,6 +6,8 @@ import {
   categoryAddedText,
   categoryCountLabel,
   categoryRenamedText,
+  appliesToLinesText,
+  categoryChangedToast,
   conceptCategoryAria,
   deleteCategoryAria,
   deleteCategoryBody,
@@ -523,5 +525,50 @@ describe("Concept category Select copy (UI-SPEC E7)", () => {
     expect(es.invoices.conceptColumns.category).toBe("Categoría");
     expect(es.invoices.fromSupplier).toBe("· del proveedor");
     expect(es.invoices.conceptLimit).toBe("Llegaste al máximo de 20,000 conceptos ajustados.");
+  });
+});
+
+describe("Concept change toast and reach caption (UI-SPEC E7, Q5)", () => {
+  it("names the description between guillemets and the new category", () => {
+    expect(categoryChangedToast("CLORO 1L", "Limpieza e higiene")).toBe(
+      "Categoría de «CLORO 1L» cambiada a Limpieza e higiene",
+    );
+  });
+
+  it("keeps a description of exactly 40 characters whole", () => {
+    const forty = "x".repeat(40);
+    expect(categoryChangedToast(forty, "Otros")).toBe(`Categoría de «${forty}» cambiada a Otros`);
+  });
+
+  it("caps a longer description at 40 characters including the «…»", () => {
+    const text = categoryChangedToast("y".repeat(80), "Otros");
+    expect(text).toBe(`Categoría de «${"y".repeat(39)}…» cambiada a Otros`);
+    const shown = text.slice("Categoría de «".length, text.indexOf("» cambiada"));
+    expect(Array.from(shown)).toHaveLength(40);
+  });
+
+  it("does not split a character made of two UTF-16 units", () => {
+    expect(categoryChangedToast("😀".repeat(41), "Otros")).toBe(
+      `Categoría de «${"😀".repeat(39)}…» cambiada a Otros`,
+    );
+  });
+
+  it("keeps markup-like text as plain characters and never cuts the category name", () => {
+    const longName = "Servicios de mantenimiento preventivo y correctivo de equipo";
+    expect(categoryChangedToast("<img src=x>", longName)).toBe(
+      `Categoría de «<img src=x>» cambiada a ${longName}`,
+    );
+  });
+
+  it("reads «Aplica a 1 línea de» for one line and «Aplica a {n} líneas de» otherwise", () => {
+    expect(appliesToLinesText(1)).toBe("Aplica a 1 línea de");
+    expect(appliesToLinesText(2)).toBe("Aplica a 2 líneas de");
+    expect(appliesToLinesText(37)).toBe("Aplica a 37 líneas de");
+    expect(appliesToLinesText(0)).toBe("Aplica a 0 líneas de");
+  });
+
+  it("holds the fixed copy of the removal", () => {
+    expect(es.invoices.removeAdjustment).toBe("Quitar ajuste");
+    expect(es.invoices.adjustmentRemoved).toBe("Ajuste quitado");
   });
 });

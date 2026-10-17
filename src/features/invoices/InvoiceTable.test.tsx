@@ -1285,4 +1285,238 @@ describe("InvoiceTable concept category selector (CAT-03, D-09 to D-12, E7)", ()
     });
     expect(trigger).toHaveTextContent(`${hostile} · del proveedor`);
   });
+
+  /** The most recent toast whose message is `message`, with its options. */
+  function lastToast(message: string): ToastOptions {
+    for (let index = toastMock.mock.calls.length - 1; index >= 0; index -= 1) {
+      const [text, options] = toastMock.mock.calls[index] ?? [];
+      if (text === message) return options ?? {};
+    }
+    throw new Error(`no toast ${message}`);
+  }
+
+  function toastMessages(): string[] {
+    return toastMock.mock.calls.map(([text]) => text);
+  }
+
+  /** Opens the popup without choosing anything, reads its option names and closes it. */
+  async function optionNames(trigger: HTMLElement): Promise<string[]> {
+    fireEvent.click(trigger);
+    const names = screen.getAllByRole("option").map((option) => option.textContent);
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByRole("option")).toBeNull();
+    });
+    return names;
+  }
+
+  /** The «Aplica a {n} líneas de {proveedor}» caption under a selector, or null. */
+  function reachCaption(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('[data-slot="concept-reach"]');
+  }
+
+  /** Two loaded lines of supplier A that share the rule key «cloro 1l», plus an unrelated one. */
+  function twoCloroLines(): ParsedInvoice[] {
+    return [
+      cloroYJabon("F1", A, { fecha: "2025-01-10T10:00:00" }),
+      inv("F2", {
+        emisor: A,
+        fecha: "2025-01-20T10:00:00",
+        subTotal: "100.00",
+        total: "116.00",
+        conceptos: [line("cloro  1l", "100.00", "16.00")],
+      }),
+    ];
+  }
+
+  it("Q5: a change shows the toast with Deshacer for 6 s, and the caption counts the lines the rule reaches", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed(twoCloroLines());
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    expect(reachCaption()).toBeNull();
+    await choose(conceptSelect("CLORO 1L"), "Limpieza e higiene");
+    const caption = reachCaption();
+    expect(caption).not.toBeNull();
+    expect(caption).toHaveTextContent("Aplica a 2 líneas de Proveedor A");
+    expect(caption?.className).toContain("text-xs");
+    expect(caption?.className).toContain("text-muted-foreground");
+    const message = "Categoría de «CLORO 1L» cambiada a Limpieza e higiene";
+    expect(toastMock).toHaveBeenCalledWith(message, expect.objectContaining({ duration: 6000 }));
+    expect(lastToast(message).action?.label).toBe("Deshacer");
+  });
+
+  it("Q5: Deshacer removes the rule it created and the caption disappears", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed(twoCloroLines());
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Limpieza e higiene");
+    expect(storedRules()).toHaveLength(1);
+    const undo = lastToast("Categoría de «CLORO 1L» cambiada a Limpieza e higiene").action?.onClick;
+    if (undo === undefined) throw new Error("no undo action");
+    act(() => {
+      undo();
+    });
+    expect(storedRules()).toEqual([]);
+    expect(reachCaption()).toBeNull();
+    expect(conceptSelect("CLORO 1L")).toHaveTextContent("Abarrotes y despensa · del proveedor");
+  });
+
+  it("T-03-36: Deshacer on an already adjusted line puts back exactly the previous rule", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed(twoCloroLines());
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Limpieza e higiene");
+    const before = storedRules();
+    await choose(conceptSelect("CLORO 1L"), "Servicios (luz, agua, internet, teléfono)");
+    expect(storedRules()[0]?.categoryId).toBe("seed:servicios");
+    const undo = lastToast(
+      "Categoría de «CLORO 1L» cambiada a Servicios (luz, agua, internet, teléfono)",
+    ).action?.onClick;
+    if (undo === undefined) throw new Error("no undo action");
+    act(() => {
+      undo();
+    });
+    expect(storedRules()).toEqual(before);
+    expect(valueText(conceptSelect("CLORO 1L"))).toBe("Limpieza e higiene");
+    expect(reachCaption()).toHaveTextContent("Aplica a 2 líneas de Proveedor A");
+  });
+
+  it("Q5: Deshacer after an explicit «Sin categoría» restores the supplier's category", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed(twoCloroLines());
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Sin categoría");
+    expect(storedRules()[0]?.categoryId).toBeNull();
+    const undo = lastToast("Categoría de «CLORO 1L» cambiada a Sin categoría").action?.onClick;
+    if (undo === undefined) throw new Error("no undo action");
+    act(() => {
+      undo();
+    });
+    expect(storedRules()).toEqual([]);
+    expect(conceptSelect("CLORO 1L")).toHaveTextContent("Abarrotes y despensa · del proveedor");
+  });
+
+  it("E7 zero-one-many: the caption reads «1 línea» with one matching line and counts loaded lines of later loads", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Limpieza e higiene");
+    expect(reachCaption()).toHaveTextContent("Aplica a 1 línea de Proveedor A");
+    seed([
+      inv("F2", {
+        emisor: A,
+        subTotal: "100.00",
+        total: "116.00",
+        conceptos: [line("Cloro 1L", "100.00", "16.00")],
+      }),
+      inv("F3", {
+        emisor: B,
+        subTotal: "100.00",
+        total: "116.00",
+        conceptos: [line("Cloro 1L", "100.00", "16.00")],
+      }),
+    ]);
+    // Supplier B's equal text does not count; supplier A's later line does.
+    expect(reachCaption()).toHaveTextContent("Aplica a 2 líneas de Proveedor A");
+  });
+
+  it("D-09: the count includes the lines of a Pago and of an excluded invoice", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed([
+      cloroYJabon("F1", A, { fecha: "2025-01-10T10:00:00" }),
+      cloroYJabon("F2", A, { fecha: "2025-01-11T10:00:00", tipo: "P" }),
+      cloroYJabon("F3", A, { fecha: "2025-01-12T10:00:00" }),
+    ]);
+    act(() => {
+      useSessionStore.getState().excludeInvoice("F3");
+    });
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Limpieza e higiene");
+    expect(reachCaption()).toHaveTextContent("Aplica a 3 líneas de Proveedor A");
+  });
+
+  it("E7 populated: a supplier-derived or implicit line has no caption and no «Quitar ajuste» item", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed([cloroYJabon("F1")]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    expect(reachCaption()).toBeNull();
+    const names = await optionNames(conceptSelect("CLORO 1L"));
+    expect(names).not.toContain("Quitar ajuste");
+    expect(names[0]).toBe("Sin categoría");
+  });
+
+  it("Q5: «Quitar ajuste» comes last after a separator on an adjusted line and removes the rule", async () => {
+    assignSupplier(A.rfc, A.nombre, ABARROTES);
+    seed(twoCloroLines());
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Limpieza e higiene");
+    fireEvent.click(conceptSelect("CLORO 1L"));
+    const options = screen.getAllByRole("option");
+    expect(options[options.length - 1]).toHaveTextContent("Quitar ajuste");
+    expect(document.querySelector('[data-slot="select-separator"]')).not.toBeNull();
+    toastMock.mockClear();
+    const remove = screen.getByRole("option", { name: "Quitar ajuste" });
+    fireEvent.pointerDown(remove);
+    fireEvent.click(remove);
+    await waitFor(() => {
+      expect(screen.queryByRole("option")).toBeNull();
+    });
+    expect(storedRules()).toEqual([]);
+    expect(reachCaption()).toBeNull();
+    expect(toastMessages()).toEqual(["Ajuste quitado"]);
+    expect(conceptSelect("CLORO 1L")).toHaveTextContent("Abarrotes y despensa · del proveedor");
+  });
+
+  it("E7 long-text: the toast cuts the description to 40 characters including «…»", async () => {
+    const long = "D".repeat(80);
+    seed([inv("F1", { conceptos: [line(long, "100.00", "16.00")] })]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(
+      screen.getByRole("combobox", { name: `Categoría del concepto «${"D".repeat(59)}…»` }),
+      "Limpieza e higiene",
+    );
+    expect(toastMessages()).toEqual([
+      `Categoría de «${"D".repeat(39)}…» cambiada a Limpieza e higiene`,
+    ]);
+  });
+
+  it("E7 long-text: the caption cuts a long supplier name with TruncatedText and keeps the full name accessible", async () => {
+    const longName = "Comercializadora de abarrotes y productos de limpieza del bajío ".repeat(2).trim();
+    seed([cloroYJabon("F1", { rfc: A.rfc, nombre: longName })]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(conceptSelect("CLORO 1L"), "Limpieza e higiene");
+    const caption = reachCaption();
+    if (caption === null) throw new Error("no caption");
+    const name = within(caption).getByRole("button", { name: longName });
+    expect(name.className).toContain("truncate");
+  });
+
+  it("T-03-35: markup-like supplier and description text stays text in the caption and the toast", async () => {
+    const hostile = "<img src=x onerror=alert(1)>";
+    seed([
+      inv("F1", {
+        emisor: { rfc: A.rfc, nombre: hostile },
+        conceptos: [line(hostile, "100.00", "16.00")],
+      }),
+    ]);
+    render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    await choose(
+      screen.getByRole("combobox", { name: `Categoría del concepto «${hostile}»` }),
+      "Limpieza e higiene",
+    );
+    expect(document.querySelector("img")).toBeNull();
+    expect(reachCaption()).toHaveTextContent(`Aplica a 1 línea de ${hostile}`);
+    expect(toastMessages()).toContain(`Categoría de «${hostile}» cambiada a Limpieza e higiene`);
+  });
 });
