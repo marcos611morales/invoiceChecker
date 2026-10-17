@@ -252,7 +252,12 @@ export const useSettingsStore = create<SettingsState>()(
         set({ conceptRules: next.conceptRules });
       },
       replaceAll: (data) => {
-        void data;
+        set({
+          ivaMode: data.ivaMode,
+          categories: data.categories,
+          supplierCategories: data.supplierCategories,
+          conceptRules: data.conceptRules,
+        });
       },
     }),
     {
