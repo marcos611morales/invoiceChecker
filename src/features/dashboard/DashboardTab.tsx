@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { kpiDeltas, kpis, monthlySeries, supplierRanking } from "@/domain/accounting/aggregate";
+import { categoryBreakdown } from "@/domain/accounting/categories";
 import {
   applyFilters,
   loadedSpan,
@@ -14,12 +15,15 @@ import {
 } from "@/domain/accounting/filters";
 import { previousPeriod } from "@/domain/accounting/months";
 import { qualitySummary } from "@/domain/accounting/quality";
+import { makeResolver } from "@/domain/settings/resolver";
+import { SIN_CATEGORIA, type SettingsData } from "@/domain/settings/types";
 import { InvoiceTable } from "@/features/invoices/InvoiceTable";
 import { es } from "@/lib/copy/es";
 import { hiddenInvoiceNotice } from "@/lib/copy/messages";
 import { invoiceRef, periodLabel } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { CategorySpend } from "./CategorySpend";
 import { FilterBar } from "./FilterBar";
 import { KpiRow } from "./KpiRow";
 import { SupplierRanking } from "./SupplierRanking";
@@ -42,6 +46,9 @@ export function DashboardTab() {
   const focusRequest = useSessionStore((s) => s.focusRequest);
   const clearFocusRequest = useSessionStore((s) => s.clearFocusRequest);
   const ivaMode = useSettingsStore((s) => s.ivaMode);
+  const categories = useSettingsStore((s) => s.categories);
+  const supplierCategories = useSettingsStore((s) => s.supplierCategories);
+  const conceptRules = useSettingsStore((s) => s.conceptRules);
   const ledger = useLedger();
   // The unfiltered ledger decides the notice: an incident changes the amounts whether or
   // not the current filters show its invoice (D-04). The informational D-46 type never
@@ -68,6 +75,20 @@ export function DashboardTab() {
   const previousLabel = prevRange === null ? "" : periodLabel(prevRange.from, prevRange.to);
   const series = useMemo(() => monthlySeries(visible, range, ivaMode), [visible, range, ivaMode]);
   const ranking = useMemo(() => supplierRanking(visible, ivaMode), [visible, ivaMode]);
+  // Plan 03-02 extracts these three memos into a shared hook when the Categorías tab becomes their second consumer.
+  const settings = useMemo<SettingsData>(
+    () => ({ ivaMode, categories, supplierCategories, conceptRules }),
+    [ivaMode, categories, supplierCategories, conceptRules],
+  );
+  const resolver = useMemo(() => makeResolver(settings), [settings]);
+  const nameOf = useMemo(() => {
+    const names = new Map<string, string>(categories.map((category) => [category.id, category.name]));
+    return (key: string): string => (key === SIN_CATEGORIA ? undefined : names.get(key)) ?? es.categories.none;
+  }, [categories]);
+  const categoryRows = useMemo(
+    () => categoryBreakdown(visible, resolver, ivaMode, current.months, nameOf),
+    [visible, resolver, ivaMode, current.months, nameOf],
+  );
 
   // "Ver factura" asked for an invoice the current filters hide (UI-SPEC decision 6): the
   // filters stay as they are and the Alert below offers to remove them.
@@ -152,13 +173,14 @@ export function DashboardTab() {
       ) : (
         <>
           <KpiRow current={current} deltas={deltas} previousLabel={previousLabel} mode={ivaMode} />
+          {range === null ? null : (
+            <TrendChart series={series} promedio={current.promedio} range={range} />
+          )}
           <div
-            data-testid="trend-ranking-row"
-            className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
+            data-testid="category-supplier-row"
+            className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2"
           >
-            {range === null ? null : (
-              <TrendChart series={series} promedio={current.promedio} range={range} />
-            )}
+            <CategorySpend rows={categoryRows} nameOf={nameOf} />
             <SupplierRanking rows={ranking} />
           </div>
           <InvoiceTable rows={visible} ledger={ledger} mode={ivaMode} />

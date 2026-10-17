@@ -10,7 +10,8 @@ import {
   within,
 } from "@testing-library/react";
 import { parseCfdi } from "@/domain/cfdi/parseCfdi";
-import type { ParsedInvoice } from "@/domain/cfdi/types";
+import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
+import { defaultSettings } from "@/domain/settings/types";
 import { AppShell } from "@/features/shell/AppShell";
 import { shortUuid } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -21,9 +22,10 @@ import { readFixture } from "../../../tests/support/cfdiVariants";
 import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
 import {
-  clearStoredSettings,
   readStoredSettings,
+  resetSettingsStore,
   storeIvaMode,
+  storeSettings,
 } from "../../../tests/support/settingsStorage";
 
 function parseFixture(relPath: string): ParsedInvoice {
@@ -76,9 +78,8 @@ afterEach(() => {
   vi.restoreAllMocks();
   act(() => {
     useSessionStore.getState().clearAll();
-    useSettingsStore.setState({ ivaMode: "con" });
+    resetSettingsStore();
   });
-  clearStoredSettings();
 });
 
 /** Sin IVA of the anonymized Ingreso: Subtotal minus Descuento, no IEPS in the fixture. */
@@ -228,8 +229,8 @@ describe("Dashboard tab: Gasto total follows the IVA mode (REGLA-03, DASH-10)", 
     render(<AppShell />);
     fireEvent.click(ivaButton("Sin IVA"));
     expect(await readStoredSettings()).toEqual({
-      state: { ivaMode: "sin" },
-      version: 1,
+      state: { ...defaultSettings(), ivaMode: "sin" },
+      version: 2,
     });
   });
 });
@@ -515,7 +516,7 @@ describe("Dashboard tab: filters (FILT-02, FILT-04, FILT-05, D-03, D-07)", () =>
       useSessionStore.getState().setSuppliers(new Set([ABARROTES.rfc]));
     });
     const stored = await readStoredSettings();
-    expect(stored).toEqual({ state: { ivaMode: "sin" }, version: 1 });
+    expect(stored).toEqual({ state: { ...defaultSettings(), ivaMode: "sin" }, version: 2 });
     expect(JSON.stringify(stored)).not.toContain(ABARROTES.rfc);
   });
 });
@@ -724,17 +725,21 @@ describe("Dashboard tab: trend and ranking row (DASH-02, DASH-04, DASH-10, D-22,
     return row;
   }
 
-  it("renders the trend card and the ranking card side by side from 1024 px, stacked below", () => {
+  it("shows the trend full width, then categories and suppliers in two equal columns from 1024 px (UI-SPEC Q1)", () => {
     load(sample());
     render(<DashboardTab />);
-    const row = screen.getByTestId("trend-ranking-row");
+    const row = screen.getByTestId("category-supplier-row");
     expect(row.className).toContain("grid-cols-1");
-    expect(row.className).toContain("lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]");
+    expect(row.className).toContain("lg:grid-cols-2");
     expect(row.className).toContain("gap-6");
     expect(row.className).toContain("items-start");
-    const trend = within(row).getByRole("heading", { name: "Gasto por mes" });
+    // The trend sits outside the two-column row, before it.
+    const trend = screen.getByRole("heading", { name: "Gasto por mes" });
+    expect(within(row).queryByRole("heading", { name: "Gasto por mes" })).toBeNull();
+    expect(trend.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const categories = within(row).getByRole("heading", { name: "Gasto por categoría" });
     const ranking = within(row).getByRole("heading", { name: "Gasto por proveedor" });
-    expect(trend.compareDocumentPosition(ranking) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(categories.compareDocumentPosition(ranking) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // The row sits under the KPI cards.
     const kpi = screen.getByTestId("kpi-gasto");
     expect(kpi.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -759,8 +764,9 @@ describe("Dashboard tab: trend and ranking row (DASH-02, DASH-04, DASH-10, D-22,
       store.setRange({ from: "2025-02", to: "2025-02" });
     });
     expect(screen.getByTestId("dashboard-empty-filtered")).toBeInTheDocument();
-    expect(screen.queryByTestId("trend-ranking-row")).toBeNull();
+    expect(screen.queryByTestId("category-supplier-row")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Gasto por mes" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Gasto por categoría" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Gasto por proveedor" })).toBeNull();
   });
 
@@ -832,11 +838,11 @@ describe("Dashboard tab: Facturas table (DASH-09, REGLA-08, D-24, D-27, D-28)", 
     return row;
   }
 
-  it("ends the Dashboard with every row, summing or not, after the trend and ranking row", () => {
+  it("ends the Dashboard with every row, summing or not, after the category and ranking row", () => {
     load([ingreso, egreso, pago]);
     render(<DashboardTab />);
     expect(screen.getByRole("heading", { name: "Facturas (3)" })).toBeInTheDocument();
-    const trend = screen.getByTestId("trend-ranking-row");
+    const trend = screen.getByTestId("category-supplier-row");
     const heading = screen.getByRole("heading", { name: "Facturas (3)" });
     expect(trend.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(tableRow("Pago")).getByText("No suma")).toBeInTheDocument();
@@ -1236,5 +1242,224 @@ describe("Dashboard tab: Fecha year window (WR-03, D-48)", () => {
     expect(gastoText()).toContain("$116.00");
     expect(screen.getByText("Entre 1 mes del calendario")).toBeInTheDocument();
     expect(notice()).toBeNull();
+  });
+});
+
+describe("Dashboard tab: Gasto por categoría (DASH-03, DASH-05, AJUS-01, D-12, D-13, D-16)", () => {
+  const A = { rfc: "AAA010101AAA", nombre: "Proveedor A" };
+  const B = { rfc: "BBB010101BBB", nombre: "Proveedor B" };
+  const LIMPIEZA = "seed:limpieza-higiene";
+
+  function concepto(descripcion: string, importe: string, iva: string): Concepto {
+    return {
+      claveProdServ: "01010101",
+      noIdentificacion: null,
+      cantidad: "1",
+      claveUnidad: "H87",
+      unidad: null,
+      descripcion,
+      valorUnitario: importe,
+      importe,
+      descuento: null,
+      objetoImp: "02",
+      traslados: [{ base: importe, impuesto: "002", tipoFactor: "Tasa", tasaOCuota: "0.160000", importe: iva }],
+      retenciones: [],
+    };
+  }
+
+  /** Supplier A: an invoice with three concepts and a one-cent gap in both modes, plus a credit note. Supplier B: one invoice. */
+  function sample(): ParsedInvoice[] {
+    return [
+      makeInvoice({
+        emisor: A,
+        fecha: "2025-01-15T10:00:00",
+        subTotal: "100.01",
+        total: "116.01",
+        conceptos: [
+          concepto("Cloro", "33.33", "5.33"),
+          concepto("Jabón", "33.33", "5.33"),
+          concepto("Trapeador", "33.34", "5.34"),
+        ],
+      }),
+      makeInvoice({
+        emisor: A,
+        tipo: "E",
+        fecha: "2025-02-20T10:00:00",
+        subTotal: "10.00",
+        total: "11.60",
+        conceptos: [concepto("Cloro", "10.00", "1.60")],
+      }),
+      makeInvoice({
+        emisor: B,
+        fecha: "2025-02-11T10:00:00",
+        subTotal: "50.00",
+        total: "58.00",
+        conceptos: [concepto("Café", "50.00", "8.00")],
+      }),
+    ];
+  }
+
+  async function rehydrateStore(): Promise<void> {
+    await act(async () => {
+      await useSettingsStore.persist.rehydrate();
+    });
+  }
+
+  function assignA(): void {
+    storeSettings({
+      ...defaultSettings(),
+      supplierCategories: [{ rfc: A.rfc, name: A.nombre, categoryId: LIMPIEZA }],
+    });
+  }
+
+  function categoryRows(): HTMLElement[] {
+    const list = screen.getByRole("list", { name: "Gasto por categoría" });
+    return within(list).getAllByRole("listitem");
+  }
+
+  function categoryRow(index: number): HTMLElement {
+    const row = categoryRows()[index];
+    if (row === undefined) throw new Error(`no category row at ${index}`);
+    return row;
+  }
+
+  /** The "$1,234.50" texts of all rows as integer cents, summed without floats. */
+  function rowCents(): bigint {
+    let total = BigInt(0);
+    for (const row of categoryRows()) {
+      const amount = within(row).getByText(/^−?\$[\d,]+\.\d{2}$/).textContent;
+      const negative = amount.startsWith("−");
+      const plain = amount.replace(/[−$,]/g, "");
+      total += negative ? -toCents(plain) : toCents(plain);
+    }
+    return total;
+  }
+
+  function expectIdentity(expectedCents: bigint): void {
+    expect(rowCents()).toBe(expectedCents);
+    expect(gastoText()).toBe(`$${centsToPlain(expectedCents)}`);
+  }
+
+  it("lists the assigned category with its net and every other supplier under Sin categoría, adding up to Gasto total", async () => {
+    assignA();
+    load(sample());
+    await rehydrateStore();
+    render(<DashboardTab />);
+    // A: 116.01 - 11.60 = 104.41. B: 58.00. Total 162.41.
+    expect(categoryRows()).toHaveLength(2);
+    expect(within(categoryRow(0)).getByText("Limpieza e higiene")).toBeInTheDocument();
+    expect(within(categoryRow(0)).getByText("$104.41")).toBeInTheDocument();
+    expect(within(categoryRow(1)).getByText("Sin categoría")).toBeInTheDocument();
+    expect(within(categoryRow(1)).getByText("$58.00")).toBeInTheDocument();
+    expectIdentity(toCents("116.01") - toCents("11.60") + toCents("58.00"));
+  });
+
+  it("keeps the identity when the IVA mode switches to Sin IVA", async () => {
+    assignA();
+    load(sample());
+    await rehydrateStore();
+    render(<DashboardTab />);
+    act(() => {
+      useSettingsStore.getState().setIvaMode("sin");
+    });
+    // A: 100.01 - 10.00 = 90.01. B: 50.00. Total 140.01.
+    expect(within(categoryRow(0)).getByText("$90.01")).toBeInTheDocument();
+    expect(within(categoryRow(1)).getByText("$50.00")).toBeInTheDocument();
+    expectIdentity(toCents("100.01") - toCents("10.00") + toCents("50.00"));
+  });
+
+  it("shows the share of the total and the monthly average over the same months as the KPI (DASH-05)", async () => {
+    assignA();
+    load(sample());
+    await rehydrateStore();
+    render(<DashboardTab />);
+    // Two calendar months: 104.41 / 2 = 52.205 rounds half-up to 52.21.
+    expect(screen.getByText("Entre 2 meses del calendario")).toBeInTheDocument();
+    expect(within(categoryRow(0)).getByText(/del total · Promedio mensual \$52\.21$/)).toBeInTheDocument();
+    expect(within(categoryRow(1)).getByText(/del total · Promedio mensual \$29\.00$/)).toBeInTheDocument();
+  });
+
+  it("opens a Phase 2 browser with Sin IVA kept, the suggestions and every supplier under Sin categoría", async () => {
+    storeIvaMode("sin");
+    load(sample());
+    await rehydrateStore();
+    render(<DashboardTab />);
+    expect(useSettingsStore.getState().categories).toHaveLength(9);
+    expect(categoryRows()).toHaveLength(1);
+    expect(within(categoryRow(0)).getByText("Sin categoría")).toBeInTheDocument();
+    expect(within(categoryRow(0)).getByText("$140.01")).toBeInTheDocument();
+    expectIdentity(toCents("100.01") - toCents("10.00") + toCents("50.00"));
+    expect(await readStoredSettings()).toEqual({
+      state: { ...defaultSettings(), ivaMode: "sin" },
+      version: 2,
+    });
+  });
+
+  it("shows a category with a negative net last, with the tick and the negative caption", async () => {
+    storeSettings({
+      ...defaultSettings(),
+      supplierCategories: [
+        { rfc: A.rfc, name: A.nombre, categoryId: LIMPIEZA },
+        { rfc: B.rfc, name: B.nombre, categoryId: "seed:servicios" },
+      ],
+    });
+    load([
+      makeInvoice({ emisor: A, fecha: "2025-01-15T10:00:00", subTotal: "100.00", total: "116.00" }),
+      makeInvoice({
+        emisor: B,
+        tipo: "E",
+        fecha: "2025-01-20T10:00:00",
+        subTotal: "50.00",
+        total: "58.00",
+      }),
+    ]);
+    await rehydrateStore();
+    render(<DashboardTab />);
+    expect(within(categoryRow(0)).getByText("Limpieza e higiene")).toBeInTheDocument();
+    const last = categoryRow(1);
+    expect(within(last).getByText(/Servicios/)).toBeInTheDocument();
+    expect(within(last).getByText("−$58.00")).toBeInTheDocument();
+    expect(within(last).getByTestId("category-tick")).toBeInTheDocument();
+    expect(within(last).queryByTestId("category-fill")).toBeNull();
+    expect(
+      within(last).getByText("Neto negativo: las notas de crédito superan las compras"),
+    ).toBeInTheDocument();
+    expect(within(categoryRow(0)).getByTestId("category-fill")).toBeInTheDocument();
+  });
+
+  it("scales the bars by abs(net) over the largest abs(net)", async () => {
+    assignA();
+    load(sample());
+    await rehydrateStore();
+    render(<DashboardTab />);
+    expect(within(categoryRow(0)).getByTestId("category-fill")).toHaveStyle({ width: "100%" });
+    // 58.00 / 104.41 = 55.55 %.
+    expect(within(categoryRow(1)).getByTestId("category-fill")).toHaveStyle({ width: "55.55%" });
+  });
+
+  it("falls back to Sin categoría for an unusable stored value without crashing", async () => {
+    storeSettings({
+      ...defaultSettings(),
+      supplierCategories: [{ rfc: A.rfc, name: A.nombre, categoryId: "missing" }],
+    });
+    load(sample());
+    await rehydrateStore();
+    render(<DashboardTab />);
+    expect(useSettingsStore.getState().supplierCategories).toEqual([]);
+    expect(categoryRows()).toHaveLength(1);
+    expect(within(categoryRow(0)).getByText("Sin categoría")).toBeInTheDocument();
+  });
+
+  it("renders a stored category name as text, never as markup", async () => {
+    storeSettings({
+      ...defaultSettings(),
+      categories: [{ id: "cat_x", name: "<img src=x onerror=alert(1)>" }],
+      supplierCategories: [{ rfc: A.rfc, name: A.nombre, categoryId: "cat_x" }],
+    });
+    load(sample());
+    await rehydrateStore();
+    render(<DashboardTab />);
+    expect(within(categoryRow(0)).getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
+    expect(document.querySelector("img")).toBeNull();
   });
 });
