@@ -159,41 +159,59 @@ Plans:
   4. El usuario descarga un Excel con las hojas Facturas, Conceptos, Resumen por categoría, Resumen por proveedor, Resumen por mes y Parámetros (filtros y modo IVA usados), que respeta los filtros activos y el modo con/sin IVA.
   5. En el Excel los montos son números con formato MXN, las fechas son fechas y RFC, UUID y folio son texto, y los totales coinciden con los del dashboard para el mismo filtro y modo.
 
-**Plans:** 11 plans
+**Plans:** 17 plans
 
 Plans:
 **Wave 1**
-- [ ] 03-01-PLAN.md — Tracer: aprobación de write-excel-file, formato de ajustes (puerta de un solo sentido), store de ajustes versión 2 con migración, categoría por proveedor en la pestaña Categorías y «Gasto por categoría»
+- [ ] 03-01-PLAN.md — Tracer: aprobación de write-excel-file, formato de ajustes (puerta de un solo sentido), store de ajustes versión 2 con migración, reparto por concepto y «Gasto por categoría» en el Dashboard
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 03-02-PLAN.md — Mis categorías: crear, renombrar y borrar con «Pasarlos a» y Deshacer
+- [ ] 03-02-PLAN.md — Pestaña Categorías: categoría por defecto de cada proveedor, orden de pestañas y desplazamiento en móvil (Q2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 03-03-PLAN.md — Categoría por concepto: regla RFC + descripción normalizada (con «ñ»), selector en la fila desplegable y Deshacer
+- [ ] 03-03-PLAN.md — Mis categorías: crear, renombrar y borrar con «Pasarlos a» y Deshacer
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 03-04-PLAN.md — Tabla de proveedores completa (orden, paginación, proveedores sin facturas cargadas) y avisos de fallas de almacenamiento
+- [ ] 03-04-PLAN.md — Categoría por concepto: regla RFC + descripción normalizada (con «ñ») y selector en la fila desplegable
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 03-05-PLAN.md — Descargar y subir ajustes: contrato del archivo versión 1, motivos de rechazo y confirmación de reemplazo
+- [ ] 03-05-PLAN.md — Ajustes de concepto: «Aplica a N líneas», «Quitar ajuste» y aviso con Deshacer
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 03-06-PLAN.md — Filtro por categoría (pertenencia por cualquier parte), selectView compartido y montos parciales en la tabla
+- [ ] 03-06-PLAN.md — Tabla de proveedores completa (orden, paginación, proveedores sin facturas cargadas) y avisos de fallas de almacenamiento
 
 **Wave 7** *(blocked on Wave 6 completion)*
-- [ ] 03-07-PLAN.md — Variación mes contra mes por categoría, aviso de nada clasificado y clic en categoría o proveedor hacia la tabla
+- [ ] 03-07-PLAN.md — Descargar y subir ajustes: contrato del archivo versión 1, motivos de rechazo y confirmación de reemplazo
 
 **Wave 8** *(blocked on Wave 7 completion)*
-- [ ] 03-08-PLAN.md — Exportar a Excel: modelo de celdas, CSP worker-src, escritura con tiempo límite, botón en la barra y «Resumen por mes»
+- [ ] 03-08-PLAN.md — Filtro por categoría (pertenencia por cualquier parte) en KPIs, tendencia y rankings, con selectView compartido
 
 **Wave 9** *(blocked on Wave 8 completion)*
-- [ ] 03-09-PLAN.md — Hojas Facturas y Conceptos (Estado, desglose en MXN, diferencia de redondeo) y prueba en build de producción con la CSP real
+- [ ] 03-09-PLAN.md — Filtro por categoría en la tabla (monto parcial «de {total} total», líneas atenuadas) y ciclo de vida del filtro
 
 **Wave 10** *(blocked on Wave 9 completion)*
-- [ ] 03-10-PLAN.md — Resúmenes por categoría y proveedor, Parámetros e identidades Excel = Dashboard (anonimizadas y muestra real)
+- [ ] 03-10-PLAN.md — Variación mes contra mes por categoría, promedio explicado y aviso de nada clasificado
 
 **Wave 11** *(blocked on Wave 10 completion)*
-- [ ] 03-11-PLAN.md — Cierre: e2e de clasificación, persistencia y respaldo entre perfiles, barra responsiva (Q9) y revisión humana en Excel
+- [ ] 03-11-PLAN.md — Clic en categoría o proveedor hacia la tabla de facturas (filtro, desplazamiento y foco)
+
+**Wave 12** *(blocked on Wave 11 completion)*
+- [ ] 03-12-PLAN.md — Modelo del Excel: celdas exactas y fechas UTC, «Resumen por mes» y nombre del archivo
+
+**Wave 13** *(blocked on Wave 12 completion)*
+- [ ] 03-13-PLAN.md — Exportar a Excel: instalación aprobada, CSP worker-src, escritura con tiempo límite y botón en la barra
+
+**Wave 14** *(blocked on Wave 13 completion)*
+- [ ] 03-14-PLAN.md — Hojas Facturas y Conceptos (Estado, desglose en MXN, diferencia de redondeo)
+
+**Wave 15** *(blocked on Wave 14 completion)*
+- [ ] 03-15-PLAN.md — Resúmenes por categoría y proveedor, Parámetros y orden final de las seis hojas
+
+**Wave 16** *(blocked on Wave 15 completion)*
+- [ ] 03-16-PLAN.md — Pruebas del Excel: identidades Excel = Dashboard (anonimizadas y muestra real) y descarga en build de producción con la CSP real
+
+**Wave 17** *(blocked on Wave 16 completion)*
+- [ ] 03-17-PLAN.md — Cierre: e2e de clasificación, persistencia y respaldo entre perfiles, barra responsiva (Q9) y revisión humana en Excel
 
 **UI hint**: yes
 **Research flag**: ligero — confirmar en ejecución real write-excel-file (`/universal`) y la API de la versión elegida de TanStack Table (solo se verificaron en compilación).
@@ -240,6 +258,6 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
-| 3. Categorías propias y exportación a Excel | 0/11 | Planned | - |
+| 3. Categorías propias y exportación a Excel | 0/17 | Planned | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
