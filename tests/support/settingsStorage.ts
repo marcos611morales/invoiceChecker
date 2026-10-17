@@ -1,6 +1,7 @@
 import type { IvaMode } from "@/domain/accounting/aggregate";
 import { defaultSettings, type SettingsData } from "@/domain/settings/types";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useStorageStatusStore } from "@/stores/storageStatusStore";
 
 /**
  * Test access to the persisted settings through the store's own storage adapter,
@@ -27,10 +28,14 @@ export function storeSettings(data: SettingsData): void {
   void storage.setItem(name, { state: data, version: 2 });
 }
 
-/** Puts the store back to the suggestions and Con IVA, then clears the stored key. */
+/**
+ * Puts the store back to the suggestions and Con IVA, clears the stored key and resets the
+ * in-memory storage failure flags (the status store is not persisted, so it needs this).
+ */
 export function resetSettingsStore(): void {
   useSettingsStore.setState(defaultSettings());
   clearStoredSettings();
+  useStorageStatusStore.setState({ readFailed: false, writeFailed: false, readNoticeShown: false });
 }
 
 export async function readStoredSettings(): Promise<unknown> {
