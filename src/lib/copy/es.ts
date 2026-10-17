@@ -260,6 +260,28 @@ export const es = {
       category: "Categoría por defecto",
       actions: "Acciones",
     },
+    /** «Mis categorías» card (UI-SPEC, Copywriting). */
+    list: {
+      heading: "Mis categorías",
+      newLabel: "Nueva categoría",
+      newHint: "Nombre de la categoría",
+      add: "Agregar categoría",
+      errors: {
+        empty: "Escribe un nombre para la categoría.",
+        duplicate: "Ya existe una categoría con ese nombre.",
+        reserved: "«Sin categoría» es un nombre reservado.",
+        tooLong: "El nombre puede tener hasta 60 caracteres.",
+        limit: "Llegaste al máximo de 200 categorías.",
+      },
+      unused: "Sin uso",
+      lockedCaption:
+        "Es el valor cuando no hay otra categoría. No se puede renombrar ni borrar.",
+      saveName: "Guardar nombre",
+      cancelRename: "Cancelar cambio de nombre",
+      emptyHeading: "No tienes categorías",
+      emptyBody:
+        "Crea una arriba para empezar a clasificar tu gasto. Mientras tanto, todo queda en «Sin categoría».",
+    },
   },
 
   errors: {

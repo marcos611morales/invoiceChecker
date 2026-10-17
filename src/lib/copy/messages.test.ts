@@ -3,6 +3,13 @@ import type { DuplicateFile } from "@/domain/import/types";
 import { INCIDENT_ORDER } from "@/domain/accounting/quality";
 import { es } from "./es";
 import {
+  categoryAddedText,
+  categoryCountLabel,
+  categoryRenamedText,
+  deleteCategoryAria,
+  renameCategoryAria,
+  renameInputAria,
+  usageCaption,
   incidentTitle,
   appliesToText,
   averageLegend,
@@ -419,5 +426,42 @@ describe("hiddenInvoiceNotice (UI-SPEC decision 6)", () => {
     expect(hiddenInvoiceNotice("<b>x</b>")).toBe(
       "La factura <b>x</b> no se ve porque los filtros la ocultan.",
     );
+  });
+});
+
+describe("Mis categorías copy (UI-SPEC)", () => {
+  it("counts the categories with the singular for one", () => {
+    expect(categoryCountLabel(0)).toBe("0 categorías");
+    expect(categoryCountLabel(1)).toBe("1 categoría");
+    expect(categoryCountLabel(9)).toBe("9 categorías");
+  });
+
+  it("builds the usage caption with singular forms and omits a zero part", () => {
+    expect(usageCaption(1, 1)).toBe("1 proveedor · 1 concepto");
+    expect(usageCaption(2, 3)).toBe("2 proveedores · 3 conceptos");
+    expect(usageCaption(1, 2)).toBe("1 proveedor · 2 conceptos");
+    expect(usageCaption(3, 0)).toBe("3 proveedores");
+    expect(usageCaption(0, 1)).toBe("1 concepto");
+    expect(usageCaption(0, 4)).toBe("4 conceptos");
+  });
+
+  it("reads Sin uso when both parts are zero", () => {
+    expect(usageCaption(0, 0)).toBe("Sin uso");
+    expect(usageCaption(0, 0)).toBe(es.categories.list.unused);
+  });
+
+  it("names the row actions and the rename input with the category", () => {
+    expect(renameCategoryAria("Limpieza")).toBe("Renombrar categoría Limpieza");
+    expect(deleteCategoryAria("Limpieza")).toBe("Borrar categoría Limpieza");
+    expect(renameInputAria("Limpieza")).toBe("Nuevo nombre de la categoría Limpieza");
+  });
+
+  it("builds the polite announcements with guillemets", () => {
+    expect(categoryAddedText("Café")).toBe("Categoría «Café» agregada");
+    expect(categoryRenamedText("Café")).toBe("Categoría renombrada a «Café»");
+  });
+
+  it("keeps markup-like names as plain characters", () => {
+    expect(categoryAddedText("<b>x</b>")).toBe("Categoría «<b>x</b>» agregada");
   });
 });

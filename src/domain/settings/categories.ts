@@ -123,6 +123,26 @@ export function categoryUsage(
   };
 }
 
+/**
+ * `categoryUsage` of every category in one pass (the list shows all rows at once).
+ * Only ids that something points at have an entry; read a missing id as zero.
+ */
+export function usageByCategory(
+  settings: SettingsData,
+): Map<string, { suppliers: number; concepts: number }> {
+  const usage = new Map<string, { suppliers: number; concepts: number }>();
+  const entry = (id: string): { suppliers: number; concepts: number } => {
+    const found = usage.get(id) ?? { suppliers: 0, concepts: 0 };
+    usage.set(id, found);
+    return found;
+  };
+  for (const assignment of settings.supplierCategories) entry(assignment.categoryId).suppliers += 1;
+  for (const rule of settings.conceptRules) {
+    if (rule.categoryId !== null) entry(rule.categoryId).concepts += 1;
+  }
+  return usage;
+}
+
 /** What a delete took away, enough to put it back exactly (D-05, undo). */
 export interface DeleteSnapshot {
   category: Category;

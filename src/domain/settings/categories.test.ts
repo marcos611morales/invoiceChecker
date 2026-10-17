@@ -5,6 +5,7 @@ import {
   deleteCategory,
   renameCategory,
   restoreCategory,
+  usageByCategory,
   validateCategoryName,
 } from "./categories";
 import { settingsDataSchema } from "./schema";
@@ -232,6 +233,21 @@ describe("categoryUsage", () => {
 
   it("does not count explicit Sin categoría rules", () => {
     expect(categoryUsage(used(), SIN_CATEGORIA)).toEqual({ suppliers: 0, concepts: 0 });
+  });
+});
+
+describe("usageByCategory", () => {
+  it("gives the same counts as categoryUsage for every category in one pass", () => {
+    const usage = usageByCategory(used());
+    for (const category of used().categories) {
+      expect(usage.get(category.id) ?? { suppliers: 0, concepts: 0 }).toEqual(
+        categoryUsage(used(), category.id),
+      );
+    }
+  });
+
+  it("does not count explicit Sin categoría rules", () => {
+    expect([...usageByCategory(used()).keys()].sort()).toEqual([LIMPIEZA, SERVICIOS].sort());
   });
 });
 

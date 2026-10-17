@@ -359,3 +359,48 @@ export function hiddenInvoiceNotice(ref: string): string {
 export function supplierCategoryAria(name: string): string {
   return `Categoría por defecto de ${name}`;
 }
+
+/** Count under the «Mis categorías» heading: «1 categoría» or «{n} categorías». */
+export function categoryCountLabel(n: number): string {
+  return n === 1 ? "1 categoría" : `${String(n)} categorías`;
+}
+
+/**
+ * Usage caption of one category row (UI-SPEC): «{n} proveedores · {m} conceptos» with
+ * the singular forms, a zero part omitted and «Sin uso» when both are zero.
+ */
+export function usageCaption(suppliers: number, concepts: number): string {
+  const parts: string[] = [];
+  if (suppliers > 0) {
+    parts.push(suppliers === 1 ? "1 proveedor" : `${String(suppliers)} proveedores`);
+  }
+  if (concepts > 0) {
+    parts.push(concepts === 1 ? "1 concepto" : `${String(concepts)} conceptos`);
+  }
+  return parts.length === 0 ? es.categories.list.unused : parts.join(" · ");
+}
+
+/** `aria-label` of the pencil of one category row. */
+export function renameCategoryAria(name: string): string {
+  return `Renombrar categoría ${name}`;
+}
+
+/** `aria-label` of the trash button of one category row. */
+export function deleteCategoryAria(name: string): string {
+  return `Borrar categoría ${name}`;
+}
+
+/** `aria-label` of the inline rename input. */
+export function renameInputAria(name: string): string {
+  return `Nuevo nombre de la categoría ${name}`;
+}
+
+/** Polite announcement after adding a category. */
+export function categoryAddedText(name: string): string {
+  return `Categoría «${name}» agregada`;
+}
+
+/** Polite announcement after renaming a category. */
+export function categoryRenamedText(name: string): string {
+  return `Categoría renombrada a «${name}»`;
+}
