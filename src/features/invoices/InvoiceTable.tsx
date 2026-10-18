@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { IvaMode } from "@/domain/accounting/aggregate";
-import { ruleLineCounts } from "@/domain/accounting/categories";
+import { ruleLineCounts, type ScopedEntry } from "@/domain/accounting/categories";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
 import { orderedCategories } from "@/domain/settings/categories";
 import { ruleMapKey } from "@/domain/settings/normalize";
@@ -42,6 +42,7 @@ import {
   paginationPageText,
   paginationRangeText,
   paidLine,
+  partOfTotalText,
   roundingLine,
   rowMenuAria,
   substitutedLine,
@@ -65,16 +66,22 @@ import {
   foreignInfo,
   roundingDifference,
   toInvoiceRows,
+  withFullAmounts,
 } from "./columns";
-import type { InvoiceRow, RowState } from "./columns";
+import type { ConceptRow, InvoiceRow, RowState } from "./columns";
 import { ConceptCategorySelect } from "./ConceptCategorySelect";
 
 export interface InvoiceTableProps {
-  /** The visible ledger entries: every one is a row, whether it sums or not (D-27). */
-  rows: readonly LedgerEntry[];
+  /**
+   * The visible ledger entries scoped to the category selection: every one is a row, whether it
+   * sums or not (D-27). Under a category filter their amounts are the part of the chosen categories.
+   */
+  rows: readonly ScopedEntry[];
   /** The whole ledger, to resolve payments and substituting invoices. */
   ledger: readonly LedgerEntry[];
   mode: IvaMode;
+  /** The effective category selection of the Dashboard; empty means no category filter (D-14). */
+  categoryFilter: ReadonlySet<string>;
 }
 
 /** Chevron, six data columns and the actions column. */
@@ -166,6 +173,7 @@ function ConceptsPanel({
   lineCounts,
   categories,
   nameOf,
+  categoryFilter,
 }: {
   row: InvoiceRow;
   mode: IvaMode;
@@ -178,11 +186,17 @@ function ConceptsPanel({
   /** The user's categories in list order. */
   categories: readonly Category[];
   nameOf: (key: string) => string;
+  /** While not empty, the lines of other categories read as outside the filter (D-14). */
+  categoryFilter: ReadonlySet<string>;
 }) {
   const { entry } = row;
   const titleId = `${panelId}-title`;
   const concepts = conceptRows(entry, mode, resolver);
-  const difference = roundingDifference(entry, mode);
+  // The invoice amount governs, so the gap never uses the partial amount of a category filter.
+  const difference = roundingDifference(withFullAmounts(entry), mode);
+  // A line of another category is outside the filter: muted color (never opacity) plus a label (D-14).
+  const isDimmed = (concept: ConceptRow) =>
+    categoryFilter.size > 0 && !categoryFilter.has(concept.category);
   const foreign = foreignInfo(entry, mode);
   return (
     <div id={panelId} role="region" aria-labelledby={titleId} className="flex flex-col gap-3">
@@ -213,9 +227,13 @@ function ConceptsPanel({
         </TableHeader>
         <TableBody>
           {concepts.map((concept) => (
-            <TableRow key={concept.key} className="hover:bg-secondary">
+            <TableRow
+              key={concept.key}
+              className={cn("hover:bg-secondary", isDimmed(concept) && "text-muted-foreground")}
+            >
               <TableCell className="max-w-[420px] align-top whitespace-normal wrap-anywhere">
                 {concept.descripcion}
+                {isDimmed(concept) ? <span className="sr-only">{es.invoices.notInCategoryFilter}</span> : null}
               </TableCell>
               <TableCell className="text-right align-top tabular-nums">{concept.cantidad}</TableCell>
               <TableCell className={cn("align-top", concept.unidadIsClave && "font-mono")}>
@@ -260,7 +278,8 @@ function ConceptsPanel({
  * sum stay visible, attenuated with the muted text color and labelled (D-27).
  * Everything from the invoices renders as React text only (T-02-22).
  */
-export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps) {
+export function InvoiceTable({ rows: entries, ledger, mode, categoryFilter }: InvoiceTableProps) {
+  const filterActive = categoryFilter.size > 0;
   const excludeInvoice = useSessionStore((s) => s.excludeInvoice);
   const undoExclusion = useSessionStore((s) => s.undoExclusion);
   const reincludeInvoice = useSessionStore((s) => s.reincludeInvoice);
@@ -425,11 +444,19 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
       }
       case "amount": {
         const foreign = foreignInfo(row.entry, mode);
+        // Under a category filter `amount` is the part of the chosen categories; the whole
+        // invoice goes right below it so the part is never read as the invoice total (D-14, T-03-37).
+        const fullAmount = filterActive ? row.fullAmount : undefined;
         return (
           <div className="flex flex-col items-end py-1">
             <span className={cn(row.state === "excluida" && "line-through")}>
               {row.amount === undefined ? "—" : formatMoney(row.amount)}
             </span>
+            {fullAmount === undefined ? null : (
+              <span className="text-xs text-muted-foreground">
+                {partOfTotalText(formatMoney(fullAmount))}
+              </span>
+            )}
             {foreign === null ? null : (
               <span className="text-xs text-muted-foreground">
                 {foreignAmountLine(foreign.moneda, foreign.amountText, foreign.tc)}
@@ -453,7 +480,15 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
             so it must not be announced on every load. */}
         <Alert role="note">
           <Info aria-hidden="true" />
-          <AlertDescription>{es.invoices.note}</AlertDescription>
+          <AlertDescription>
+            {es.invoices.note}
+            {filterActive ? (
+              <>
+                {" "}
+                <span>{es.invoices.categoryNote}</span>
+              </>
+            ) : null}
+          </AlertDescription>
         </Alert>
       </div>
       <Table className="min-w-[960px]">
@@ -482,7 +517,9 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
                 ? invoiceRef(byUuid.get(entry.substitutedBy)?.invoice.folio ?? null, entry.substitutedBy)
                 : null;
             const tall =
-              entry.kind === "nota-credito" || foreignInfo(entry, mode) !== null;
+              entry.kind === "nota-credito" ||
+              foreignInfo(entry, mode) !== null ||
+              (filterActive && row.fullAmount !== undefined);
             return (
               <Fragment key={tableRow.id}>
                 <TableRow
@@ -547,6 +584,7 @@ export function InvoiceTable({ rows: entries, ledger, mode }: InvoiceTableProps)
                         lineCounts={lineCounts}
                         categories={categories}
                         nameOf={nameOf}
+                        categoryFilter={categoryFilter}
                       />
                     </TableCell>
                   </TableRow>

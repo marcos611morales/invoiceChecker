@@ -1,8 +1,12 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ParsedInvoice } from "@/domain/cfdi/types";
 import type { BatchEntry } from "@/domain/import/types";
 import { EMPTY_FILTERS } from "@/domain/accounting/filters";
+import { SIN_CATEGORIA } from "@/domain/settings/types";
+import { resetSettingsStore } from "../../tests/support/settingsStorage";
 import { useSessionStore } from "./sessionStore";
+import { useSettingsStore } from "./settingsStore";
 
 function makeInvoice(uuid: string): ParsedInvoice {
   return {
@@ -40,6 +44,8 @@ function parsed(name: string, uuid: string): BatchEntry {
 
 afterEach(() => {
   useSessionStore.getState().clearAll();
+  window.localStorage.clear();
+  resetSettingsStore();
 });
 
 describe("sessionStore", () => {
@@ -274,6 +280,42 @@ describe("sessionStore", () => {
       useSessionStore.getState().setCategories(new Set(["seed:servicios"]));
       useSessionStore.getState().clearAll();
       expect(useSessionStore.getState().filters.categories.size).toBe(0);
+    });
+
+    it("dropCategoryFromFilter removes only that id and replaces the set (T-03-38)", () => {
+      useSessionStore.getState().setCategories(new Set(["seed:servicios", "seed:otros"]));
+      const before = useSessionStore.getState().filters.categories;
+      useSessionStore.getState().dropCategoryFromFilter("seed:servicios");
+      const after = useSessionStore.getState().filters.categories;
+      expect([...after]).toEqual(["seed:otros"]);
+      expect(after).not.toBe(before);
+      expect(before.has("seed:servicios")).toBe(true);
+    });
+
+    it("dropCategoryFromFilter keeps the other filters and changes nothing when the id is absent", () => {
+      useSessionStore.getState().setSuppliers(new Set(["RFC1"]));
+      useSessionStore.getState().setCategories(new Set(["seed:otros"]));
+      const before = useSessionStore.getState().filters;
+      useSessionStore.getState().dropCategoryFromFilter("seed:servicios");
+      expect(useSessionStore.getState().filters).toBe(before);
+      useSessionStore.getState().dropCategoryFromFilter("seed:otros");
+      const after = useSessionStore.getState().filters;
+      expect(after.categories.size).toBe(0);
+      expect([...after.suppliers]).toEqual(["RFC1"]);
+    });
+
+    it("a category selection is never written to browser storage (D-15, CARGA-06)", () => {
+      useSessionStore.getState().setCategories(new Set(["seed:servicios", SIN_CATEGORIA]));
+      useSessionStore.getState().dropCategoryFromFilter("seed:servicios");
+      // Writing a setting makes the persisted store flush, which is the only thing allowed to touch storage.
+      useSettingsStore.getState().setIvaMode("sin");
+      useSettingsStore.getState().setIvaMode("con");
+      expect(window.localStorage.length).toBe(1);
+      expect(window.localStorage.key(0)).toBe("invoicechecker:settings");
+      expect(window.sessionStorage.length).toBe(0);
+      const raw = window.localStorage.getItem("invoicechecker:settings") ?? "";
+      expect(raw).not.toContain(SIN_CATEGORIA);
+      expect(raw).not.toContain("filters");
     });
 
     it("setRange(null) goes back to the whole loaded span", () => {

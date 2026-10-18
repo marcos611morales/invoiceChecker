@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import "../../../tests/support/domPolyfills";
 import { resetSettingsStore } from "../../../tests/support/settingsStorage";
@@ -24,6 +25,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   resetSettingsStore();
+  useSessionStore.getState().clearAll();
 });
 
 function newInput(): HTMLInputElement {
@@ -559,6 +561,33 @@ describe("CategoryList: delete dialog", () => {
     expect(state.supplierCategories).toEqual(before.supplierCategories);
     expect(state.conceptRules).toEqual(before.conceptRules);
     expect(rowNames()).toEqual([...SORTED_SEEDS, "Sin categoría"]);
+  });
+
+  it("takes a deleted category out of the category filter and keeps the others (T-03-38)", () => {
+    useSessionStore.getState().setCategories(new Set([SERVICIOS, LIMPIEZA]));
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    confirmDelete();
+    expect([...useSessionStore.getState().filters.categories]).toEqual([LIMPIEZA]);
+  });
+
+  it("drops the deleted category from the filter even when its uses move to another category", () => {
+    seedUsage();
+    useSessionStore.getState().setCategories(new Set([SERVICIOS, "seed:otros"]));
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    chooseTarget("Otros");
+    confirmDelete();
+    expect([...useSessionStore.getState().filters.categories]).toEqual(["seed:otros"]);
+  });
+
+  it("leaves the category filter alone when the delete is dismissed", async () => {
+    useSessionStore.getState().setCategories(new Set(["seed:otros"]));
+    render(<CategoryList />);
+    fireEvent.click(trash("Otros"));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Conservar categoría" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect([...useSessionStore.getState().filters.categories]).toEqual(["seed:otros"]);
   });
 
   it("renders a hostile category name as plain text in the title", () => {

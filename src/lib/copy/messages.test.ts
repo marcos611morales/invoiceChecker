@@ -41,12 +41,14 @@ import {
   ignoredReasonText,
   invoicesHeading,
   monthsSubLabel,
+  noCategoryMatch,
   noFormaMatch,
   noSupplierMatch,
   notasSubLabel,
   optionLabel,
   originalCurrencyLine,
   paidLine,
+  partOfTotalText,
   paginationPageText,
   paginationRangeText,
   hiddenInvoiceNotice,
@@ -216,6 +218,12 @@ describe("filter messages", () => {
     );
   });
 
+  it("explains an empty category search (D-15)", () => {
+    expect(noCategoryMatch("xyz")).toBe(
+      "Ninguna categoría coincide con «xyz». Revisa la búsqueda.",
+    );
+  });
+
   it("appends the invoice count to an option", () => {
     expect(optionLabel("Nueva Wal-Mart de México", 39)).toBe(
       "Nueva Wal-Mart de México (39)",
@@ -299,6 +307,17 @@ describe("invoice table texts", () => {
     expect(substitutedLine("A-1")).toBe("Sustituida por la factura A-1. No se suma.");
     expect(originalCurrencyLine("USD", "18.20")).toBe("Moneda original: USD · TC 18.20");
     expect(conceptsPanelTitle("A-1")).toBe("Conceptos de la factura A-1");
+  });
+
+  it("formats the line under a category-partial amount (D-14)", () => {
+    expect(partOfTotalText("$150.00")).toBe("de $150.00 total");
+  });
+
+  it("has the category filter note and the dimmed-line label (UI-SPEC)", () => {
+    expect(es.invoices.categoryNote).toBe(
+      "Con filtro de categoría, el monto es la parte de esas categorías y debajo se muestra el total de la factura.",
+    );
+    expect(es.invoices.notInCategoryFilter).toBe("No cuenta en el filtro de categoría");
   });
 
   it("formats the foreign amount line with and without a rate", () => {

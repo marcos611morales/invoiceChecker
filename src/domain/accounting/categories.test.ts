@@ -369,6 +369,21 @@ describe("scopeToCategories (D-14, D-27)", () => {
     });
   });
 
+  it("keeps an entry that has no part at all when nothing is selected (a line-less invoice is not filtered out)", () => {
+    const lineless = makeEntry({
+      invoice: makeInvoice({ emisor: A, tipo: "P", conceptos: [] }),
+      kind: "pago",
+      noSuma: "tipo",
+      counted: false,
+      conIva: null,
+      sinIva: null,
+    });
+    const scoped = scopeToCategories([lineless], new Set<string>(), scopeResolver);
+    expect(scoped).toHaveLength(1);
+    expect(scoped[0]?.parts).toEqual([]);
+    expect(scopeToCategories([lineless], new Set([LIMPIEZA]), scopeResolver)).toHaveLength(0);
+  });
+
   it("keeps only the selected parts and sums them exactly, keeping the full amount apart", () => {
     const [entry] = scopeToCategories(ledgerOf([mixedInvoice()]), new Set([LIMPIEZA]), scopeResolver);
     if (entry === undefined) throw new Error("dropped");
