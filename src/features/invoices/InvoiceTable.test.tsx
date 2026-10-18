@@ -12,11 +12,14 @@ import {
 } from "@testing-library/react";
 import { totalSpend } from "@/domain/accounting/aggregate";
 import type { IvaMode } from "@/domain/accounting/aggregate";
+import { scopeToCategories } from "@/domain/accounting/categories";
 import { buildLedger } from "@/domain/accounting/ledger";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
 import { qualitySummary } from "@/domain/accounting/quality";
 import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
-import { defaultSettings } from "@/domain/settings/types";
+import { makeResolver } from "@/domain/settings/resolver";
+import { SIN_CATEGORIA, defaultSettings } from "@/domain/settings/types";
+import { useCategorySettings } from "@/features/categories/useCategorySettings";
 import { DashboardTab } from "@/features/dashboard/DashboardTab";
 import { formatMoney } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -81,14 +84,25 @@ function seed(invoices: readonly ParsedInvoice[]): void {
   });
 }
 
+const NO_CATEGORIES: ReadonlySet<string> = new Set<string>();
+
+/** Scopes prebuilt entries to a category selection with the default settings (no selection keeps them whole). */
+function scoped(entries: readonly LedgerEntry[]) {
+  return scopeToCategories(entries, NO_CATEGORIES, makeResolver(defaultSettings()));
+}
+
 /** Builds the ledger from the session store like the Dashboard does. */
 function Harness({
   mode = "con",
   only,
+  categories = NO_CATEGORIES,
 }: {
   mode?: IvaMode;
   only?: ReadonlySet<string>;
+  /** The category selection, applied like the Dashboard's selectView does. */
+  categories?: ReadonlySet<string>;
 }) {
+  const { resolver } = useCategorySettings();
   const invoices = useSessionStore((s) => s.invoices);
   const excluded = useSessionStore((s) => s.excluded);
   const restored = useSessionStore((s) => s.restored);
@@ -97,14 +111,19 @@ function Harness({
     [invoices, excluded, restored],
   );
   const rows = useMemo(
-    () => (only === undefined ? ledger : ledger.filter((e) => only.has(e.uuid))),
-    [ledger, only],
+    () =>
+      scopeToCategories(
+        only === undefined ? ledger : ledger.filter((e) => only.has(e.uuid)),
+        categories,
+        resolver,
+      ),
+    [ledger, only, categories, resolver],
   );
   return (
     <>
       <p data-testid="gasto">{formatMoney(totalSpend(ledger, mode))}</p>
       <p data-testid="amount-changing">{String(qualitySummary(ledger).amountChanging)}</p>
-      <InvoiceTable rows={rows} ledger={ledger} mode={mode} />
+      <InvoiceTable rows={rows} ledger={ledger} mode={mode} categoryFilter={categories} />
     </>
   );
 }
@@ -746,7 +765,7 @@ describe("InvoiceTable layout, long text and untrusted text", () => {
         conceptos: [concepto({ descripcion: longDescription })],
       }),
     });
-    render(<InvoiceTable rows={[entry]} ledger={[entry]} mode="con" />);
+    render(<InvoiceTable rows={scoped([entry])} ledger={[entry]} mode="con" categoryFilter={NO_CATEGORIES} />);
     const supplier = screen.getByRole("button", { name: longName });
     expect(supplier.className).toContain("truncate");
     const formas = screen.getByRole("button", {
@@ -780,7 +799,7 @@ describe("InvoiceTable with prebuilt entries", () => {
   it("renders a row per entry it receives", () => {
     const a: LedgerEntry = makeEntry({ invoice: makeInvoice({ uuid: "A", folio: "A" }) });
     const b: LedgerEntry = makeEntry({ invoice: makeInvoice({ uuid: "B", folio: "B" }) });
-    render(<InvoiceTable rows={[a, b]} ledger={[a, b]} mode="con" />);
+    render(<InvoiceTable rows={scoped([a, b])} ledger={[a, b]} mode="con" categoryFilter={NO_CATEGORIES} />);
     expect(dataRows()).toHaveLength(2);
   });
 });
@@ -1518,5 +1537,214 @@ describe("InvoiceTable concept category selector (CAT-03, D-09 to D-12, E7)", ()
     expect(document.querySelector("img")).toBeNull();
     expect(reachCaption()).toHaveTextContent(`Aplica a 1 línea de ${hostile}`);
     expect(toastMessages()).toContain(`Categoría de «${hostile}» cambiada a Limpieza e higiene`);
+  });
+});
+
+describe("InvoiceTable under the category filter (FILT-03, D-14, D-27, E7 partial)", () => {
+  const A = { rfc: "AAA010101AAA", nombre: "Proveedor A" };
+  const ABARROTES = "seed:abarrotes-despensa";
+  const LIMPIEZA = "seed:limpieza-higiene";
+  const PARTIAL_NOTE =
+    "Con filtro de categoría, el monto es la parte de esas categorías y debajo se muestra el total de la factura.";
+  const DIMMED_TEXT = "No cuenta en el filtro de categoría";
+
+  /** A line with no tax: its Con IVA and Sin IVA amounts are the importe. */
+  function plain(descripcion: string, importe: string): Concepto {
+    return concepto({ descripcion, valorUnitario: importe, importe });
+  }
+
+  /** Cloro (100.00, rule: Limpieza) and Jabón (50.00, supplier: Abarrotes); total 150.00 unless overridden. */
+  function mixed(uuid: string, overrides: Partial<ParsedInvoice> = {}): ParsedInvoice {
+    return inv(uuid, {
+      emisor: A,
+      subTotal: "150.00",
+      total: "150.00",
+      conceptos: [plain("Cloro", "100.00"), plain("Jabón", "50.00")],
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    act(() => {
+      useSettingsStore.getState().setSupplierCategory(A.rfc, A.nombre, ABARROTES);
+      useSettingsStore.getState().setConceptRule(A.rfc, "Cloro", LIMPIEZA);
+    });
+  });
+
+  const ONLY_LIMPIEZA: ReadonlySet<string> = new Set([LIMPIEZA]);
+
+  /** The text lines of the Monto cell of one row, in order. */
+  function amountLines(uuid: string): string[] {
+    return Array.from(cellOf(dataRow(uuid), 6).querySelectorAll("span")).map(
+      (span) => span.textContent,
+    );
+  }
+
+  function conceptRowOf(description: string): HTMLElement {
+    const row = screen.getByText(description).closest("tr");
+    if (row === null) throw new Error(`no concept row ${description}`);
+    return row;
+  }
+
+  async function pick(trigger: HTMLElement, optionName: string): Promise<void> {
+    fireEvent.click(trigger);
+    const option = screen.getByRole("option", { name: optionName });
+    // Base UI commits a mouse selection only when the pointer went down on the item.
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+    await waitFor(() => {
+      expect(screen.queryByRole("option")).toBeNull();
+    });
+  }
+
+  function rowIds(): (string | null)[] {
+    return dataRows().map((row) => row.getAttribute("data-row-id"));
+  }
+
+  it("shows the part of the chosen categories and below it «de {total} total» in 12px muted text", () => {
+    seed([mixed("F1")]);
+    render(<Harness categories={ONLY_LIMPIEZA} />);
+    expect(amountLines("F1")).toEqual(["$100.00", "de $150.00 total"]);
+    const second = cellOf(dataRow("F1"), 6).querySelectorAll("span")[1];
+    expect(second?.className).toContain("text-xs");
+    expect(second?.className).toContain("text-muted-foreground");
+  });
+
+  it("shows no second line, no extra note sentence and no dimming without the filter", () => {
+    seed([mixed("F1")]);
+    render(<Harness />);
+    expect(amountLines("F1")).toEqual(["$150.00"]);
+    expect(screen.queryByText(PARTIAL_NOTE)).toBeNull();
+    fireEvent.click(chevron("F1"));
+    expect(screen.queryByText(DIMMED_TEXT)).toBeNull();
+    expect(conceptRowOf("Jabón").className).not.toContain("text-muted-foreground");
+  });
+
+  it("adds the extra sentence to the table note only while the filter is active (T-03-37)", () => {
+    seed([mixed("F1")]);
+    const { rerender } = render(<Harness />);
+    expect(screen.queryByText(PARTIAL_NOTE)).toBeNull();
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Incluye notas de crédito y facturas que no suman (atenuadas). El monto sigue el modo Con IVA / Sin IVA.",
+    );
+    rerender(<Harness categories={ONLY_LIMPIEZA} />);
+    expect(screen.getByText(PARTIAL_NOTE)).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("El monto sigue el modo Con IVA / Sin IVA.");
+    rerender(<Harness />);
+    expect(screen.queryByText(PARTIAL_NOTE)).toBeNull();
+  });
+
+  it("counts in the heading the invoices that have a line of the chosen categories", () => {
+    seed([
+      mixed("F1"),
+      inv("F2", { emisor: A, conceptos: [plain("Jabón", "50.00")], subTotal: "50.00", total: "50.00" }),
+    ]);
+    render(<Harness categories={ONLY_LIMPIEZA} />);
+    expect(screen.getByRole("heading", { name: "Facturas (1)" })).toBeInTheDocument();
+    expect(rowIds()).toEqual(["F1"]);
+  });
+
+  it("sorts Monto by the partial amount, not by the invoice total", () => {
+    seed([
+      mixed("F1"),
+      inv("F3", { emisor: A, conceptos: [plain("Cloro", "120.00")], subTotal: "120.00", total: "120.00" }),
+    ]);
+    render(<Harness categories={ONLY_LIMPIEZA} />);
+    clickHeader("Monto");
+    // 100.00 (of 150.00) before 120.00 (of 120.00); by the totals the order would be the opposite.
+    expect(rowIds()).toEqual(["F1", "F3"]);
+  });
+
+  it("keeps a Pago row visible when its line is in the selection, without an amount or a total line", () => {
+    act(() => {
+      useSettingsStore.getState().setConceptRule(A.rfc, "Pago", LIMPIEZA);
+    });
+    seed([
+      inv("PG", {
+        emisor: A,
+        tipo: "P",
+        moneda: "XXX",
+        total: "0",
+        subTotal: "0",
+        conceptos: [concepto({ descripcion: "Pago", valorUnitario: "0", importe: "0" })],
+      }),
+      mixed("F1"),
+    ]);
+    render(<Harness categories={ONLY_LIMPIEZA} />);
+    expect(rowIds().sort()).toEqual(["F1", "PG"]);
+    expect(within(dataRow("PG")).getByText("No suma")).toBeInTheDocument();
+    expect(amountLines("PG")).toEqual(["—"]);
+  });
+
+  it("dims the lines of other categories with the muted token and a screen-reader label, not opacity", () => {
+    seed([mixed("F1")]);
+    render(<Harness categories={ONLY_LIMPIEZA} />);
+    fireEvent.click(chevron("F1"));
+    const dimmed = conceptRowOf("Jabón");
+    expect(dimmed.className).toContain("text-muted-foreground");
+    expect(dimmed.className).not.toMatch(/opacity/);
+    const label = within(dimmed).getByText(DIMMED_TEXT);
+    expect(label.className).toContain("sr-only");
+    // The line inside the selection is neither dimmed nor labelled.
+    const counted = conceptRowOf("Cloro");
+    expect(counted.className).not.toContain("text-muted-foreground");
+    expect(screen.getAllByText(DIMMED_TEXT)).toHaveLength(1);
+  });
+
+  it("keeps the category Select of a dimmed line operable (UI-SPEC Q6)", async () => {
+    seed([mixed("F1")]);
+    render(<Harness categories={ONLY_LIMPIEZA} />);
+    fireEvent.click(chevron("F1"));
+    const select = within(conceptRowOf("Jabón")).getByRole("combobox", {
+      name: "Categoría del concepto «Jabón»",
+    });
+    expect(select).toBeEnabled();
+    await pick(select, "Limpieza e higiene");
+    expect(
+      useSettingsStore.getState().conceptRules.find((rule) => rule.key === "jabón")?.categoryId,
+    ).toBe(LIMPIEZA);
+  });
+
+  it("computes «Diferencia de redondeo» from the full invoice amount, with or without the filter", () => {
+    seed([mixed("F1", { subTotal: "150.01", total: "150.01" })]);
+    const { rerender } = render(<Harness />);
+    fireEvent.click(chevron("F1"));
+    expect(screen.getByText("Diferencia de redondeo: $0.01")).toBeInTheDocument();
+    rerender(<Harness categories={ONLY_LIMPIEZA} />);
+    expect(amountLines("F1")).toEqual(["$100.00", "de $150.01 total"]);
+    expect(screen.getByText("Diferencia de redondeo: $0.01")).toBeInTheDocument();
+    rerender(<Harness categories={new Set([ABARROTES])} />);
+    expect(screen.getByText("Diferencia de redondeo: $0.01")).toBeInTheDocument();
+  });
+
+  it("selecting every category plus «Sin categoría» gives the amounts of no filter (D-27)", () => {
+    seed([
+      mixed("F1"),
+      inv("F2", { emisor: { rfc: "ZZZ010101ZZZ", nombre: "Otro" }, fecha: "2025-02-01T10:00:00" }),
+    ]);
+    const { rerender } = render(<Harness />);
+    const unfiltered = [amountLines("F1")[0], amountLines("F2")[0]];
+    const every = new Set([
+      ...defaultSettings().categories.map((category) => category.id),
+      SIN_CATEGORIA,
+    ]);
+    rerender(<Harness categories={every} />);
+    expect(dataRows()).toHaveLength(2);
+    expect([amountLines("F1")[0], amountLines("F2")[0]]).toEqual(unfiltered);
+  });
+
+  it("follows the Dashboard category filter and is gone after «Quitar filtros»", () => {
+    seed([mixed("F1")]);
+    act(() => {
+      useSessionStore.getState().setCategories(new Set([LIMPIEZA]));
+    });
+    render(<DashboardTab />);
+    expect(amountLines("F1")).toEqual(["$100.00", "de $150.00 total"]);
+    expect(screen.getByText(PARTIAL_NOTE)).toBeInTheDocument();
+    act(() => {
+      useSessionStore.getState().clearFilters();
+    });
+    expect(amountLines("F1")).toEqual(["$150.00"]);
+    expect(screen.queryByText(PARTIAL_NOTE)).toBeNull();
   });
 });
