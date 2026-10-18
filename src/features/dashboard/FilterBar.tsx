@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { categoryOptions } from "@/domain/accounting/categories";
 import {
   formaOptions,
   isDefaultFilters,
@@ -12,10 +13,12 @@ import {
   type FilterOption,
 } from "@/domain/accounting/filters";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
+import { useCategorySettings } from "@/features/categories/useCategorySettings";
 import { es } from "@/lib/copy/es";
 import {
   chipText,
   filtersButtonText,
+  noCategoryMatch,
   noFormaMatch,
   noSupplierMatch,
   removeChipAria,
@@ -27,20 +30,24 @@ import { MultiSelectFilter, selectedNames } from "./MultiSelectFilter";
 
 /** Names shown in a chip before the "+N" (UI-SPEC "Chip patterns"). */
 const SUPPLIER_CHIP_NAMES = 2;
+const CATEGORY_CHIP_NAMES = 2;
 const FORMA_CHIP_NAMES = 1;
 
-/** The three filter triggers; rendered once in the desktop row and once in the mobile fold. */
+/** The four filter triggers; rendered once in the desktop row and once in the mobile fold. */
 function FilterTriggers(props: {
   span: DateRange | null;
   suppliers: readonly FilterOption[];
+  categories: readonly FilterOption[];
   formas: readonly FilterOption[];
 }) {
-  const { span, suppliers, formas } = props;
+  const { span, suppliers, categories, formas } = props;
   const range = useSessionStore((s) => s.filters.range);
   const selectedSuppliers = useSessionStore((s) => s.filters.suppliers);
+  const selectedCategories = useSessionStore((s) => s.filters.categories);
   const selectedFormas = useSessionStore((s) => s.filters.formas);
   const setRange = useSessionStore((s) => s.setRange);
   const setSuppliers = useSessionStore((s) => s.setSuppliers);
+  const setCategories = useSessionStore((s) => s.setCategories);
   const setFormas = useSessionStore((s) => s.setFormas);
   return (
     <>
@@ -54,6 +61,16 @@ function FilterTriggers(props: {
         clearLabel={es.filters.clearSuppliers}
         noMatch={noSupplierMatch}
         widthClass="w-[360px]"
+      />
+      <MultiSelectFilter
+        label={es.filters.category}
+        options={categories}
+        selected={selectedCategories}
+        onChange={setCategories}
+        searchPlaceholder={es.filters.searchCategory}
+        clearLabel={es.filters.clearCategories}
+        noMatch={noCategoryMatch}
+        widthClass="w-[320px]"
       />
       <MultiSelectFilter
         label={es.filters.forma}
@@ -86,7 +103,7 @@ function Chip(props: { text: string; removeLabel: string; onRemove: () => void }
 }
 
 /**
- * Filter bar of the Dashboard (D-11, D-14): Fechas, Proveedor and Forma de pago,
+ * Filter bar of the Dashboard (D-11, D-14, D-15): Fechas, Proveedor, Categoría and Forma de pago,
  * one chip per active dimension, and a reset button. Below 640 px the triggers
  * fold into one "Filtros" button; the chips stay visible. Options count every
  * loaded invoice, whatever the other filters say (D-14).
@@ -96,17 +113,25 @@ export function FilterBar(props: { ledger: readonly LedgerEntry[]; span: DateRan
   const filters = useSessionStore((s) => s.filters);
   const setRange = useSessionStore((s) => s.setRange);
   const setSuppliers = useSessionStore((s) => s.setSuppliers);
+  const setCategories = useSessionStore((s) => s.setCategories);
   const setFormas = useSessionStore((s) => s.setFormas);
   const clearFilters = useSessionStore((s) => s.clearFilters);
   const [foldOpen, setFoldOpen] = useState(false);
+  const { settings, resolver, nameOf } = useCategorySettings();
 
   const suppliers = useMemo(() => supplierOptions(ledger), [ledger]);
+  const categories = useMemo(
+    () => categoryOptions(ledger, resolver, settings.categories, nameOf),
+    [ledger, resolver, settings.categories, nameOf],
+  );
   const formas = useMemo(() => formaOptions(ledger, formaPagoLabel), [ledger]);
 
   const hasRange = filters.range !== null;
   const hasSuppliers = filters.suppliers.size > 0;
+  const hasCategories = filters.categories.size > 0;
   const hasFormas = filters.formas.size > 0;
-  const activeCount = Number(hasRange) + Number(hasSuppliers) + Number(hasFormas);
+  const activeCount =
+    Number(hasRange) + Number(hasSuppliers) + Number(hasCategories) + Number(hasFormas);
   const chipsPresent = activeCount > 0;
 
   return (
@@ -116,7 +141,7 @@ export function FilterBar(props: { ledger: readonly LedgerEntry[]; span: DateRan
           data-testid="filter-triggers-desktop"
           className="flex flex-wrap items-center gap-2 max-sm:hidden"
         >
-          <FilterTriggers span={span} suppliers={suppliers} formas={formas} />
+          <FilterTriggers span={span} suppliers={suppliers} categories={categories} formas={formas} />
         </div>
         <div data-testid="filter-fold" className="w-full sm:hidden">
           <Collapsible open={foldOpen} onOpenChange={setFoldOpen}>
@@ -126,7 +151,7 @@ export function FilterBar(props: { ledger: readonly LedgerEntry[]; span: DateRan
               {filtersButtonText(activeCount)}
             </CollapsibleTrigger>
             <CollapsibleContent className="flex flex-col gap-2 pt-2">
-              <FilterTriggers span={span} suppliers={suppliers} formas={formas} />
+              <FilterTriggers span={span} suppliers={suppliers} categories={categories} formas={formas} />
             </CollapsibleContent>
           </Collapsible>
         </div>
@@ -162,6 +187,17 @@ export function FilterBar(props: { ledger: readonly LedgerEntry[]; span: DateRan
             )}
             removeLabel={removeChipAria(es.filters.supplier)}
             onRemove={() => setSuppliers(new Set<string>())}
+          />
+        ) : null}
+        {hasCategories ? (
+          <Chip
+            text={chipText(
+              es.filters.category,
+              selectedNames(categories, filters.categories),
+              CATEGORY_CHIP_NAMES,
+            )}
+            removeLabel={removeChipAria(es.filters.category)}
+            onRemove={() => setCategories(new Set<string>())}
           />
         ) : null}
         {hasFormas ? (

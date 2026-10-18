@@ -191,6 +191,11 @@ export function noFormaMatch(text: string): string {
   return `Ninguna forma de pago coincide con «${text}». Revisa la búsqueda.`;
 }
 
+/** Empty category search (UI-SPEC "Filter by category"). */
+export function noCategoryMatch(text: string): string {
+  return `Ninguna categoría coincide con «${text}». Revisa la búsqueda.`;
+}
+
 /** Filter option: name with its invoice count. */
 export function optionLabel(name: string, count: number): string {
   return `${name} (${count})`;

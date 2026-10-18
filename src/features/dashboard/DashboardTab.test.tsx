@@ -1654,7 +1654,7 @@ describe("Dashboard tab: category filter (FILT-03, D-14, D-15, D-27, UI-SPEC Q3)
     await setUp();
     fireEvent.click(within(screen.getByTestId("filter-triggers-desktop")).getByRole("button", { name: "Categoría" }));
     act(() => {
-      fireEvent.click(screen.getByText("Limpieza e higiene"));
+      fireEvent.click(screen.getByRole("option", { name: /^Limpieza e higiene/ }));
     });
     expect([...useSessionStore.getState().filters.categories]).toEqual([LIMPIEZA]);
     expect(gastoText()).toBe("$65.75");

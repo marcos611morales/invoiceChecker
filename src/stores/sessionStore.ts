@@ -69,6 +69,8 @@ interface SessionState extends ImportState {
   setRange: (range: DateRange | null) => void;
   setSuppliers: (next: ReadonlySet<string>) => void;
   setFormas: (next: ReadonlySet<string>) => void;
+  /** Category ids plus the reserved SIN_CATEGORIA key; in memory only, like every filter (D-15). */
+  setCategories: (next: ReadonlySet<string>) => void;
   /** Keeps a pending focus request so "Quitar filtros" can still reveal the row. */
   clearFilters: () => void;
   /** Returns the token that `undoExclusion` needs to put this uuid back exactly as it was. */
@@ -136,6 +138,11 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   setFormas: (formas) =>
     set((current) => ({
       filters: { ...current.filters, formas },
+      focusRequest: null,
+    })),
+  setCategories: (categories) =>
+    set((current) => ({
+      filters: { ...current.filters, categories },
       focusRequest: null,
     })),
   clearFilters: () => set({ filters: EMPTY_FILTERS }),
