@@ -126,7 +126,7 @@ function DeleteBody({
 
 /**
  * Delete confirmation of one category (CAT-05, D-05, UI-SPEC Q4 and Q10). Focus starts on
- * «Conservar categoría»; Esc and an overlay click dismiss with no change. Confirming moves
+ * «Conservar categoría»; Esc dismisses with no change (overlay click does not, user decision 2026-10-17). Confirming moves
  * the category's supplier assignments and concept adjustments to the chosen category (or
  * to «Sin categoría»), shows «Categoría borrada» with «Deshacer» for six seconds, and
  * moves focus to `finalFocusRef` (the row is gone). A dismissal returns focus the usual way.
