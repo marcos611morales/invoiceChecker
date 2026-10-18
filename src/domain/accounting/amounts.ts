@@ -51,7 +51,7 @@ const ONE = ZERO.plus("1");
  * TipoCambio for any other currency, null when that rate is missing, not a
  * decimal, zero or negative.
  */
-function exchangeRate(invoice: ParsedInvoice): Big | null {
+export function exchangeRate(invoice: ParsedInvoice): Big | null {
   if (invoice.moneda === "MXN") return ONE;
   const rate = parseDecimal(invoice.tipoCambio);
   if (rate === null || rate.lte(ZERO)) return null;
@@ -62,7 +62,7 @@ function exchangeRate(invoice: ParsedInvoice): Big | null {
  * Sum of the Importe of some taxes. An absent Importe (Exento) counts as zero;
  * one that is not a decimal makes the whole sum null.
  */
-function sumImportes(taxes: readonly Impuesto[]): Big | null {
+export function sumImportes(taxes: readonly Impuesto[]): Big | null {
   let total = ZERO;
   for (const tax of taxes) {
     if (tax.importe === null) continue;
