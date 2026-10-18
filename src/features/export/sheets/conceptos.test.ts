@@ -337,8 +337,7 @@ describe("Conceptos reconciles with Facturas (D-13, research Pitfall 10, T-03-29
     return total;
   }
 
-  it("adds up, for every summing invoice of a mix, to its Monto in Facturas", () => {
-    const settings = settingsWith({ supplierCategories: SUPPLIER_IN_LIMPIEZA });
+  function mixedLedger(): LedgerEntry[] {
     const mix: LedgerEntry[] = [];
     for (let i = 0; i < 24; i += 1) {
       const a = `${10 + i}.${String((i * 7) % 10)}${String((i * 3) % 10)}${String(i % 10)}`;
@@ -371,7 +370,16 @@ describe("Conceptos reconciles with Facturas (D-13, research Pitfall 10, T-03-29
         { exclusion: "manual", counted: false },
       ),
     );
-    const view = viewFor(mix, RANGE, "con", settings);
+    return mix;
+  }
+
+  /** Checks every Facturas row against the sum of its Conceptos rows; returns the rows checked. */
+  function expectReconciled(
+    ledger: readonly LedgerEntry[],
+    settings: SettingsData,
+    selected: readonly string[] = [],
+  ): number {
+    const view = viewFor(ledger, RANGE, "con", settings, selected);
     const ctx = contextFor(settings, "con");
     const conceptos = buildConceptos(view, ctx);
     const facturas = buildFacturas(view, ctx);
@@ -389,6 +397,23 @@ describe("Conceptos reconciles with Facturas (D-13, research Pitfall 10, T-03-29
       expect(total.toFixed(2)).toBe(sumOf([monto]).toFixed(2));
       checked += 1;
     }
-    expect(checked).toBe(mix.length);
+    return checked;
+  }
+
+  it("adds up, for every summing invoice of a mix, to its Monto in Facturas", () => {
+    const mix = mixedLedger();
+    const settings = settingsWith({ supplierCategories: SUPPLIER_IN_LIMPIEZA });
+    expect(expectReconciled(mix, settings)).toBe(mix.length);
+  });
+
+  it("still adds up to the partial Monto of each invoice under a category filter (user decision 2026-10-18)", () => {
+    const mix = mixedLedger();
+    const settings = settingsWith({
+      supplierCategories: SUPPLIER_IN_LIMPIEZA,
+      conceptRules: [{ rfc: RFC, key: "dos", description: "Dos", categoryId: null }],
+    });
+    // Limpieza keeps «Uno» and «Tres» plus the invoice remainder; «Sin categoría» keeps «Dos».
+    expect(expectReconciled(mix, settings, [LIMPIEZA])).toBeGreaterThan(0);
+    expect(expectReconciled(mix, settings, [SIN_CATEGORIA])).toBeGreaterThan(0);
   });
 });

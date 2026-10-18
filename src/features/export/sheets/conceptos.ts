@@ -8,14 +8,14 @@
  * cell is written, so the rounded lines of an invoice can miss its rounded amount by a few
  * cents. For each summing invoice a «Diferencia de redondeo» line in the supplier's category
  * carries that gap, so the Monto cells of one invoice add up exactly to its Monto in
- * «Facturas». Sums per category of this sheet may still differ from the Dashboard by cents,
+ * «Facturas», with or without a category filter. Sums per category of this sheet may still differ from the Dashboard by cents,
  * because the Dashboard sums exact amounts and rounds only the result.
  *
  * Every description, name and code is a text cell, so a value beginning with = + - or @ is
  * never evaluated (XLS-03, T-03-27).
  */
 import type Big from "big.js";
-import type { IvaMode } from "@/domain/accounting/aggregate";
+import { entryAmount, type IvaMode } from "@/domain/accounting/aggregate";
 import { conceptAmounts } from "@/domain/accounting/amounts";
 import { conceptBreakdown } from "@/domain/accounting/breakdown";
 import type { ScopedEntry } from "@/domain/accounting/categories";
@@ -100,13 +100,13 @@ export function buildConceptos(view: DashboardView, ctx: WorkbookContext): Sheet
     for (const part of entry.parts) {
       if (part.concept !== null) keptConcepts.add(part.concept);
     }
-    let allLines = ZERO;
+    let writtenLines = ZERO;
     entry.invoice.conceptos.forEach((concepto, index) => {
       const amounts = conceptAmounts(concepto, entry.invoice);
       // An unusable amount counts as zero, as in the split of the Dashboard (D-13).
       const lineAmount = amountOf(amounts, ctx.mode);
-      allLines = allLines.plus(roundedCents(lineAmount));
       if (selection.size > 0 && !keptConcepts.has(index)) return;
+      writtenLines = writtenLines.plus(roundedCents(lineAmount));
       const breakdown = conceptBreakdown(concepto, entry.invoice);
       const { category, source } = ctx.resolver.explain(entry.supplierRfc, concepto.descripcion);
       const unidad = concepto.unidad === null ? "" : concepto.unidad.trim();
@@ -127,7 +127,7 @@ export function buildConceptos(view: DashboardView, ctx: WorkbookContext): Sheet
       ]);
     });
 
-    const roundingRow = roundingLine(entry, view, ctx, allLines, lead);
+    const roundingRow = roundingLine(entry, ctx, writtenLines, lead);
     if (roundingRow !== null) rows.push(roundingRow);
   }
 
@@ -135,23 +135,24 @@ export function buildConceptos(view: DashboardView, ctx: WorkbookContext): Sheet
 }
 
 /**
- * The «Diferencia de redondeo» row of a summing invoice, or null when its rounded lines already
- * add up to its rounded amount or the supplier's category is outside the category filter.
+ * The «Diferencia de redondeo» row of a summing invoice, or null when its written lines already
+ * add up to its Monto in «Facturas». The target is that same Monto (the partial amount under a
+ * category filter, the whole invoice without one), so the Conceptos rows of every invoice always
+ * add up exactly to its Facturas row (user decision 2026-10-18). The row is written even when the
+ * supplier's category is outside the filter, because only then do the two sheets agree.
  */
 function roundingLine(
   entry: ScopedEntry,
-  view: DashboardView,
   ctx: WorkbookContext,
-  roundedLines: Big,
+  writtenLines: Big,
   lead: XCell[],
 ): XCell[] | null {
   if (!entry.counted) return null;
-  const full = ctx.mode === "con" ? entry.fullConIva : entry.fullSinIva;
-  if (full === null) return null;
-  const difference = sum([roundedCents(full), roundedLines.neg()]);
+  const monto = entryAmount(entry, ctx.mode);
+  if (monto === null) return null;
+  const difference = sum([roundedCents(monto), writtenLines.neg()]);
   if (difference.eq(ZERO)) return null;
   const supplierCategory = ctx.resolver.supplierCategory(entry.supplierRfc);
-  if (view.selected.size > 0 && !view.selected.has(supplierCategory)) return null;
   return [
     ...lead,
     textCell(es.export.roundingLine),
