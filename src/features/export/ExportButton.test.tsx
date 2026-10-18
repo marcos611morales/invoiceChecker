@@ -97,7 +97,11 @@ describe("ExportButton: download (D-19, XLS-02)", () => {
     });
     expect(writeMock).toHaveBeenCalledTimes(1);
     const sheets = writeMock.mock.calls[0]?.[0];
-    expect(sheets?.map((sheet) => sheet.name)).toEqual(["Facturas", "Resumen por mes"]);
+    expect(sheets?.map((sheet) => sheet.name)).toEqual([
+      "Facturas",
+      "Conceptos",
+      "Resumen por mes",
+    ]);
     expect(downloadMock).toHaveBeenCalledTimes(1);
     expect(downloadMock).toHaveBeenCalledWith(BLOB, FILE_CON);
   });

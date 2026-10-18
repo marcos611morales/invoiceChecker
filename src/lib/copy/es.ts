@@ -379,7 +379,23 @@ export const es = {
       total: "Total",
       currency: "Moneda",
       exchangeRate: "Tipo de cambio",
+      description: "Descripción",
+      quantity: "Cantidad",
+      unit: "Unidad",
+      claveProdServ: "ClaveProdServ",
+      unitPrice: "Precio unitario",
+      amount: "Importe",
+      category: "Categoría",
+      origin: "Origen de la categoría",
     },
+    /** Origen de la categoría of a line, from where the resolver took it (D-22, Q6). */
+    origin: {
+      regla: "Ajuste del concepto",
+      proveedor: "Del proveedor",
+      ninguna: "Sin categoría",
+    },
+    /** Description of the line that makes the rounded lines of an invoice add up (D-13, Q7b). */
+    roundingLine: "Diferencia de redondeo",
   },
 
   errors: {
