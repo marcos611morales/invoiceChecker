@@ -207,3 +207,16 @@ export function supplierRanking(
     return a.rfc < b.rfc ? -1 : a.rfc > b.rfc ? 1 : 0;
   });
 }
+
+export interface MonthCount {
+  month: MonthKey;
+  facturas: number;
+}
+
+/** Skeleton for the RED step. */
+export function monthlyCounts(
+  _visible: readonly LedgerEntry[],
+  _range: DateRange | null,
+): MonthCount[] {
+  return [];
+}
