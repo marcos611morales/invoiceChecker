@@ -9,9 +9,9 @@ open: 9
 
 | ID | Severity | Disposition | Reason |
 |----|----------|-------------|--------|
-| WR-01 | warning | open | awaiting user triage |
-| WR-02 | warning | open | awaiting user triage |
-| WR-03 | warning | open | awaiting user triage |
+| WR-01 | warning | fix | user triage 2026-10-18 (UAT test 7): fix now — gap G-03-7-WR01 |
+| WR-02 | warning | fix | user triage 2026-10-18 (UAT test 7): disclose rounding in Parámetros — gap G-03-7-WR02 |
+| WR-03 | warning | fix | user triage 2026-10-18 (UAT test 7): real assertions via loader — gap G-03-7-WR03 |
 | IN-01 | info | open | awaiting user triage |
 | IN-02 | info | open | awaiting user triage |
 | IN-03 | info | open | awaiting user triage |

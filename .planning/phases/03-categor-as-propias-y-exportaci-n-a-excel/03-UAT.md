@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 03-categor-as-propias-y-exportaci-n-a-excel
 source: [03-VERIFICATION.md]
 started: 2026-10-18T17:16:29Z
