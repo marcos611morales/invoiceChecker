@@ -1463,3 +1463,207 @@ describe("Dashboard tab: Gasto por categoría (DASH-03, DASH-05, AJUS-01, D-12, 
     expect(document.querySelector("img")).toBeNull();
   });
 });
+
+describe("Dashboard tab: category filter (FILT-03, D-14, D-15, D-27, UI-SPEC Q3)", () => {
+  const A = { rfc: "AAA010101AAA", nombre: "Proveedor A" };
+  const B = { rfc: "BBB010101BBB", nombre: "Proveedor B" };
+  const LIMPIEZA = "seed:limpieza-higiene";
+  const SERVICIOS = "seed:servicios";
+  const CAPTION =
+    "Con filtro de categoría, los montos suman solo las líneas de esas categorías.";
+
+  function concepto(descripcion: string, importe: string, iva: string): Concepto {
+    return {
+      claveProdServ: "01010101",
+      noIdentificacion: null,
+      cantidad: "1",
+      claveUnidad: "H87",
+      unidad: null,
+      descripcion,
+      valorUnitario: importe,
+      importe,
+      descuento: null,
+      objetoImp: "02",
+      traslados: [{ base: importe, impuesto: "002", tipoFactor: "Tasa", tasaOCuota: "0.160000", importe: iva }],
+      retenciones: [],
+    };
+  }
+
+  /**
+   * Supplier A (Limpieza e higiene): an invoice whose line «Jabón» is a Servicios rule, a one-cent
+   * gap that goes to Limpieza e higiene, and a credit note. Supplier B (no category): one invoice.
+   */
+  function sample(): ParsedInvoice[] {
+    return [
+      makeInvoice({
+        emisor: A,
+        fecha: "2025-01-15T10:00:00",
+        subTotal: "100.01",
+        total: "116.01",
+        conceptos: [
+          concepto("Cloro", "33.33", "5.33"),
+          concepto("Jabón", "33.33", "5.33"),
+          concepto("Trapeador", "33.34", "5.34"),
+        ],
+      }),
+      makeInvoice({
+        emisor: A,
+        tipo: "E",
+        fecha: "2025-02-20T10:00:00",
+        subTotal: "10.00",
+        total: "11.60",
+        conceptos: [concepto("Cloro", "10.00", "1.60")],
+      }),
+      makeInvoice({
+        emisor: B,
+        fecha: "2025-02-11T10:00:00",
+        subTotal: "50.00",
+        total: "58.00",
+        conceptos: [concepto("Café", "50.00", "8.00")],
+      }),
+    ];
+  }
+
+  async function setUp(): Promise<void> {
+    storeSettings({
+      ...defaultSettings(),
+      supplierCategories: [{ rfc: A.rfc, name: A.nombre, categoryId: LIMPIEZA }],
+      conceptRules: [{ rfc: A.rfc, key: "jabon", description: "Jabón", categoryId: SERVICIOS }],
+    });
+    load(sample());
+    await act(async () => {
+      await useSettingsStore.persist.rehydrate();
+    });
+    render(<DashboardTab />);
+  }
+
+  function choose(...categories: string[]): void {
+    act(() => {
+      useSessionStore.getState().setCategories(new Set(categories));
+    });
+  }
+
+  function categoryNames(): string[] {
+    const list = screen.getByRole("list", { name: "Gasto por categoría" });
+    return within(list)
+      .getAllByRole("listitem")
+      .map((row) => row.textContent ?? "");
+  }
+
+  function rankingNames(): string[] {
+    const list = screen.getByRole("list", { name: "Top 10 de proveedores por gasto neto" });
+    return within(list)
+      .getAllByRole("listitem")
+      .map((row) => row.textContent ?? "");
+  }
+
+  it("shows no caption and the full figures while the filter is off", async () => {
+    await setUp();
+    expect(screen.queryByTestId("category-caption")).toBeNull();
+    // 116.01 - 11.60 + 58.00.
+    expect(gastoText()).toBe("$162.41");
+  });
+
+  it("shows the caption under the mode caption only while the filter is active", async () => {
+    await setUp();
+    choose(LIMPIEZA);
+    const caption = screen.getByTestId("category-caption");
+    expect(caption).toHaveTextContent(CAPTION);
+    expect(caption.compareDocumentPosition(screen.getByTestId("mode-caption"))).toBe(
+      Node.DOCUMENT_POSITION_PRECEDING,
+    );
+    choose();
+    expect(screen.queryByTestId("category-caption")).toBeNull();
+  });
+
+  it("adds only the lines of the chosen category to the KPIs, trend and supplier ranking", async () => {
+    await setUp();
+    choose(LIMPIEZA);
+    // January: Cloro 38.66 + Trapeador 38.68 + the 0.01 gap = 77.35; February credit note -11.60.
+    expect(gastoText()).toBe("$65.75");
+    expect(screen.getByTestId("kpi-facturas")).toHaveTextContent("1");
+    expect(screen.getByTestId("kpi-ticket")).toHaveTextContent("$65.75");
+    const ranking = rankingNames();
+    expect(ranking).toHaveLength(1);
+    expect(ranking[0]).toContain("Proveedor A");
+    expect(ranking[0]).toContain("$65.75");
+  });
+
+  it("keeps an invoice whose only part in the selection is its rounding difference", async () => {
+    storeSettings({
+      ...defaultSettings(),
+      supplierCategories: [{ rfc: A.rfc, name: A.nombre, categoryId: LIMPIEZA }],
+      conceptRules: [{ rfc: A.rfc, key: "cafe", description: "Café", categoryId: SERVICIOS }],
+    });
+    load([
+      makeInvoice({
+        emisor: A,
+        fecha: "2025-01-15T10:00:00",
+        subTotal: "100.01",
+        total: "116.01",
+        conceptos: [concepto("Café", "100.00", "16.00")],
+      }),
+    ]);
+    await act(async () => {
+      await useSettingsStore.persist.rehydrate();
+    });
+    render(<DashboardTab />);
+    choose(LIMPIEZA);
+    expect(gastoText()).toBe("$0.01");
+    expect(screen.getByTestId("kpi-facturas")).toHaveTextContent("1");
+  });
+
+  it("lists only the chosen categories in Gasto por categoría, with the share of the filtered total", async () => {
+    await setUp();
+    choose(SERVICIOS);
+    const names = categoryNames();
+    expect(names).toHaveLength(1);
+    expect(names[0]).toContain("Servicios");
+    expect(names[0]).toContain("$38.66");
+    expect(names[0]).toContain("100");
+  });
+
+  it("matches the unfiltered Dashboard when every category and Sin categoría are chosen", async () => {
+    await setUp();
+    const before = gastoText();
+    const rowsBefore = categoryNames();
+    choose(...defaultSettings().categories.map((category) => category.id), "sin-categoria");
+    expect(gastoText()).toBe(before);
+    expect(categoryNames()).toEqual(rowsBefore);
+  });
+
+  it("shows the no-match empty state when no invoice has a part in the selection", async () => {
+    await setUp();
+    choose("seed:otros");
+    expect(screen.getByTestId("dashboard-empty-filtered")).toBeInTheDocument();
+  });
+
+  it("is cleared by 'Quitar filtros' and by removing the chip, which hide the caption", async () => {
+    await setUp();
+    choose(LIMPIEZA);
+    expect(screen.getByTestId("category-caption")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Quitar filtro Categoría" }));
+    expect(screen.queryByTestId("category-caption")).toBeNull();
+    choose(LIMPIEZA);
+    fireEvent.click(screen.getByRole("button", { name: "Quitar filtros" }));
+    expect(useSessionStore.getState().filters.categories.size).toBe(0);
+    expect(screen.queryByTestId("category-caption")).toBeNull();
+  });
+
+  it("chooses a category from the Categoría trigger", async () => {
+    await setUp();
+    fireEvent.click(within(screen.getByTestId("filter-triggers-desktop")).getByRole("button", { name: "Categoría" }));
+    act(() => {
+      fireEvent.click(screen.getByText("Limpieza e higiene"));
+    });
+    expect([...useSessionStore.getState().filters.categories]).toEqual([LIMPIEZA]);
+    expect(gastoText()).toBe("$65.75");
+  });
+
+  it("ignores a stale category id that no longer exists", async () => {
+    await setUp();
+    choose("borrada");
+    expect(screen.queryByTestId("category-caption")).toBeNull();
+    expect(gastoText()).toBe("$162.41");
+  });
+});
