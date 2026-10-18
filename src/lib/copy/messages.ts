@@ -560,3 +560,8 @@ export function exportedAtText(moment: Date): string {
   const time = `${twoDigits(moment.getHours())}:${twoDigits(moment.getMinutes())}`;
   return `${day}/${month}/${String(moment.getFullYear())} ${time}`;
 }
+
+/** «Mes de la variación» of the Parámetros sheet: «dic 2025 vs. nov 2025» (last month vs. the one before). */
+export function variationMonthText(last: string, previous: string): string {
+  return `${last} vs. ${previous}`;
+}

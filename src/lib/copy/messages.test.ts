@@ -10,6 +10,7 @@ import {
   categoryChangedToast,
   excelDownloadedToast,
   exportedAtText,
+  variationMonthText,
   conceptCategoryAria,
   deleteCategoryAria,
   deleteCategoryBody,
@@ -724,5 +725,10 @@ describe("Excel export copy (UI-SPEC Shell and top bar, E8)", () => {
   it("formats the export moment as dd/mm/aaaa hh:mm in local time, zero padded", () => {
     expect(exportedAtText(new Date(2026, 9, 7, 8, 5))).toBe("07/10/2026 08:05");
     expect(exportedAtText(new Date(2025, 11, 31, 23, 59))).toBe("31/12/2025 23:59");
+  });
+
+  it("states the pair of months behind the variation as «último vs. anterior»", () => {
+    expect(variationMonthText("dic 2025", "nov 2025")).toBe("dic 2025 vs. nov 2025");
+    expect(variationMonthText("ene 2026", "dic 2025")).toBe("ene 2026 vs. dic 2025");
   });
 });

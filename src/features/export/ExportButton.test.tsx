@@ -9,12 +9,14 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { ParsedInvoice } from "@/domain/cfdi/types";
+import { SIN_CATEGORIA } from "@/domain/settings/types";
+import { formaPagoLabel } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
 import { resetSettingsStore } from "../../../tests/support/settingsStorage";
-import type { SheetModel } from "./cellModel";
+import type { SheetModel, XCell } from "./cellModel";
 import { ExportButton } from "./ExportButton";
 
 const toastMock = vi.hoisted(() => vi.fn<(message: string) => void>());
@@ -100,7 +102,10 @@ describe("ExportButton: download (D-19, XLS-02)", () => {
     expect(sheets?.map((sheet) => sheet.name)).toEqual([
       "Facturas",
       "Conceptos",
+      "Resumen por categoría",
+      "Resumen por proveedor",
       "Resumen por mes",
+      "Parámetros",
     ]);
     expect(downloadMock).toHaveBeenCalledTimes(1);
     expect(downloadMock).toHaveBeenCalledWith(BLOB, FILE_CON);
@@ -117,6 +122,60 @@ describe("ExportButton: download (D-19, XLS-02)", () => {
     });
     const resumen = writeMock.mock.calls[0]?.[0].find((sheet) => sheet.name === "Resumen por mes");
     expect(resumen?.columns[1]?.header).toBe("Monto (sin IVA)");
+  });
+});
+
+describe("ExportButton: context of the Parámetros sheet (XLS-01, XLS-02)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The Valor cell of the Parámetros row named `label` in the sheets handed to the writer. */
+  function parameter(label: string): XCell | undefined {
+    const sheets = writeMock.mock.calls[0]?.[0];
+    const sheet = sheets?.find((candidate) => candidate.name === "Parámetros");
+    return sheet?.rows.find((row) => {
+      const first = row[0];
+      return first !== undefined && first.kind === "text" && first.value === label;
+    })?.[1];
+  }
+
+  it("says Todos / Todas and stamps the local export time as dd/mm/aaaa hh:mm", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 17, 9, 5));
+    render(<ExportButton />);
+    fireEvent.click(exportButton());
+    await waitFor(() => {
+      expect(writeMock).toHaveBeenCalledTimes(1);
+    });
+    expect(parameter("Exportado el")).toEqual({ kind: "text", value: "17/10/2026 09:05" });
+    expect(parameter("Proveedores")).toEqual({ kind: "text", value: "Todos" });
+    expect(parameter("Categorías")).toEqual({ kind: "text", value: "Todas" });
+    expect(parameter("Formas de pago")).toEqual({ kind: "text", value: "Todas" });
+  });
+
+  it("names the selected suppliers, categories and formas de pago", async () => {
+    seed([
+      makeInvoice({
+        uuid: "B-1",
+        formaPago: "03",
+        emisor: { rfc: "BBB010101BBB", nombre: "Café Dos" },
+      }),
+    ]);
+    act(() => {
+      const store = useSessionStore.getState();
+      store.setSuppliers(new Set(["BBB010101BBB"]));
+      store.setFormas(new Set(["03"]));
+      store.setCategories(new Set([SIN_CATEGORIA]));
+    });
+    render(<ExportButton />);
+    fireEvent.click(exportButton());
+    await waitFor(() => {
+      expect(writeMock).toHaveBeenCalledTimes(1);
+    });
+    expect(parameter("Proveedores")).toEqual({ kind: "text", value: "Café Dos" });
+    expect(parameter("Categorías")).toEqual({ kind: "text", value: "Sin categoría" });
+    expect(parameter("Formas de pago")).toEqual({ kind: "text", value: formaPagoLabel("03") });
   });
 });
 

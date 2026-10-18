@@ -388,6 +388,37 @@ export const es = {
       category: "Categoría",
       origin: "Origen de la categoría",
     },
+    /** Extra headers of the summary sheets (D-23, UI-SPEC Workbook contract). */
+    summary: {
+      rfc: "RFC",
+      pct: "% del total",
+      monthlyAverage: "Promedio mensual",
+      variation: "Variación % (último mes vs. mes anterior)",
+      ticket: "Ticket promedio",
+    },
+    /** Text of the variation cell when there is no comparable previous month. */
+    noPreviousMonth: "Sin dato del mes anterior",
+    /** «Parámetros» sheet: header, parameter names, fixed texts (XLS-01, UI-SPEC Workbook contract). */
+    params: {
+      parameter: "Parámetro",
+      value: "Valor",
+      exportedAt: "Exportado el",
+      mode: "Modo de montos",
+      modeCon: "Con IVA (Total de cada factura)",
+      modeSin: "Sin IVA (Subtotal − Descuento + IEPS)",
+      range: "Rango de fechas",
+      suppliers: "Proveedores",
+      categories: "Categorías",
+      formas: "Formas de pago",
+      invoices: "Facturas incluidas en el gasto",
+      total: "Gasto total",
+      variationMonth: "Mes de la variación",
+      note: "Nota",
+      noteText: "Las facturas excluidas a mano se listan con Estado «Excluida» y no suman.",
+      all: "Todos",
+      allFem: "Todas",
+      none: "—",
+    },
     /** Origen de la categoría of a line, from where the resolver took it (D-22, Q6). */
     origin: {
       regla: "Ajuste del concepto",
