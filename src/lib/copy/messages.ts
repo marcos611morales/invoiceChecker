@@ -560,3 +560,8 @@ export function exportedAtText(moment: Date): string {
   const time = `${twoDigits(moment.getHours())}:${twoDigits(moment.getMinutes())}`;
   return `${day}/${month}/${String(moment.getFullYear())} ${time}`;
 }
+
+/** RED skeleton: the real text follows in the GREEN commit. */
+export function variationMonthText(_last: string, _previous: string): string {
+  return "";
+}
