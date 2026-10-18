@@ -1,23 +1,34 @@
-/** Skeleton for the RED step. */
+/**
+ * The workbook as a list of library-independent sheet models, in workbook order (XLS-01).
+ * Every sheet reads the same `DashboardView` the Dashboard shows, so the figures of the
+ * file cannot disagree with the screen (FILT-05). Plan 03-13 writes the models to a file.
+ */
 import type { IvaMode } from "@/domain/accounting/aggregate";
 import type { DashboardView } from "@/domain/accounting/view";
 import type { Resolver } from "@/domain/settings/resolver";
+import { es } from "@/lib/copy/es";
 import type { SheetModel } from "./cellModel";
+import { buildResumenMes } from "./sheets/resumenMes";
 
 export interface WorkbookContext {
   mode: IvaMode;
+  /** Display name of a category id (including SIN_CATEGORIA). */
   nameOf: (key: string) => string;
   resolver: Resolver;
+  /** Moment of the export, already formatted dd/mm/aaaa hh:mm by the caller. */
   exportedAtText: string;
+  /** Names of the selected suppliers, categories and formas; empty means "all". */
   supplierLabels: string[];
   categoryLabels: string[];
   formaLabels: string[];
 }
 
-export function amountHeader(_mode: IvaMode): string {
-  return "";
+/** Header of every amount column: «Monto (con IVA)» or «Monto (sin IVA)» (D-22). */
+export function amountHeader(mode: IvaMode): string {
+  return mode === "con" ? es.export.amountCon : es.export.amountSin;
 }
 
-export function buildWorkbook(_view: DashboardView, _ctx: WorkbookContext): SheetModel[] {
-  return [];
+/** The sheet models in workbook order; later plans insert the other sheets in UI-SPEC order. */
+export function buildWorkbook(view: DashboardView, ctx: WorkbookContext): SheetModel[] {
+  return [buildResumenMes(view, ctx)];
 }
