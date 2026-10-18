@@ -287,6 +287,7 @@ export function InvoiceTable({ rows: entries, ledger, mode, categoryFilter }: In
   const categories = useMemo(() => orderedCategories(settings.categories), [settings.categories]);
   const focusRequest = useSessionStore((s) => s.focusRequest);
   const clearFocusRequest = useSessionStore((s) => s.clearFocusRequest);
+  const revealRequest = useSessionStore((s) => s.revealRequest);
   const rows = useMemo(() => toInvoiceRows(entries, mode), [entries, mode]);
   const payments = useMemo(() => buildPaymentIndex(ledger), [ledger]);
   const byUuid = useMemo(() => new Map(ledger.map((entry) => [entry.uuid, entry])), [ledger]);
@@ -299,6 +300,10 @@ export function InvoiceTable({ rows: entries, ledger, mode, categoryFilter }: In
   // Nonce of the last "Ver factura" request whose page and panel were resolved (idempotent render).
   const [handledNonce, setHandledNonce] = useState(0);
   const sectionRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // The request value already seen: the one present at mount counts as handled, so coming back to
+  // this tab never replays an old reveal (D-18).
+  const handledReveal = useRef(revealRequest);
   const headingId = useId();
   const idPrefix = useId();
 
@@ -367,6 +372,18 @@ export function InvoiceTable({ rows: entries, ledger, mode, categoryFilter }: In
     }
     clearFocusRequest();
   }, [focusRequest, handledNonce, byUuid, clearFocusRequest]);
+
+  // A category or supplier row asked to show its invoices (D-18, DASH-08): bring the section to
+  // the top of the screen and put focus on its heading. Only the DOM is touched; no row opens.
+  useEffect(() => {
+    if (revealRequest === 0 || revealRequest === handledReveal.current) return;
+    handledReveal.current = revealRequest;
+    const reduceMotion =
+      typeof window.matchMedia !== "function" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    sectionRef.current?.scrollIntoView({ block: "start", behavior: reduceMotion ? "auto" : "smooth" });
+    headingRef.current?.focus({ preventScroll: true });
+  }, [revealRequest]);
 
   const toggle = (uuid: string) => {
     setOpen((current) => {
@@ -471,9 +488,18 @@ export function InvoiceTable({ rows: entries, ledger, mode, categoryFilter }: In
   };
 
   return (
-    <section ref={sectionRef} aria-labelledby={headingId} className="flex min-w-0 flex-col gap-4">
+    <section
+      ref={sectionRef}
+      aria-labelledby={headingId}
+      className="flex min-w-0 scroll-mt-[72px] flex-col gap-4 max-sm:scroll-mt-[124px]"
+    >
       <div className="flex flex-col gap-1">
-        <h2 id={headingId} className="text-xl leading-[1.2] font-semibold">
+        <h2
+          ref={headingRef}
+          id={headingId}
+          tabIndex={-1}
+          className="text-xl leading-[1.2] font-semibold"
+        >
           {invoicesHeading(rows.length)}
         </h2>
         {/* role="note" overrides the default alert role: the note never changes,
