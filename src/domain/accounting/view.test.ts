@@ -246,3 +246,60 @@ describe("selectView with a category filter (D-14, D-27)", () => {
     expect(servicios.visible.some((entry) => entry.kind === "pago")).toBe(false);
   });
 });
+
+describe("selectView month-over-month variation per category (D-17)", () => {
+  function variationOf(view: ReturnType<typeof selectView>, category: string): string | null | undefined {
+    const row = view.categories.find((candidate) => candidate.category === category);
+    return row === undefined ? undefined : (row.variation?.toString() ?? null);
+  }
+
+  it("compares the last month of the range with the previous calendar month", () => {
+    const view = selectView(input({ ...EMPTY_FILTERS, range: { from: "2025-04", to: "2025-06" } }));
+    expect(view.variationMonths).toEqual({ last: "2025-06", previous: "2025-05" });
+    // SERVICIOS: nothing in June against 232.00 in May is a full drop.
+    expect(variationOf(view, SERVICIOS)).toBe("-1");
+    // LIMPIEZA and Sin categoría have no spend in May: no comparable month.
+    expect(variationOf(view, LIMPIEZA)).toBeNull();
+    expect(variationOf(view, SIN_CATEGORIA)).toBeNull();
+  });
+
+  it("reads a previous month outside the range, because the date filter does not restrict it", () => {
+    const view = selectView(input({ ...EMPTY_FILTERS, range: { from: "2025-04", to: "2025-04" } }));
+    expect(view.variationMonths).toEqual({ last: "2025-04", previous: "2025-03" });
+    // LIMPIEZA: April 38.66 + 38.68 + 0.01 = 77.35 against the whole 116.00 March invoice.
+    const expected = new Big("77.35").minus(new Big("116")).div(new Big("116"));
+    expect(variationOf(view, LIMPIEZA)).toBe(expected.toString());
+    // SERVICIOS has no spend in March.
+    expect(variationOf(view, SERVICIOS)).toBeNull();
+  });
+
+  it("uses the loaded span when there is no explicit range", () => {
+    const view = selectView(input(EMPTY_FILTERS));
+    expect(view.variationMonths).toEqual({ last: "2025-06", previous: "2025-05" });
+  });
+
+  it("applies the supplier filter to both months", () => {
+    const range = { from: "2025-05", to: "2025-05" };
+    const everyone = selectView(input({ ...EMPTY_FILTERS, range }));
+    // May: supplier B 232.00; April: Café of supplier A 38.66.
+    const expected = new Big("232").minus(new Big("38.66")).div(new Big("38.66"));
+    expect(variationOf(everyone, SERVICIOS)).toBe(expected.toString());
+    const onlyB = selectView(input({ ...EMPTY_FILTERS, range, suppliers: new Set([B.rfc]) }));
+    // Under supplier B alone nothing was spent in April.
+    expect(variationOf(onlyB, SERVICIOS)).toBeNull();
+  });
+
+  it("applies the category filter to both months", () => {
+    const range = { from: "2025-05", to: "2025-05" };
+    const view = selectView(input({ ...EMPTY_FILTERS, range, categories: new Set([SERVICIOS]) }));
+    expect(view.categories.map((row) => row.category)).toEqual([SERVICIOS]);
+    const expected = new Big("232").minus(new Big("38.66")).div(new Big("38.66"));
+    expect(variationOf(view, SERVICIOS)).toBe(expected.toString());
+  });
+
+  it("has no variation months when there is no range", () => {
+    const empty = selectView(input(EMPTY_FILTERS, { ledger: [] }));
+    expect(empty.variationMonths).toBeNull();
+    expect(empty.categories).toEqual([]);
+  });
+});

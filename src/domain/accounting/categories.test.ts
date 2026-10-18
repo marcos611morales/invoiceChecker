@@ -7,6 +7,7 @@ import { SIN_CATEGORIA, defaultSettings } from "../settings/types";
 import { kpis, monthlySeries, supplierRanking, totalSpend } from "./aggregate";
 import {
   categoryBreakdown,
+  categoryMonthTotals,
   categoryOptions,
   ruleLineCounts,
   scopeToCategories,
@@ -632,5 +633,128 @@ describe("ruleLineCounts (D-09)", () => {
     expect(ruleLineCounts([]).size).toBe(0);
     const ledger = ledgerOf([withLines({ rfc: "__proto__", nombre: "Raro" }, ["__proto__"])]);
     expect(ruleLineCounts(ledger).get(ruleMapKey("__proto__", "__proto__"))).toBe(1);
+  });
+});
+
+describe("categoryMonthTotals and the variation per category (D-17)", () => {
+  const nameOf = (key: string): string =>
+    key === SIN_CATEGORIA ? "Sin categoría" : (defaultSettings().categories.find((c) => c.id === key)?.name ?? key);
+  const resolver = resolverFor([
+    [A.rfc, LIMPIEZA],
+    [B.rfc, SERVICIOS],
+  ]);
+  const noSelection = new Set<string>();
+
+  /** An invoice with no concept lines: its whole amount is the supplier's difference part. */
+  function plain(
+    emisor: { rfc: string; nombre: string },
+    fecha: string,
+    subTotal: string,
+    total: string,
+    tipo: "I" | "E" = "I",
+  ): ParsedInvoice {
+    return makeInvoice({ emisor, fecha, subTotal, total, tipo });
+  }
+
+  function pair(invoices: readonly ParsedInvoice[], last: string, previous: string) {
+    const scoped = scopeToCategories(ledgerOf(invoices), noSelection, resolver);
+    return {
+      scoped,
+      variation: {
+        last: categoryMonthTotals(scoped, last, "con"),
+        previous: categoryMonthTotals(scoped, previous, "con"),
+      },
+    };
+  }
+
+  it("sums the counted parts of one month per category, in the given mode", () => {
+    const { scoped } = pair(
+      [
+        plain(A, "2025-02-10T10:00:00", "100.00", "116.00"),
+        plain(A, "2025-02-20T10:00:00", "50.00", "58.00"),
+        plain(A, "2025-02-25T10:00:00", "10.00", "11.60", "E"),
+        plain(B, "2025-03-05T10:00:00", "200.00", "232.00"),
+      ],
+      "2025-02",
+      "2025-01",
+    );
+    const con = categoryMonthTotals(scoped, "2025-02", "con");
+    const sin = categoryMonthTotals(scoped, "2025-02", "sin");
+    expect(eq(con.get(LIMPIEZA) ?? ZERO, "162.40")).toBe(true);
+    expect(eq(sin.get(LIMPIEZA) ?? ZERO, "140.00")).toBe(true);
+    expect(con.has(SERVICIOS)).toBe(false);
+    expect(categoryMonthTotals(scoped, "2025-04", "con").size).toBe(0);
+  });
+
+  it("ignores entries that do not count", () => {
+    const entries = ledgerOf([plain(A, "2025-02-10T10:00:00", "100.00", "116.00")]);
+    const uncounted = entries.map((entry) => ({ ...entry, counted: false }));
+    const scoped = scopeToCategories(uncounted, noSelection, resolver);
+    expect(categoryMonthTotals(scoped, "2025-02", "con").size).toBe(0);
+  });
+
+  it("gives +25 % for 200 then 250, -20 % for 250 then 200 and 0 for equal amounts", () => {
+    const up = pair(
+      [plain(A, "2025-11-10T10:00:00", "200.00", "200.00"), plain(A, "2025-12-10T10:00:00", "250.00", "250.00")],
+      "2025-12",
+      "2025-11",
+    );
+    expect(categoryBreakdown(up.scoped, "con", 2, nameOf, up.variation)[0]?.variation?.toString()).toBe("0.25");
+
+    const down = pair(
+      [plain(A, "2025-11-10T10:00:00", "250.00", "250.00"), plain(A, "2025-12-10T10:00:00", "200.00", "200.00")],
+      "2025-12",
+      "2025-11",
+    );
+    expect(categoryBreakdown(down.scoped, "con", 2, nameOf, down.variation)[0]?.variation?.toString()).toBe("-0.2");
+
+    const flat = pair(
+      [plain(A, "2025-11-10T10:00:00", "200.00", "200.00"), plain(A, "2025-12-10T10:00:00", "200.00", "200.00")],
+      "2025-12",
+      "2025-11",
+    );
+    expect(categoryBreakdown(flat.scoped, "con", 2, nameOf, flat.variation)[0]?.variation?.toString()).toBe("0");
+  });
+
+  it("gives null when the category has no part in the previous month", () => {
+    const { scoped, variation } = pair(
+      [plain(A, "2025-11-10T10:00:00", "200.00", "200.00"), plain(B, "2025-12-10T10:00:00", "250.00", "250.00")],
+      "2025-12",
+      "2025-11",
+    );
+    const rows = categoryBreakdown(scoped, "con", 2, nameOf, variation);
+    expect(rows.find((row) => row.category === SERVICIOS)?.variation).toBeNull();
+  });
+
+  it("gives null when no invoice is loaded in the previous month", () => {
+    const { scoped, variation } = pair([plain(A, "2025-12-10T10:00:00", "250.00", "250.00")], "2025-12", "2025-11");
+    const rows = categoryBreakdown(scoped, "con", 1, nameOf, variation);
+    expect(rows[0]?.variation).toBeNull();
+  });
+
+  it("never computes a percentage against a previous month that is zero or negative (T-03-21)", () => {
+    const zero = pair(
+      [
+        plain(A, "2025-11-10T10:00:00", "100.00", "100.00"),
+        plain(A, "2025-11-12T10:00:00", "100.00", "100.00", "E"),
+        plain(A, "2025-12-10T10:00:00", "250.00", "250.00"),
+      ],
+      "2025-12",
+      "2025-11",
+    );
+    expect(categoryBreakdown(zero.scoped, "con", 2, nameOf, zero.variation)[0]?.variation).toBeNull();
+
+    const negative = pair(
+      [plain(A, "2025-11-10T10:00:00", "100.00", "100.00", "E"), plain(A, "2025-12-10T10:00:00", "250.00", "250.00")],
+      "2025-12",
+      "2025-11",
+    );
+    expect(categoryBreakdown(negative.scoped, "con", 2, nameOf, negative.variation)[0]?.variation).toBeNull();
+  });
+
+  it("gives every row a null variation when the variation argument is null", () => {
+    const { scoped } = pair([plain(A, "2025-12-10T10:00:00", "250.00", "250.00")], "2025-12", "2025-11");
+    const rows = categoryBreakdown(scoped, "con", 1, nameOf, null);
+    expect(rows.every((row) => row.variation === null)).toBe(true);
   });
 });
