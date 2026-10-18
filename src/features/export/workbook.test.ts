@@ -27,13 +27,15 @@ describe("amountHeader", () => {
 });
 
 describe("buildWorkbook (XLS-01)", () => {
-  it("returns the sheet models in workbook order (Facturas, Conceptos, Resumen por mes)", () => {
+  it("returns the sheet models in workbook order, the summaries after the details", () => {
     const entries = entriesOf([{ month: "2025-01", con: "116.00", sin: "100.00" }]);
     const view = viewOf(entries, { from: "2025-01", to: "2025-01" }, "con");
     const sheets = buildWorkbook(view, testContext("con"));
     expect(sheets.map((sheet) => sheet.name)).toEqual([
       "Facturas",
       "Conceptos",
+      "Resumen por categoría",
+      "Resumen por proveedor",
       "Resumen por mes",
     ]);
   });
