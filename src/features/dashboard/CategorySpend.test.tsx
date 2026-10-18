@@ -91,6 +91,12 @@ describe("CategorySpend: variation per row (DASH-07, D-17)", () => {
     expect(delta).not.toHaveTextContent("%");
   });
 
+  it("describes the row button with its amount, caption and variation for screen readers", () => {
+    renderBlock([row("Limpieza", "250.00", { variation: null })]);
+    const button = screen.getByRole("button", { name: /Ver facturas de la categoría Limpieza/ });
+    expect(button).toHaveAccessibleDescription(/\$250\.00.*50\.0 % del total.*Sin dato del mes anterior/);
+  });
+
   it("keeps the caption and the variation as siblings of the third line", () => {
     renderBlock([row("Limpieza", "250.00", { variation: "0.25" })]);
     const item = screen.getAllByRole("listitem")[0];

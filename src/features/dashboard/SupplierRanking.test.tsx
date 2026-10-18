@@ -80,6 +80,9 @@ describe("SupplierRanking: the top list (DASH-04, D-22, D-23)", () => {
     expect(within(item).getByRole("button", { name: "Ver facturas de Proveedor 1" })).toBeInTheDocument();
     expect(within(item).getByText("$1,500.00")).toBeInTheDocument();
     expect(within(item).getByText("25.0 % del total · Ticket promedio $500.00")).toBeInTheDocument();
+    expect(within(item).getByRole("button", { name: "Ver facturas de Proveedor 1" })).toHaveAccessibleDescription(
+      "$1,500.00 25.0 % del total · Ticket promedio $500.00",
+    );
     expect(within(item).getByRole("button").className).toContain("min-h-[68px]");
     expect(within(item).getByTestId("ranking-track").className).toContain("h-1");
   });

@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import type Big from "big.js";
 import { Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -43,11 +44,14 @@ function CategoryItem({
   const revealCategory = useSessionStore((s) => s.revealCategory);
   const negative = row.net.lt(ZERO);
   const fill = fillPercent(row.net, maxAbs);
+  const amountId = useId();
+  const detailId = useId();
   return (
     <li>
       <button
         type="button"
         aria-label={viewCategoryInvoicesAria(name)}
+        aria-describedby={`${amountId} ${detailId}`}
         onClick={() => {
           revealCategory(row.category);
         }}
@@ -55,7 +59,7 @@ function CategoryItem({
       >
         <span className="flex items-baseline justify-between gap-4">
           <span className="block min-w-0 flex-1 text-sm font-semibold break-words">{name}</span>
-          <span className="shrink-0 text-sm font-semibold whitespace-nowrap tabular-nums">
+          <span id={amountId} className="shrink-0 text-sm font-semibold whitespace-nowrap tabular-nums">
             {formatMoney(row.net)}
           </span>
         </span>
@@ -74,7 +78,7 @@ function CategoryItem({
             />
           ) : null}
         </span>
-        <span className="flex flex-wrap gap-x-3 gap-y-1">
+        <span id={detailId} className="flex flex-wrap gap-x-3 gap-y-1">
           <span className="text-xs text-muted-foreground">
             {negative
               ? es.charts.negativeNet
