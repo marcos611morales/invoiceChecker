@@ -10,6 +10,7 @@ import { es } from "@/lib/copy/es";
 import type { SheetModel } from "./cellModel";
 import { buildConceptos } from "./sheets/conceptos";
 import { buildFacturas } from "./sheets/facturas";
+import { buildParametros } from "./sheets/parametros";
 import { buildResumenCategoria } from "./sheets/resumenCategoria";
 import { buildResumenMes } from "./sheets/resumenMes";
 import { buildResumenProveedor } from "./sheets/resumenProveedor";
@@ -32,7 +33,7 @@ export function amountHeader(mode: IvaMode): string {
   return mode === "con" ? es.export.amountCon : es.export.amountSin;
 }
 
-/** The sheet models in workbook order; Parámetros is appended in the next task (UI-SPEC order). */
+/** The six sheet models of XLS-01 in UI-SPEC order. */
 export function buildWorkbook(view: DashboardView, ctx: WorkbookContext): SheetModel[] {
   return [
     buildFacturas(view, ctx),
@@ -40,5 +41,6 @@ export function buildWorkbook(view: DashboardView, ctx: WorkbookContext): SheetM
     buildResumenCategoria(view, ctx),
     buildResumenProveedor(view, ctx),
     buildResumenMes(view, ctx),
+    buildParametros(view, ctx),
   ];
 }

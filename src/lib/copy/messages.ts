@@ -561,7 +561,7 @@ export function exportedAtText(moment: Date): string {
   return `${day}/${month}/${String(moment.getFullYear())} ${time}`;
 }
 
-/** RED skeleton: the real text follows in the GREEN commit. */
-export function variationMonthText(_last: string, _previous: string): string {
-  return "";
+/** «Mes de la variación» of the Parámetros sheet: «dic 2025 vs. nov 2025» (last month vs. the one before). */
+export function variationMonthText(last: string, previous: string): string {
+  return `${last} vs. ${previous}`;
 }
