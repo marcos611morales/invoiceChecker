@@ -330,6 +330,22 @@ export const es = {
     },
   },
 
+  export: {
+    sheets: {
+      facturas: "Facturas",
+      conceptos: "Conceptos",
+      resumenCategoria: "Resumen por categoría",
+      resumenProveedor: "Resumen por proveedor",
+      resumenMes: "Resumen por mes",
+      parametros: "Parámetros",
+    },
+    total: "Total",
+    month: "Mes",
+    invoices: "Facturas",
+    amountCon: "Monto (con IVA)",
+    amountSin: "Monto (sin IVA)",
+  },
+
   errors: {
     importFailed:
       "No se pudieron procesar los archivos. Recarga la página y vuelve a intentarlo.",

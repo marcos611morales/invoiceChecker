@@ -5,6 +5,7 @@ import {
   deltaFraction,
   kpiDeltas,
   kpis,
+  monthlyCounts,
   monthlySeries,
   supplierRanking,
   totalSpend,
@@ -248,6 +249,47 @@ describe("monthlySeries (DASH-02, D-21)", () => {
 
   it("is empty for a null range", () => {
     expect(monthlySeries([ingreso({ con: "1", sin: "1" })], null, "sin")).toEqual([]);
+  });
+});
+
+describe("monthlyCounts (XLS-02, A-1)", () => {
+  const range = { from: "2025-01", to: "2025-03" };
+
+  it("counts counted Ingreso per month and zero-fills, ignoring credit notes and Pago", () => {
+    const visible = [
+      ingreso({ con: "116", sin: "100", month: "2025-01" }),
+      ingreso({ con: "116", sin: "100", month: "2025-01" }),
+      nota({ con: "-58", sin: "-50", month: "2025-02" }),
+      ingreso({ con: "116", sin: "100", month: "2025-03" }),
+      notCounted({ con: "0", sin: "0", month: "2025-03" }, { kind: "pago", noSuma: "tipo" }),
+      notCounted({ con: "500", sin: "431", month: "2025-01" }, { exclusion: "manual" }),
+    ];
+    expect(monthlyCounts(visible, range)).toEqual([
+      { month: "2025-01", facturas: 2 },
+      { month: "2025-02", facturas: 0 },
+      { month: "2025-03", facturas: 1 },
+    ]);
+  });
+
+  it("adds up to the Facturas KPI over the same visible set", () => {
+    const visible = [
+      ingreso({ con: "116", sin: "100", month: "2025-01" }),
+      ingreso({ con: "116", sin: "100", month: "2025-02" }),
+      nota({ con: "-58", sin: "-50", month: "2025-02" }),
+    ];
+    const total = monthlyCounts(visible, range).reduce((acc, row) => acc + row.facturas, 0);
+    expect(total).toBe(kpis(visible, range, "con").facturas);
+  });
+
+  it("is aligned with monthlySeries month by month", () => {
+    const visible = [ingreso({ con: "116", sin: "100", month: "2025-02" })];
+    expect(monthlyCounts(visible, range).map((row) => row.month)).toEqual(
+      monthlySeries(visible, range, "con").map((point) => point.month),
+    );
+  });
+
+  it("is empty for a null range", () => {
+    expect(monthlyCounts([ingreso({ con: "1", sin: "1" })], null)).toEqual([]);
   });
 });
 
