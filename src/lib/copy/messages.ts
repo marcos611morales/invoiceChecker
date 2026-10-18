@@ -258,6 +258,16 @@ export function categoryCaption(pctText: string, promedioText: string): string {
   return `${pctText} del total · Promedio mensual ${promedioText}`;
 }
 
+/** Accessible name of a «Gasto por categoría» row button: it shows that category's invoices (D-18). */
+export function viewCategoryInvoicesAria(name: string): string {
+  return `Ver facturas de la categoría ${name}`;
+}
+
+/** Accessible name of a supplier ranking row button: it shows that supplier's invoices (D-18). */
+export function viewSupplierInvoicesAria(name: string): string {
+  return `Ver facturas de ${name}`;
+}
+
 /**
  * Sub-caption of the «Gasto por categoría» block (D-16, D-17): the calendar months behind the
  * monthly average and, when there is a variation pair, the two months it compares. Month labels
