@@ -185,6 +185,20 @@ describe("AppShell tabs (D-01, D-04)", () => {
     fireEvent.click(categorias);
     expect(scrollIntoView.mock.contexts).toEqual([importacion, categorias]);
   });
+
+  it("collapses «Agregar facturas» and «Cerrar sesión» to icon-only below 1024 px (UI-SPEC Q9)", () => {
+    seed([inv("OK-1")]);
+    render(<AppShell />);
+    for (const name of ["Agregar facturas", "Cerrar sesión"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button.className).toContain("max-lg:size-9");
+      expect(button.className).toContain("max-lg:px-0");
+      expect(button.className).toContain("max-sm:size-11");
+      expect(button.className).not.toContain("max-md:");
+      const label = within(button).getByText(name);
+      expect(label.className).toContain("max-lg:sr-only");
+    }
+  });
 });
 
 describe("AppShell read-failure toast (Q8, AJUS-01)", () => {

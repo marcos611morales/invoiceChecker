@@ -100,6 +100,14 @@ test("carpeta sintética: reporte correcto, ningún XML sale del navegador, reca
   // The Facturas table lists every row of the synthetic folder (2 Ingreso, 1 Egreso, 1 Pago).
   await expect(page.getByText("Facturas (4)")).toBeVisible();
 
+  // Phase 3: the four tabs in their order (D-01).
+  await expect(page.getByRole("tablist", { name: "Secciones" }).getByRole("tab")).toHaveText([
+    "Dashboard",
+    "Categorías",
+    /^Calidad de datos/,
+    "Importación",
+  ]);
+
   // Phase 2 flow: the Dashboard is the active tab after the load, Sin IVA changes the
   // Gasto total, the Calidad de datos tab is reachable, and the only browser-storage
   // key is the IVA mode (D-06, D-30, CARGA-02).

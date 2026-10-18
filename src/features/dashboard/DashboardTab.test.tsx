@@ -336,14 +336,14 @@ describe("AppShell: shell wiring (D-01, D-05, UI Considerations E1 and E2)", () 
     expect(trigger.className).toContain("max-sm:group-data-horizontal/tabs:h-11");
   });
 
-  it("collapses 'Agregar facturas' to icon-only below 768 px and keeps its aria-label", () => {
+  it("collapses 'Agregar facturas' to icon-only below 1024 px (UI-SPEC Q9) and keeps its aria-label", () => {
     load([ingreso, egreso]);
     render(<AppShell />);
     const button = screen.getByRole("button", { name: "Agregar facturas" });
-    expect(button.className).toContain("max-md:size-9");
+    expect(button.className).toContain("max-lg:size-9");
     expect(button.className).toContain("max-sm:size-11");
     const label = within(button).getByText("Agregar facturas");
-    expect(label.className).toContain("max-md:sr-only");
+    expect(label.className).toContain("max-lg:sr-only");
     expect(label.className).not.toContain("max-sm:sr-only");
   });
 });
