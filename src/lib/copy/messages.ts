@@ -540,3 +540,15 @@ export function replaceSummaryText(summary: BackupSummary): string {
 export function replaceSettingsBody(name: string, resumen: string): string {
   return `El archivo «${name}» contiene ${resumen}. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados y el modo de IVA actuales. Si quieres conservarlos, descárgalos antes.`;
 }
+
+/** Success toast of the Excel export; the file name has a bounded pattern (E8 long-text). */
+export function excelDownloadedToast(name: string): string {
+  void name;
+  return "";
+}
+
+/** «Exportado el» moment of the Parámetros sheet in local time, dd/mm/aaaa hh:mm. */
+export function exportedAtText(moment: Date): string {
+  void moment;
+  return "";
+}

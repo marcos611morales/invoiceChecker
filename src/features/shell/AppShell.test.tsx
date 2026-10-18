@@ -246,3 +246,30 @@ describe("AppShell read-failure toast (Q8, AJUS-01)", () => {
     expect(toastMock).not.toHaveBeenCalled();
   });
 });
+
+describe("AppShell export button (D-19, UI-SPEC Shell and top bar)", () => {
+  it("is not on the empty screen", () => {
+    render(<AppShell />);
+    expect(screen.queryByRole("button", { name: "Exportar a Excel" })).toBeNull();
+  });
+
+  it("is on the loaded screen on every tab", () => {
+    seed([inv("OK-1")]);
+    render(<AppShell />);
+    for (const name of ["Dashboard", "Categorías", /^Calidad de datos/, "Importación"]) {
+      fireEvent.click(screen.getByRole("tab", { name }));
+      expect(screen.getByRole("button", { name: "Exportar a Excel" })).toBeInTheDocument();
+    }
+  });
+
+  it("comes before «Agregar facturas» in the top bar", () => {
+    seed([inv("OK-1")]);
+    render(<AppShell />);
+    const exportButton = screen.getByRole("button", { name: "Exportar a Excel" });
+    const addButton = screen.getByRole("button", { name: "Agregar facturas" });
+    expect(
+      exportButton.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(exportButton.closest("header")).not.toBeNull();
+  });
+});
