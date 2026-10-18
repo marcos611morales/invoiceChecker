@@ -159,7 +159,7 @@ Plans:
   4. El usuario descarga un Excel con las hojas Facturas, Conceptos, Resumen por categoría, Resumen por proveedor, Resumen por mes y Parámetros (filtros y modo IVA usados), que respeta los filtros activos y el modo con/sin IVA.
   5. En el Excel los montos son números con formato MXN, las fechas son fechas y RFC, UUID y folio son texto, y los totales coinciden con los del dashboard para el mismo filtro y modo.
 
-**Plans:** 12/17 plans executed
+**Plans:** 13/17 plans executed
 
 Plans:
 **Wave 1**
@@ -199,7 +199,7 @@ Plans:
 - [x] 03-12-PLAN.md — Modelo del Excel: celdas exactas y fechas UTC, «Resumen por mes» y nombre del archivo
 
 **Wave 13** *(blocked on Wave 12 completion)*
-- [ ] 03-13-PLAN.md — Exportar a Excel: instalación aprobada, CSP worker-src, escritura con tiempo límite y botón en la barra
+- [x] 03-13-PLAN.md — Exportar a Excel: instalación aprobada, CSP worker-src, escritura con tiempo límite y botón en la barra
 
 **Wave 14** *(blocked on Wave 13 completion)*
 - [ ] 03-14-PLAN.md — Hojas Facturas y Conceptos (Estado, desglose en MXN, diferencia de redondeo)
@@ -258,6 +258,6 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
-| 3. Categorías propias y exportación a Excel | 12/17 | In Progress | - |
+| 3. Categorías propias y exportación a Excel | 13/17 | In Progress | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
