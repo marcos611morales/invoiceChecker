@@ -94,6 +94,11 @@ export const es = {
 
   invoices: {
     note: "Incluye notas de crédito y facturas que no suman (atenuadas). El monto sigue el modo Con IVA / Sin IVA.",
+    /** Extra sentence of the note, only while the category filter is active (D-14). */
+    categoryNote:
+      "Con filtro de categoría, el monto es la parte de esas categorías y debajo se muestra el total de la factura.",
+    /** `sr-only` label of a concept line outside the category filter (D-14). */
+    notInCategoryFilter: "No cuenta en el filtro de categoría",
     columns: {
       date: "Fecha",
       supplier: "Proveedor",

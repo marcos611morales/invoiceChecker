@@ -12,6 +12,7 @@ import {
 import { entryAmount } from "@/domain/accounting/aggregate";
 import type { IvaMode } from "@/domain/accounting/aggregate";
 import { conceptAmounts, iepsOf } from "@/domain/accounting/amounts";
+import type { ScopedEntry } from "@/domain/accounting/categories";
 import { ZERO, parseDecimal, sum, toMoneyString } from "@/domain/accounting/decimal";
 import type { EntryKind, LedgerEntry } from "@/domain/accounting/ledger";
 import { normalizeDescription } from "@/domain/settings/normalize";
@@ -43,6 +44,12 @@ export interface InvoiceRow {
   tipoLabel: string;
   /** Signed MXN amount of the active IVA mode; undefined when the entry has none. */
   amount: Big | undefined;
+  /**
+   * Signed MXN amount of the whole invoice in the active mode, set only for a row built from a
+   * category-scoped entry whose full amount exists. Under a category filter `amount` is the part
+   * of the chosen categories and this is the total shown under it (D-14).
+   */
+  fullAmount: Big | undefined;
   state: RowState;
 }
 
@@ -68,7 +75,27 @@ function stateOf(entry: LedgerEntry): RowState {
   return "normal";
 }
 
-/** Maps every ledger entry, counted or not, to a display row (D-27). */
+/** True for an entry that went through `scopeToCategories` and so carries its full amounts apart. */
+function isScoped(entry: LedgerEntry): entry is ScopedEntry {
+  return "fullConIva" in entry && "fullSinIva" in entry && "parts" in entry;
+}
+
+/**
+ * The entry with its whole-invoice amounts. A category-scoped entry holds only the part of the
+ * chosen categories in `conIva`/`sinIva`; anything that explains the invoice itself (the rounding
+ * difference of the concept panel) must read the full amounts, so it is the same with or without
+ * the category filter (D-14). An entry that was never scoped is returned as it is.
+ */
+export function withFullAmounts(entry: LedgerEntry): LedgerEntry {
+  if (!isScoped(entry)) return entry;
+  return { ...entry, conIva: entry.fullConIva, sinIva: entry.fullSinIva };
+}
+
+/**
+ * Maps every ledger entry, counted or not, to a display row (D-27). Scoped entries (the
+ * category filter) are accepted: `amount` then follows their partial amounts and `fullAmount`
+ * their whole-invoice amounts.
+ */
 export function toInvoiceRows(
   entries: readonly LedgerEntry[],
   mode: IvaMode,
@@ -85,6 +112,7 @@ export function toInvoiceRows(
     formasText: entry.formas.map(formaPagoLabel).join(", "),
     tipoLabel: kindLabel(entry.kind),
     amount: entryAmount(entry, mode) ?? undefined,
+    fullAmount: isScoped(entry) ? (entryAmount(withFullAmounts(entry), mode) ?? undefined) : undefined,
     state: stateOf(entry),
   }));
 }

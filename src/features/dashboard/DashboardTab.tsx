@@ -140,7 +140,12 @@ export function DashboardTab() {
             <CategorySpend rows={categories} nameOf={nameOf} />
             <SupplierRanking rows={ranking} />
           </div>
-          <InvoiceTable rows={visible} ledger={ledger} mode={ivaMode} />
+          <InvoiceTable
+            rows={visible}
+            ledger={ledger}
+            mode={ivaMode}
+            categoryFilter={view.selected}
+          />
         </>
       )}
     </div>

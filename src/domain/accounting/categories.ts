@@ -117,7 +117,8 @@ export function scopeToCategories(
   for (const entry of entries) {
     const parts = splitEntry(entry, resolver);
     const kept = selected.size === 0 ? parts : parts.filter((part) => selected.has(part.category));
-    if (kept.length === 0) continue;
+    // An empty selection keeps every entry, even one with no part (no line and no amount).
+    if (selected.size > 0 && kept.length === 0) continue;
     const whole = kept.length === parts.length;
     scoped.push({
       ...entry,

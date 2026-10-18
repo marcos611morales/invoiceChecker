@@ -124,6 +124,11 @@ export function appliesToText(monthLabel: string): string {
   return `aplica a ${monthLabel}`;
 }
 
+/** Second line of the Monto cell under the category filter: the invoice total behind the partial amount (D-14). */
+export function partOfTotalText(totalText: string): string {
+  return `de ${totalText} total`;
+}
+
 /** Panel line shown only when the concept sum and the invoice amount differ once rounded (D-25). */
 export function roundingLine(amountText: string): string {
   return `Diferencia de redondeo: ${amountText}`;

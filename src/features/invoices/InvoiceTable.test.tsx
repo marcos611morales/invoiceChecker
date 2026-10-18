@@ -1701,7 +1701,7 @@ describe("InvoiceTable under the category filter (FILT-03, D-14, D-27, E7 partia
     expect(select).toBeEnabled();
     await pick(select, "Limpieza e higiene");
     expect(
-      useSettingsStore.getState().conceptRules.find((rule) => rule.key === "jabón")?.categoryId,
+      useSettingsStore.getState().conceptRules.find((rule) => rule.key === "jabon")?.categoryId,
     ).toBe(LIMPIEZA);
   });
 
