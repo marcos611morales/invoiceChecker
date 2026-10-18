@@ -550,7 +550,7 @@ describe("categoryOptions (D-15, D-28)", () => {
   it("sorts by count descending, then name, with labels from nameOf", () => {
     expect(options.slice(0, 3).map((option) => option.label)).toEqual([
       "Limpieza e higiene",
-      "Servicios",
+      "Servicios (luz, agua, internet, teléfono)",
       "Sin categoría",
     ]);
     const names = options.slice(3).map((option) => option.label);

@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { kpiDeltas, kpis, monthlySeries, supplierRanking } from "@/domain/accounting/aggregate";
-import { categoryBreakdown } from "@/domain/accounting/categories";
+import { categoryBreakdown, scopeToCategories } from "@/domain/accounting/categories";
 import {
   applyFilters,
   loadedSpan,
@@ -73,7 +73,13 @@ export function DashboardTab() {
   const ranking = useMemo(() => supplierRanking(visible, ivaMode), [visible, ivaMode]);
   const { resolver, nameOf } = useCategorySettings();
   const categoryRows = useMemo(
-    () => categoryBreakdown(visible, resolver, ivaMode, current.months, nameOf),
+    () =>
+      categoryBreakdown(
+        scopeToCategories(visible, new Set<string>(), resolver),
+        ivaMode,
+        current.months,
+        nameOf,
+      ),
     [visible, resolver, ivaMode, current.months, nameOf],
   );
 

@@ -15,9 +15,11 @@
 import type Big from "big.js";
 import { normalizeDescription, ruleMapKey } from "../settings/normalize";
 import type { Resolver } from "../settings/resolver";
+import { SIN_CATEGORIA, type Category } from "../settings/types";
 import { totalSpend, type IvaMode } from "./aggregate";
 import { conceptAmounts } from "./amounts";
 import { ZERO, fromInteger, sum } from "./decimal";
+import { compareOptions, type FilterOption } from "./filters";
 import type { LedgerEntry } from "./ledger";
 
 /** Spanish order, accents and case ignored (the same rule as the supplier ranking). */
@@ -86,22 +88,93 @@ export interface CategoryRow {
 }
 
 /**
- * Spend per category over the counted entries of the visible set, in the given
- * IVA mode, highest net first; a negative net sorts after every non-negative
- * one. A category is listed when at least one part of a counted entry carries
- * it. Ties break by the Spanish-collated name from `nameOf`, then by key.
+ * An entry restricted to a category selection (D-14, D-27). `conIva` and `sinIva` hold
+ * only the amount of the kept parts, so every selector of aggregate.ts reads the partial
+ * figure without knowing about categories; the full amounts stay in `fullConIva` and
+ * `fullSinIva`. `parts` are the kept parts (all of them for an empty selection).
+ */
+export type ScopedEntry = LedgerEntry & {
+  fullConIva: Big | null;
+  fullSinIva: Big | null;
+  parts: EntryPart[];
+};
+
+/**
+ * Restricts the entries to the selected categories. An entry belongs to the selection when
+ * any part of its amount falls in it, a concept line or the rounding difference that D-13
+ * sends to the supplier's category (D-27). With an empty selection every entry is kept with
+ * its full amounts. Otherwise only the parts of the selected categories stay, an entry with
+ * none is dropped, and `conIva`/`sinIva` become the exact sum of the kept parts (null stays
+ * null: a Pago or an invalid row has no amount to scale). An entry whose every part is kept
+ * keeps its original amounts untouched. Input order is kept and the input is never mutated.
+ */
+export function scopeToCategories(
+  entries: readonly LedgerEntry[],
+  selected: ReadonlySet<string>,
+  resolver: Resolver,
+): ScopedEntry[] {
+  const scoped: ScopedEntry[] = [];
+  for (const entry of entries) {
+    const parts = splitEntry(entry, resolver);
+    const kept = selected.size === 0 ? parts : parts.filter((part) => selected.has(part.category));
+    if (kept.length === 0) continue;
+    const whole = kept.length === parts.length;
+    scoped.push({
+      ...entry,
+      conIva: whole || entry.conIva === null ? entry.conIva : sum(kept.map((part) => part.con)),
+      sinIva: whole || entry.sinIva === null ? entry.sinIva : sum(kept.map((part) => part.sin)),
+      fullConIva: entry.conIva,
+      fullSinIva: entry.sinIva,
+      parts: kept,
+    });
+  }
+  return scoped;
+}
+
+/**
+ * Options of the category filter (D-15, D-28): every category of the settings plus
+ * «Sin categoría», each with the number of entries that have any part in it. Pass the
+ * whole ledger: the counts ignore the other filters, the counted state and exclusions.
+ * An entry counts once per category however many of its parts fall there. Sorted by count
+ * descending, then name, then key.
+ */
+export function categoryOptions(
+  entries: readonly LedgerEntry[],
+  resolver: Resolver,
+  categories: readonly Category[],
+  nameOf: (key: string) => string,
+): FilterOption[] {
+  const counts = new Map<string, number>();
+  for (const category of categories) counts.set(category.id, 0);
+  counts.set(SIN_CATEGORIA, 0);
+  for (const entry of entries) {
+    const reached = new Set<string>();
+    for (const part of splitEntry(entry, resolver)) reached.add(part.category);
+    for (const key of reached) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const options: FilterOption[] = [];
+  for (const [key, count] of counts) options.push({ key, label: nameOf(key), count });
+  return options.sort(compareOptions);
+}
+
+/**
+ * Spend per category over the counted entries of a scoped set, in the given IVA mode,
+ * highest net first; a negative net sorts after every non-negative one. It reads the
+ * `parts` of each scoped entry and never splits again, because a scoped entry's own
+ * amounts are already partial. A category is listed when at least one part of a counted
+ * entry carries it. The share is relative to the total of the scoped set, so a filtered
+ * view adds up to 100 %. Ties break by the Spanish-collated name from `nameOf`, then by key.
  */
 export function categoryBreakdown(
-  visible: readonly LedgerEntry[],
-  resolver: Resolver,
+  scoped: readonly ScopedEntry[],
   mode: IvaMode,
   months: number,
   nameOf: (category: string) => string,
 ): CategoryRow[] {
   const perCategory = new Map<string, Big[]>();
-  for (const entry of visible) {
+  for (const entry of scoped) {
     if (!entry.counted) continue;
-    for (const part of splitEntry(entry, resolver)) {
+    for (const part of entry.parts) {
       const amount = mode === "con" ? part.con : part.sin;
       const known = perCategory.get(part.category);
       if (known === undefined) perCategory.set(part.category, [amount]);
@@ -109,7 +182,7 @@ export function categoryBreakdown(
     }
   }
 
-  const total = totalSpend(visible, mode);
+  const total = totalSpend(scoped, mode);
   const divisor = fromInteger(months);
   const rows: CategoryRow[] = [];
   for (const [category, amounts] of perCategory) {
