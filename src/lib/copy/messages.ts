@@ -540,3 +540,23 @@ export function replaceSummaryText(summary: BackupSummary): string {
 export function replaceSettingsBody(name: string, resumen: string): string {
   return `El archivo «${name}» contiene ${resumen}. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados y el modo de IVA actuales. Si quieres conservarlos, descárgalos antes.`;
 }
+
+/** Success toast of the Excel export; the file name has a bounded pattern (E8 long-text). */
+export function excelDownloadedToast(name: string): string {
+  return `Excel descargado: ${name}`;
+}
+
+function twoDigits(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/**
+ * «Exportado el» moment of the Parámetros sheet in the user's local time, dd/mm/aaaa hh:mm.
+ * It is an instant on the clock, not a calendar day of an invoice, so local getters are right.
+ */
+export function exportedAtText(moment: Date): string {
+  const day = twoDigits(moment.getDate());
+  const month = twoDigits(moment.getMonth() + 1);
+  const time = `${twoDigits(moment.getHours())}:${twoDigits(moment.getMinutes())}`;
+  return `${day}/${month}/${String(moment.getFullYear())} ${time}`;
+}

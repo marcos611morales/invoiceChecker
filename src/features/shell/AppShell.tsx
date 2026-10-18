@@ -10,6 +10,7 @@ import { hasReport } from "@/domain/import/report";
 import { CategoriesTab } from "@/features/categories/CategoriesTab";
 import { DashboardTab } from "@/features/dashboard/DashboardTab";
 import { useLedger } from "@/features/dashboard/useLedger";
+import { ExportButton } from "@/features/export/ExportButton";
 import { QualityTab } from "@/features/quality/QualityTab";
 import { ImportReport } from "@/features/report/ImportReport";
 import { EmptyDropzone } from "@/features/upload/EmptyDropzone";
@@ -151,7 +152,14 @@ export function AppShell() {
     <UploadRoot>
       <TopBar
         showIva={reportVisible}
-        actions={reportVisible ? <AddInvoicesButton /> : null}
+        actions={
+          reportVisible ? (
+            <>
+              <ExportButton />
+              <AddInvoicesButton />
+            </>
+          ) : null
+        }
       />
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 pt-8 pb-16">
         <ProcessingIndicator />

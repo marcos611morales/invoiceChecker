@@ -331,6 +331,10 @@ export const es = {
   },
 
   export: {
+    button: "Exportar a Excel",
+    pending: "Exportando…",
+    disabledReason: "No hay facturas con los filtros actuales",
+    failed: "No se pudo generar el Excel. Inténtalo de nuevo.",
     sheets: {
       facturas: "Facturas",
       conceptos: "Conceptos",

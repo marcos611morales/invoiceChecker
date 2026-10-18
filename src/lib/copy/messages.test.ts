@@ -8,6 +8,8 @@ import {
   categoryRenamedText,
   appliesToLinesText,
   categoryChangedToast,
+  excelDownloadedToast,
+  exportedAtText,
   conceptCategoryAria,
   deleteCategoryAria,
   deleteCategoryBody,
@@ -702,5 +704,25 @@ describe("settings file messages (D-07, D-08)", () => {
     expect(es.categories.backup.keepMine).toBe("Conservar los míos");
     expect(es.categories.backup.replaceConfirm).toBe("Reemplazar mis ajustes");
     expect(es.categories.backup.replacedToast).toBe("Ajustes reemplazados");
+  });
+});
+
+describe("Excel export copy (UI-SPEC Shell and top bar, E8)", () => {
+  it("holds the fixed copy", () => {
+    expect(es.export.button).toBe("Exportar a Excel");
+    expect(es.export.pending).toBe("Exportando…");
+    expect(es.export.disabledReason).toBe("No hay facturas con los filtros actuales");
+    expect(es.export.failed).toBe("No se pudo generar el Excel. Inténtalo de nuevo.");
+  });
+
+  it("names the downloaded file in the success toast", () => {
+    expect(excelDownloadedToast("gastos-2025-01_2025-12-con-iva.xlsx")).toBe(
+      "Excel descargado: gastos-2025-01_2025-12-con-iva.xlsx",
+    );
+  });
+
+  it("formats the export moment as dd/mm/aaaa hh:mm in local time, zero padded", () => {
+    expect(exportedAtText(new Date(2026, 9, 7, 8, 5))).toBe("07/10/2026 08:05");
+    expect(exportedAtText(new Date(2025, 11, 31, 23, 59))).toBe("31/12/2025 23:59");
   });
 });
