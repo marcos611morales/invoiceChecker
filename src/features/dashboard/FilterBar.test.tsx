@@ -5,6 +5,8 @@ import { isDefaultFilters, loadedSpan } from "@/domain/accounting/filters";
 import { EMPTY_OVERRIDES, PPD_SIN_COMPLEMENTO, buildLedger } from "@/domain/accounting/ledger";
 import type { ParsedInvoice } from "@/domain/cfdi/types";
 import { useSessionStore } from "@/stores/sessionStore";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { resetSettingsStore } from "../../../tests/support/settingsStorage";
 import { loaded, makeInvoice, TEST_FECHA_CONTEXT } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
 import { FilterBar } from "./FilterBar";
@@ -13,6 +15,7 @@ afterEach(() => {
   cleanup();
   act(() => {
     useSessionStore.getState().clearAll();
+    resetSettingsStore();
   });
 });
 
@@ -255,5 +258,145 @@ describe("FilterBar mobile fold", () => {
     const button = fold().getByRole("button", { name: "Filtros" });
     expect(button.className).toContain("h-11");
     expect(button.className).toContain("w-full");
+  });
+});
+
+const LIMPIEZA = "seed:limpieza-higiene";
+const SERVICIOS = "seed:servicios";
+const SIN = "sin-categoria";
+const SERVICIOS_NAME = "Servicios (luz, agua, internet, teléfono)";
+
+/** Abarrotes (2 invoices) in Limpieza e higiene, Café Árbol (1) in Servicios, Zeta (1) unassigned. */
+function assignSuppliers(): void {
+  act(() => {
+    useSettingsStore.setState({
+      supplierCategories: [
+        { rfc: ABARROTES.rfc, name: ABARROTES.nombre, categoryId: LIMPIEZA },
+        { rfc: CAFE.rfc, name: CAFE.nombre, categoryId: SERVICIOS },
+      ],
+    });
+  });
+}
+
+describe("FilterBar category filter (FILT-03, D-15, D-28)", () => {
+  it("places Categoría between Proveedor and Forma de pago", () => {
+    renderBar();
+    const names = desktop()
+      .getAllByRole("button")
+      .map((button) => button.textContent ?? "");
+    const positions = ["Proveedor", "Categoría", "Forma de pago"].map((label) =>
+      names.findIndex((name) => name === label),
+    );
+    expect(positions.every((index) => index >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(names.findIndex((name) => name.startsWith("Fechas"))).toBeLessThan(positions[0] ?? -1);
+  });
+
+  it("lists '{nombre} ({n})' by count then name, every category included with (0)", () => {
+    assignSuppliers();
+    renderBar();
+    fireEvent.click(desktop().getByRole("button", { name: "Categoría" }));
+    const texts = rowTexts();
+    expect(texts).toHaveLength(10);
+    expect(texts.slice(0, 3)).toEqual([
+      "Limpieza e higiene (2)",
+      `${SERVICIOS_NAME} (1)`,
+      "Sin categoría (1)",
+    ]);
+    expect(texts.slice(3).every((text) => text.endsWith("(0)"))).toBe(true);
+    expect(screen.getByPlaceholderText("Buscar categoría")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Limpiar categorías" })).toBeInTheDocument();
+  });
+
+  it("counts every loaded invoice, whatever the other filters say", () => {
+    assignSuppliers();
+    renderBar();
+    set(() => useSessionStore.getState().setSuppliers(new Set([CAFE.rfc])));
+    fireEvent.click(desktop().getByRole("button", { name: "Categoría" }));
+    expect(rowTexts().slice(0, 2)).toEqual(["Limpieza e higiene (2)", `${SERVICIOS_NAME} (1)`]);
+  });
+
+  it("keeps Sin categoría as an option even with nothing loaded", () => {
+    render(<FilterBar ledger={[]} span={null} />);
+    fireEvent.click(desktop().getByRole("button", { name: "Categoría" }));
+    expect(rowTexts()).toContain("Sin categoría (0)");
+  });
+
+  it("sets filters.categories, shows the chip and the reset button when a category is chosen", () => {
+    assignSuppliers();
+    renderBar();
+    fireEvent.click(desktop().getByRole("button", { name: "Categoría" }));
+    set(() => fireEvent.click(screen.getByText("Limpieza e higiene")));
+    expect([...filters().categories]).toEqual([LIMPIEZA]);
+    expect(chips().getByText("Categoría: Limpieza e higiene")).toBeInTheDocument();
+    expect(chips().getByRole("button", { name: "Quitar filtro Categoría" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Quitar filtros" })).toBeInTheDocument();
+  });
+
+  it("selects Sin categoría as one more option", () => {
+    assignSuppliers();
+    renderBar();
+    fireEvent.click(desktop().getByRole("button", { name: "Categoría" }));
+    set(() => fireEvent.click(screen.getByText("Sin categoría")));
+    expect([...filters().categories]).toEqual([SIN]);
+    expect(chips().getByText("Categoría: Sin categoría")).toBeInTheDocument();
+  });
+
+  it("summarizes three categories as 'Categoría: {n1}, {n2} +1'", () => {
+    assignSuppliers();
+    renderBar();
+    set(() => useSessionStore.getState().setCategories(new Set([LIMPIEZA, SERVICIOS, SIN])));
+    expect(
+      chips().getByText(`Categoría: Limpieza e higiene, ${SERVICIOS_NAME} +1`),
+    ).toBeInTheDocument();
+  });
+
+  it("removes only the category dimension with the chip button", () => {
+    assignSuppliers();
+    renderBar();
+    set(() => {
+      const store = useSessionStore.getState();
+      store.setSuppliers(new Set([ABARROTES.rfc]));
+      store.setCategories(new Set([LIMPIEZA]));
+    });
+    set(() => fireEvent.click(chips().getByRole("button", { name: "Quitar filtro Categoría" })));
+    expect(filters().categories.size).toBe(0);
+    expect([...filters().suppliers]).toEqual([ABARROTES.rfc]);
+  });
+
+  it("is emptied by 'Quitar filtros' and by the popover footer 'Limpiar categorías'", () => {
+    assignSuppliers();
+    renderBar();
+    set(() => useSessionStore.getState().setCategories(new Set([LIMPIEZA])));
+    set(() => fireEvent.click(screen.getByRole("button", { name: "Quitar filtros" })));
+    expect(isDefaultFilters(filters())).toBe(true);
+    set(() => useSessionStore.getState().setCategories(new Set([LIMPIEZA])));
+    fireEvent.click(desktop().getByRole("button", { name: /^Categoría/ }));
+    set(() => fireEvent.click(screen.getByRole("button", { name: "Limpiar categorías" })));
+    expect(filters().categories.size).toBe(0);
+  });
+
+  it("shows the no-match text for a search with no result", () => {
+    renderBar();
+    fireEvent.click(desktop().getByRole("button", { name: "Categoría" }));
+    fireEvent.change(screen.getByPlaceholderText("Buscar categoría"), { target: { value: "zzz" } });
+    expect(
+      screen.getByText("Ninguna categoría coincide con «zzz». Revisa la búsqueda."),
+    ).toBeInTheDocument();
+  });
+
+  it("uses a 320 px popover", () => {
+    renderBar();
+    fireEvent.click(desktop().getByRole("button", { name: "Categoría" }));
+    const popup = screen.getByPlaceholderText("Buscar categoría").closest('[class*="w-[320px]"]');
+    expect(popup).not.toBeNull();
+  });
+
+  it("counts as one filter in the mobile fold: 'Filtros · 1'", () => {
+    assignSuppliers();
+    renderBar();
+    set(() => useSessionStore.getState().setCategories(new Set([LIMPIEZA, SERVICIOS])));
+    fireEvent.click(fold().getByRole("button", { name: "Filtros · 1" }));
+    expect(fold().getByRole("button", { name: /^Categoría/ })).toBeInTheDocument();
   });
 });

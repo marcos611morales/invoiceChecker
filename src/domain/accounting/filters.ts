@@ -23,6 +23,12 @@ export interface Filters {
   suppliers: ReadonlySet<string>;
   /** Selected forma de pago codes or the PPD sentinel; empty means no filter (FILT-04). */
   formas: ReadonlySet<string>;
+  /**
+   * Selected category ids plus the reserved SIN_CATEGORIA key; empty means no filter
+   * (FILT-03). It is not applied by `applyFilters`: categories scope the parts of an
+   * entry, so `scopeToCategories` runs as a separate stage (D-14, D-27).
+   */
+  categories: ReadonlySet<string>;
 }
 
 export interface FilterOption {
@@ -35,6 +41,7 @@ export const EMPTY_FILTERS: Filters = {
   range: null,
   suppliers: new Set<string>(),
   formas: new Set<string>(),
+  categories: new Set<string>(),
 };
 
 /** One collator for every option list: Spanish order, accents and case ignored. */
@@ -102,7 +109,8 @@ export function applyFilters(
   });
 }
 
-function compareOptions(a: FilterOption, b: FilterOption): number {
+/** Count descending, then Spanish-collated label, then key; shared by every option list. */
+export function compareOptions(a: FilterOption, b: FilterOption): number {
   if (a.count !== b.count) return b.count - a.count;
   const byLabel = COLLATOR.compare(a.label, b.label);
   if (byLabel !== 0) return byLabel;
@@ -148,17 +156,21 @@ export function formaOptions(
   return options.sort(compareOptions);
 }
 
-/** Same supplier and forma selection over the preceding period of equal length (D-20). */
+/** Same supplier, forma and category selection over the preceding period of equal length (D-20). */
 export function previousFilters(filters: Filters, range: DateRange): Filters {
   return {
     range: previousPeriod(range.from, range.to),
     suppliers: filters.suppliers,
     formas: filters.formas,
+    categories: filters.categories,
   };
 }
 
 export function isDefaultFilters(filters: Filters): boolean {
   return (
-    filters.range === null && filters.suppliers.size === 0 && filters.formas.size === 0
+    filters.range === null &&
+    filters.suppliers.size === 0 &&
+    filters.formas.size === 0 &&
+    filters.categories.size === 0
   );
 }

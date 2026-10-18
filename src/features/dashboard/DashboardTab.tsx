@@ -5,77 +5,42 @@ import { Info, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { kpiDeltas, kpis, monthlySeries, supplierRanking } from "@/domain/accounting/aggregate";
-import { categoryBreakdown } from "@/domain/accounting/categories";
-import {
-  applyFilters,
-  loadedSpan,
-  previousFilters,
-  resolveRange,
-} from "@/domain/accounting/filters";
-import { previousPeriod } from "@/domain/accounting/months";
 import { qualitySummary } from "@/domain/accounting/quality";
-import { useCategorySettings } from "@/features/categories/useCategorySettings";
 import { InvoiceTable } from "@/features/invoices/InvoiceTable";
 import { es } from "@/lib/copy/es";
 import { hiddenInvoiceNotice } from "@/lib/copy/messages";
 import { invoiceRef, periodLabel } from "@/lib/format";
 import { useSessionStore } from "@/stores/sessionStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 import { CategorySpend } from "./CategorySpend";
 import { FilterBar } from "./FilterBar";
 import { KpiRow } from "./KpiRow";
 import { SupplierRanking } from "./SupplierRanking";
 import { TrendChart } from "./TrendChart";
-import { useLedger } from "./useLedger";
+import { useDashboardView } from "./useDashboardView";
 
 /**
  * Dashboard panel. The ledger is built from the session invoices plus the manual
- * exclusions and restorations (REGLA-08). One visible set is computed with
- * `applyFilters` and everything below the filter bar reads it (FILT-05), in the
- * order of D-03: filter bar, mode caption, content. The KPIs are read in the IVA
- * mode of the settings store (REGLA-03) and compared with the previous period of
- * equal length under the same supplier and forma filters (D-20). Switching the
- * mode only picks the other stored amount; it never rebuilds the ledger.
+ * exclusions and restorations (REGLA-08). Every figure below the filter bar comes from one
+ * `selectView` result, read through `useDashboardView`, which the Excel export reads too
+ * (FILT-05), in the order of D-03: filter bar, mode caption, category caption, content. The
+ * KPIs are read in the IVA mode of the settings store (REGLA-03) and compared with the
+ * previous period of equal length under the same supplier, forma and category filters (D-20).
+ * While a category filter is active the amounts are partial and the caption says so (D-14).
+ * Switching the mode only picks the other stored amount; it never rebuilds the ledger.
  */
 export function DashboardTab() {
-  const filters = useSessionStore((s) => s.filters);
   const clearFilters = useSessionStore((s) => s.clearFilters);
   const setActiveTab = useSessionStore((s) => s.setActiveTab);
   const focusRequest = useSessionStore((s) => s.focusRequest);
   const clearFocusRequest = useSessionStore((s) => s.clearFocusRequest);
-  const ivaMode = useSettingsStore((s) => s.ivaMode);
-  const ledger = useLedger();
+  const { ledger, nameOf, mode: ivaMode, view } = useDashboardView();
+  const { span, range, visible, current, deltas, series, ranking, categories } = view;
   // The unfiltered ledger decides the notice: an incident changes the amounts whether or
   // not the current filters show its invoice (D-04). The informational D-46 type never
   // raises it; `amountChanging` already excludes it.
   const amountChanging = useMemo(() => qualitySummary(ledger).amountChanging, [ledger]);
-  const span = useMemo(() => loadedSpan(ledger), [ledger]);
-  const visible = useMemo(() => applyFilters(ledger, filters, span), [ledger, filters, span]);
-  const range = useMemo(() => resolveRange(filters, span), [filters, span]);
-  const current = useMemo(() => kpis(visible, range, ivaMode), [visible, range, ivaMode]);
-  const prevRange = useMemo(
-    () => (range === null ? null : previousPeriod(range.from, range.to)),
-    [range],
-  );
-  const previousVisible = useMemo(
-    () =>
-      range === null ? [] : applyFilters(ledger, previousFilters(filters, range), span),
-    [ledger, filters, range, span],
-  );
-  const previous = useMemo(
-    () => kpis(previousVisible, prevRange, ivaMode),
-    [previousVisible, prevRange, ivaMode],
-  );
-  const deltas = useMemo(() => kpiDeltas(current, previous), [current, previous]);
-  const previousLabel = prevRange === null ? "" : periodLabel(prevRange.from, prevRange.to);
-  const series = useMemo(() => monthlySeries(visible, range, ivaMode), [visible, range, ivaMode]);
-  const ranking = useMemo(() => supplierRanking(visible, ivaMode), [visible, ivaMode]);
-  const { resolver, nameOf } = useCategorySettings();
-  const categoryRows = useMemo(
-    () => categoryBreakdown(visible, resolver, ivaMode, current.months, nameOf),
-    [visible, resolver, ivaMode, current.months, nameOf],
-  );
+  const previousLabel =
+    view.previousRange === null ? "" : periodLabel(view.previousRange.from, view.previousRange.to);
 
   // "Ver factura" asked for an invoice the current filters hide (UI-SPEC decision 6): the
   // filters stay as they are and the Alert below offers to remove them.
@@ -144,6 +109,11 @@ export function DashboardTab() {
         <p data-testid="mode-caption" className="text-xs text-muted-foreground">
           {ivaMode === "sin" ? es.iva.captionSin : es.iva.captionCon}
         </p>
+        {view.selected.size > 0 ? (
+          <p data-testid="category-caption" className="text-xs text-muted-foreground">
+            {es.filters.categoryCaption}
+          </p>
+        ) : null}
       </div>
       {visible.length === 0 ? (
         <Empty data-testid="dashboard-empty-filtered" className="border">
@@ -167,7 +137,7 @@ export function DashboardTab() {
             data-testid="category-supplier-row"
             className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2"
           >
-            <CategorySpend rows={categoryRows} nameOf={nameOf} />
+            <CategorySpend rows={categories} nameOf={nameOf} />
             <SupplierRanking rows={ranking} />
           </div>
           <InvoiceTable rows={visible} ledger={ledger} mode={ivaMode} />

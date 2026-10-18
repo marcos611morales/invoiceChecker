@@ -253,6 +253,29 @@ describe("sessionStore", () => {
       expect(initial).toEqual(EMPTY_FILTERS);
     });
 
+    it("setCategories replaces the category selection and clears the focus request", () => {
+      const initial = useSessionStore.getState().filters;
+      const suppliers = new Set(["RFC1"]);
+      useSessionStore.getState().setSuppliers(suppliers);
+      useSessionStore.getState().requestFocus("A");
+      const categories = new Set(["seed:servicios"]);
+      useSessionStore.getState().setCategories(categories);
+      const state = useSessionStore.getState();
+      expect(state.filters.categories).toBe(categories);
+      expect(state.filters.suppliers).toBe(suppliers);
+      expect(state.focusRequest).toBeNull();
+      expect(initial.categories.size).toBe(0);
+    });
+
+    it("clearFilters and clearAll empty the category selection", () => {
+      useSessionStore.getState().setCategories(new Set(["seed:servicios"]));
+      useSessionStore.getState().clearFilters();
+      expect(useSessionStore.getState().filters.categories.size).toBe(0);
+      useSessionStore.getState().setCategories(new Set(["seed:servicios"]));
+      useSessionStore.getState().clearAll();
+      expect(useSessionStore.getState().filters.categories.size).toBe(0);
+    });
+
     it("setRange(null) goes back to the whole loaded span", () => {
       useSessionStore.getState().setRange(RANGE);
       useSessionStore.getState().setRange(null);

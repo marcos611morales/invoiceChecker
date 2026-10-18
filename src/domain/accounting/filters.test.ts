@@ -4,6 +4,7 @@ import { PPD_SIN_COMPLEMENTO, type LedgerEntry } from "./ledger";
 import {
   EMPTY_FILTERS,
   applyFilters,
+  compareOptions,
   formaOptions,
   isDefaultFilters,
   loadedSpan,
@@ -179,6 +180,7 @@ describe("applyFilters composition (FILT-05)", () => {
       range: { from: "2025-04", to: "2025-06" },
       suppliers: new Set(["AAA010101AAA"]),
       formas: new Set(["03"]),
+      categories: new Set<string>(),
     };
     const result = applyFilters(input, filters, { from: "2025-01", to: "2025-12" });
     expect(result).toEqual([keep1, keep2]);
@@ -261,11 +263,13 @@ describe("previousFilters (D-20)", () => {
       range: null,
       suppliers: new Set(["AAA010101AAA"]),
       formas: new Set(["03"]),
+      categories: new Set(["seed:servicios"]),
     };
     const half = previousFilters(filters, { from: "2025-07", to: "2025-12" });
     expect(half.range).toEqual({ from: "2025-01", to: "2025-06" });
     expect(half.suppliers).toEqual(new Set(["AAA010101AAA"]));
     expect(half.formas).toEqual(new Set(["03"]));
+    expect(half.categories).toEqual(new Set(["seed:servicios"]));
     const quarter = previousFilters(filters, { from: "2025-01", to: "2025-03" });
     expect(quarter.range).toEqual({ from: "2024-10", to: "2024-12" });
   });
@@ -277,5 +281,25 @@ describe("isDefaultFilters", () => {
     expect(isDefaultFilters({ ...EMPTY_FILTERS, range: { from: "2025-01", to: "2025-02" } })).toBe(false);
     expect(isDefaultFilters(withSuppliers(["X"]))).toBe(false);
     expect(isDefaultFilters(withFormas(["03"]))).toBe(false);
+  });
+
+  it("is false when only the category selection is set (D-15)", () => {
+    expect(isDefaultFilters({ ...EMPTY_FILTERS, categories: new Set(["seed:servicios"]) })).toBe(false);
+  });
+});
+
+describe("EMPTY_FILTERS categories and compareOptions (D-15, D-28)", () => {
+  it("starts with an empty category selection", () => {
+    expect(EMPTY_FILTERS.categories.size).toBe(0);
+  });
+
+  it("orders by count descending, then Spanish label, then key", () => {
+    const options = [
+      { key: "b", label: "Zeta", count: 1 },
+      { key: "a", label: "Ábaco", count: 1 },
+      { key: "c", label: "Medio", count: 3 },
+      { key: "d", label: "Ábaco", count: 1 },
+    ];
+    expect([...options].sort(compareOptions).map((o) => o.key)).toEqual(["c", "a", "d", "b"]);
   });
 });
