@@ -213,10 +213,23 @@ export interface MonthCount {
   facturas: number;
 }
 
-/** Skeleton for the RED step. */
+/**
+ * Counted Ingreso invoices per calendar month of the range, zero-filled and aligned with
+ * `monthlySeries`. It is the same definition as the Facturas KPI (A-1): credit notes and
+ * entries that do not count are left out.
+ */
 export function monthlyCounts(
-  _visible: readonly LedgerEntry[],
-  _range: DateRange | null,
+  visible: readonly LedgerEntry[],
+  range: DateRange | null,
 ): MonthCount[] {
-  return [];
+  if (range === null) return [];
+  const perMonth = new Map<MonthKey, number>();
+  for (const entry of visible) {
+    if (!entry.counted || entry.kind !== "ingreso" || entry.month === null) continue;
+    perMonth.set(entry.month, (perMonth.get(entry.month) ?? 0) + 1);
+  }
+  return monthsInRange(range.from, range.to).map((month) => ({
+    month,
+    facturas: perMonth.get(month) ?? 0,
+  }));
 }
