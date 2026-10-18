@@ -32,11 +32,11 @@ function AddInvoicesButton() {
       type="button"
       disabled={processing}
       onClick={openFiles}
-      className="h-9 max-md:size-9 max-md:px-0 max-sm:size-11"
+      className="h-9 max-lg:size-9 max-lg:px-0 max-sm:size-11"
       aria-label={es.global.addInvoices}
     >
       <Upload className="size-4" aria-hidden="true" />
-      <span className="max-md:sr-only">{es.global.addInvoices}</span>
+      <span className="max-lg:sr-only">{es.global.addInvoices}</span>
     </Button>
   );
 }
