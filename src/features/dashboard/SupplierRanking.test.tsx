@@ -3,6 +3,7 @@ import Big from "big.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { SupplierRow } from "@/domain/accounting/aggregate";
+import { useSessionStore } from "@/stores/sessionStore";
 import "../../../tests/support/domPolyfills";
 import { SupplierDialog } from "./SupplierDialog";
 import { SupplierRanking } from "./SupplierRanking";
@@ -41,6 +42,7 @@ const LONG_NAME = "Comercializadora-Integral-de-Servicios-".repeat(3).slice(0, 9
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  useSessionStore.getState().clearAll();
 });
 
 function listItems(): HTMLElement[] {
@@ -62,7 +64,7 @@ describe("SupplierRanking: the top list (DASH-04, D-22, D-23)", () => {
     const items = listItems();
     expect(items).toHaveLength(10);
     expect(items.map((item) => within(item).getAllByRole("button")[0]?.getAttribute("aria-label"))).toEqual(
-      Array.from({ length: 10 }, (_, index) => `Proveedor ${index + 1}`),
+      Array.from({ length: 10 }, (_, index) => `Ver facturas de Proveedor ${index + 1}`),
     );
     expect(document.body.textContent).not.toMatch(/otros/i);
   });
@@ -75,7 +77,7 @@ describe("SupplierRanking: the top list (DASH-04, D-22, D-23)", () => {
     );
     const [item] = listItems();
     if (item === undefined) throw new Error("expected one row");
-    expect(within(item).getByRole("button", { name: "Proveedor 1" })).toBeInTheDocument();
+    expect(within(item).getByRole("button", { name: "Ver facturas de Proveedor 1" })).toBeInTheDocument();
     expect(within(item).getByText("$1,500.00")).toBeInTheDocument();
     expect(within(item).getByText("25.0 % del total · Ticket promedio $500.00")).toBeInTheDocument();
     expect(item.className).toContain("min-h-[68px]");
@@ -123,7 +125,7 @@ describe("SupplierRanking: the top list (DASH-04, D-22, D-23)", () => {
     expect(items).toHaveLength(3);
     const last = items[2];
     if (last === undefined) throw new Error("expected three rows");
-    expect(within(last).getByRole("button", { name: "Proveedor 3" })).toBeInTheDocument();
+    expect(within(last).getByRole("button", { name: "Ver facturas de Proveedor 3" })).toBeInTheDocument();
     expect(within(last).queryByTestId("ranking-fill")).toBeNull();
     expect(within(last).getByTestId("ranking-tick").style.width).toBe("2px");
     const amount = within(last).getByText("−$50.00");
@@ -145,27 +147,68 @@ describe("SupplierRanking: the top list (DASH-04, D-22, D-23)", () => {
     expect(screen.getByText("−$30.00")).toBeInTheDocument();
   });
 
-  it("keeps a 90-character name in a truncating button whose accessible name is the full text", () => {
+  it("wraps a 90-character name inside the row button, whose accessible name is the full text (A-5)", () => {
     render(<SupplierRanking rows={[supplier(1, "100.00", { name: LONG_NAME })]} />);
     expect(LONG_NAME).toHaveLength(90);
-    const button = screen.getByRole("button", { name: LONG_NAME });
-    expect(button.className).toContain("truncate");
-    expect(button.className).toContain("min-w-0");
+    const button = screen.getByRole("button", { name: `Ver facturas de ${LONG_NAME}` });
+    const name = within(button).getByText(LONG_NAME);
+    expect(name.className).toContain("break-words");
+    expect(name.className).not.toContain("truncate");
+    expect(button.className).not.toContain("truncate");
   });
 
   it("renders names as text, never as markup (T-02-20)", () => {
     const hostile = "<img src=x onerror=alert(1)>";
     const { container } = render(<SupplierRanking rows={[supplier(1, "100.00", { name: hostile })]} />);
     expect(container.querySelector("img")).toBeNull();
-    expect(screen.getByRole("button", { name: hostile })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `Ver facturas de ${hostile}` })).toBeInTheDocument();
   });
 
-  it("does not make the rows interactive: only the name button exists per row", () => {
+  it("makes each row exactly one native button and no link", () => {
     render(<SupplierRanking rows={descending(3)} />);
     for (const item of listItems()) {
-      expect(within(item).getAllByRole("button")).toHaveLength(1);
+      const buttons = within(item).getAllByRole("button");
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0]?.tagName).toBe("BUTTON");
+      expect(buttons[0]).toHaveAttribute("type", "button");
       expect(within(item).queryByRole("link")).toBeNull();
     }
+  });
+
+  it("keeps the amount, the track and the caption inside the button", () => {
+    render(<SupplierRanking rows={[supplier(1, "1500.00", { pct: "0.25", ticket: "500.00" })]} />);
+    const button = screen.getByRole("button", { name: "Ver facturas de Proveedor 1" });
+    expect(within(button).getByText("$1,500.00")).toBeInTheDocument();
+    expect(within(button).getByTestId("ranking-track")).toBeInTheDocument();
+    expect(within(button).getByText("25.0 % del total · Ticket promedio $500.00")).toBeInTheDocument();
+  });
+
+  it("sizes the row for touch, with a secondary hover and a 2 px focus ring", () => {
+    render(<SupplierRanking rows={descending(1)} />);
+    const button = screen.getByRole("button", { name: "Ver facturas de Proveedor 1" });
+    expect(button.className).toContain("w-full");
+    expect(button.className).toContain("min-h-[68px]");
+    expect(button.className).toContain("hover:bg-secondary");
+    expect(button.className).toContain("focus-visible:ring-2");
+    expect(button.className).toContain("text-left");
+  });
+
+  it("adds the supplier RFC to the supplier filter and asks for the table when clicked (D-18)", () => {
+    render(<SupplierRanking rows={descending(3)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ver facturas de Proveedor 2" }));
+    const state = useSessionStore.getState();
+    expect([...state.filters.suppliers]).toEqual(["RFC002"]);
+    expect(state.revealRequest).toBe(1);
+  });
+
+  it("leaves the filter as it was and asks for the table again for a supplier already selected", () => {
+    render(<SupplierRanking rows={descending(3)} />);
+    const button = screen.getByRole("button", { name: "Ver facturas de Proveedor 2" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    const state = useSessionStore.getState();
+    expect([...state.filters.suppliers]).toEqual(["RFC002"]);
+    expect(state.revealRequest).toBe(2);
   });
 });
 
@@ -190,6 +233,21 @@ describe("SupplierRanking: 'Ver todos' (D-22)", () => {
     const table = within(dialog).getByRole("table");
     expect(within(table).getAllByRole("row")).toHaveLength(12);
     expect(dialog.textContent).not.toMatch(/otros/i);
+  });
+
+  it("keeps the dialog rows non-interactive: no row reveals invoices there (D-18)", async () => {
+    render(<SupplierRanking rows={descending(11)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ver todos" }));
+    const dialog = await screen.findByRole("dialog", { name: "Gasto por proveedor" });
+    const bodyRows = within(within(dialog).getByRole("table")).getAllByRole("row").slice(1);
+    expect(bodyRows).toHaveLength(11);
+    // The name cell keeps the truncation helper trigger; no row gets a reveal button.
+    for (const bodyRow of bodyRows) {
+      expect(within(bodyRow).queryByRole("button", { name: /^Ver facturas de/ })).toBeNull();
+    }
+    fireEvent.click(bodyRows[0] ?? dialog);
+    expect(useSessionStore.getState().revealRequest).toBe(0);
+    expect(useSessionStore.getState().filters.suppliers.size).toBe(0);
   });
 
   it("moves focus to the dialog title and returns it to 'Ver todos' on close", async () => {

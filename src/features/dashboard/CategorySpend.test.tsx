@@ -3,6 +3,7 @@ import Big from "big.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { CategoryRow } from "@/domain/accounting/categories";
+import { useSessionStore } from "@/stores/sessionStore";
 import { CategorySpend } from "./CategorySpend";
 
 interface RowOptions {
@@ -48,6 +49,7 @@ function renderBlock(
 
 afterEach(() => {
   cleanup();
+  useSessionStore.getState().clearAll();
 });
 
 describe("CategorySpend: variation per row (DASH-07, D-17)", () => {
@@ -178,6 +180,77 @@ describe("CategorySpend: rows (E6 populated, partial, overflow)", () => {
   it("renders a category name as text, never as markup", () => {
     renderBlock([row("<img src=x onerror=alert(1)>", "100.00")]);
     expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
+    expect(document.querySelector("img")).toBeNull();
+  });
+});
+
+describe("CategorySpend: rows reveal their invoices (DASH-08, D-18)", () => {
+  it("makes each row one full-width native button named after the category", () => {
+    renderBlock([row("Limpieza e higiene", "250.00"), row("Servicios", "100.00")]);
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    for (const item of items) {
+      const buttons = within(item).getAllByRole("button");
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0]?.tagName).toBe("BUTTON");
+      expect(buttons[0]).toHaveAttribute("type", "button");
+    }
+    expect(
+      screen.getByRole("button", { name: "Ver facturas de la categoría Limpieza e higiene" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver facturas de la categoría Servicios" })).toBeInTheDocument();
+  });
+
+  it("keeps the three lines inside the button", () => {
+    renderBlock([row("Limpieza", "250.00", { variation: "0.25" })]);
+    const button = screen.getByRole("button", { name: "Ver facturas de la categoría Limpieza" });
+    expect(within(button).getByText("Limpieza")).toBeInTheDocument();
+    expect(within(button).getByText("$250.00")).toBeInTheDocument();
+    expect(within(button).getByTestId("category-track")).toBeInTheDocument();
+    expect(within(button).getByText(/50\.0 % del total · Promedio mensual \$20\.83$/)).toBeInTheDocument();
+    expect(within(button).getByTestId("category-delta-0-delta")).toBeInTheDocument();
+  });
+
+  it("sizes the row for touch, with a secondary hover and a 2 px focus ring", () => {
+    renderBlock([row("Limpieza", "250.00")]);
+    const button = screen.getByRole("button", { name: "Ver facturas de la categoría Limpieza" });
+    expect(button.className).toContain("w-full");
+    expect(button.className).toContain("min-h-[68px]");
+    expect(button.className).toContain("hover:bg-secondary");
+    expect(button.className).toContain("focus-visible:ring-2");
+    expect(button.className).toContain("rounded");
+    expect(button.className).toContain("text-left");
+  });
+
+  it("adds the category to the category filter and asks for the table when clicked", () => {
+    renderBlock([row("seed:limpieza", "250.00"), row("seed:servicios", "100.00")]);
+    fireEvent.click(screen.getByRole("button", { name: "Ver facturas de la categoría seed:limpieza" }));
+    const state = useSessionStore.getState();
+    expect([...state.filters.categories]).toEqual(["seed:limpieza"]);
+    expect(state.revealRequest).toBe(1);
+  });
+
+  it("leaves the filter as it was and asks for the table again when the category is already selected", () => {
+    renderBlock([row("seed:limpieza", "250.00")]);
+    const button = screen.getByRole("button", { name: "Ver facturas de la categoría seed:limpieza" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    const state = useSessionStore.getState();
+    expect([...state.filters.categories]).toEqual(["seed:limpieza"]);
+    expect(state.revealRequest).toBe(2);
+  });
+
+  it("reveals the reserved Sin categoría key under its own key, not its display name", () => {
+    renderBlock([row("sin-categoria", "250.00", { pct: "1" })]);
+    fireEvent.click(screen.getByRole("button", { name: "Ver facturas de la categoría Sin categoría" }));
+    expect([...useSessionStore.getState().filters.categories]).toEqual(["sin-categoria"]);
+  });
+
+  it("puts a hostile name in the accessible name as text, never as markup", () => {
+    renderBlock([row("<img src=x onerror=alert(1)>", "100.00")]);
+    expect(
+      screen.getByRole("button", { name: "Ver facturas de la categoría <img src=x onerror=alert(1)>" }),
+    ).toBeInTheDocument();
     expect(document.querySelector("img")).toBeNull();
   });
 });
