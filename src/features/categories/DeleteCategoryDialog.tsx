@@ -24,6 +24,7 @@ import { categoryUsage, orderedCategories } from "@/domain/settings/categories";
 import { SIN_CATEGORIA, type Category } from "@/domain/settings/types";
 import { es } from "@/lib/copy/es";
 import { deleteCategoryBody, deleteCategoryTitle } from "@/lib/copy/messages";
+import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useCategorySettings } from "./useCategorySettings";
 
@@ -150,6 +151,8 @@ export function DeleteCategoryDialog({
 
   const confirm = (target: string | null) => {
     const snapshot = deleteCategory(category.id, target);
+    // A deleted category must not stay selected in the Dashboard filter (T-03-38).
+    useSessionStore.getState().dropCategoryFromFilter(category.id);
     onOpenChange(false);
     if (snapshot === null) return;
     deletedRef.current = true;
