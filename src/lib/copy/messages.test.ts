@@ -63,6 +63,11 @@ import {
   tipoLabel,
   trasladoNominaSubLabel,
   trendAriaLabel,
+  backupReasonText,
+  invalidFileText,
+  replaceSettingsBody,
+  replaceSummaryText,
+  settingsDownloadedToast,
 } from "./messages";
 
 describe("rejectReasonText", () => {
@@ -570,5 +575,73 @@ describe("Concept change toast and reach caption (UI-SPEC E7, Q5)", () => {
   it("holds the fixed copy of the removal", () => {
     expect(es.invoices.removeAdjustment).toBe("Quitar ajuste");
     expect(es.invoices.adjustmentRemoved).toBe("Ajuste quitado");
+  });
+});
+
+describe("settings file messages (D-07, D-08)", () => {
+  it("builds the download toast with the file name", () => {
+    expect(settingsDownloadedToast("invoicechecker-ajustes-2026-10-06.json")).toBe(
+      "Ajustes descargados: invoicechecker-ajustes-2026-10-06.json",
+    );
+  });
+
+  it("maps each refusal reason to its UI-SPEC sentence", () => {
+    expect(backupReasonText("not-invoicechecker")).toBe(
+      "no es un archivo de ajustes de InvoiceChecker",
+    );
+    expect(backupReasonText("damaged")).toBe("está dañado o incompleto");
+    expect(backupReasonText("newer")).toBe("es de una versión más nueva de la app");
+    expect(backupReasonText("too-large")).toBe("es demasiado grande (máx. 1 MB)");
+  });
+
+  it("builds the invalid-file text with the full file name and the closing sentence", () => {
+    expect(invalidFileText("x.json", "está dañado o incompleto")).toBe(
+      "No se pudo usar el archivo «x.json»: está dañado o incompleto. Tus ajustes actuales no cambiaron.",
+    );
+  });
+
+  it("never cuts a long file name", () => {
+    const longName = `${"a".repeat(200)}.json`;
+    expect(invalidFileText(longName, "es demasiado grande (máx. 1 MB)")).toContain(`«${longName}»`);
+    expect(
+      replaceSettingsBody(longName, "1 categoría, 0 proveedores, 0 conceptos ajustados"),
+    ).toContain(`«${longName}»`);
+  });
+
+  it("keeps markup-like text as plain characters", () => {
+    expect(invalidFileText("<img src=x>.json", "está dañado o incompleto")).toContain(
+      "«<img src=x>.json»",
+    );
+  });
+
+  it("lists the three parts of the summary, plurals included", () => {
+    expect(replaceSummaryText({ categories: 9, suppliers: 24, concepts: 7 })).toBe(
+      "9 categorías, 24 proveedores, 7 conceptos ajustados",
+    );
+  });
+
+  it("reads the singular forms for one and «0 …» for zero, never omitting a part", () => {
+    expect(replaceSummaryText({ categories: 1, suppliers: 0, concepts: 1 })).toBe(
+      "1 categoría, 0 proveedores, 1 concepto ajustado",
+    );
+    expect(replaceSummaryText({ categories: 0, suppliers: 1, concepts: 0 })).toBe(
+      "0 categorías, 1 proveedor, 0 conceptos ajustados",
+    );
+  });
+
+  it("builds the replace body from the UI-SPEC sentence", () => {
+    expect(replaceSettingsBody("x.json", "3 categorías, 2 proveedores, 1 concepto ajustado")).toBe(
+      "El archivo «x.json» contiene 3 categorías, 2 proveedores, 1 concepto ajustado. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados y el modo de IVA actuales. Si quieres conservarlos, descárgalos antes.",
+    );
+  });
+
+  it("holds the fixed copy", () => {
+    expect(es.categories.backup.download).toBe("Descargar ajustes");
+    expect(es.categories.backup.upload).toBe("Subir ajustes");
+    expect(es.categories.backup.closeAlert).toBe("Cerrar aviso");
+    expect(es.categories.backup.replaceTitle).toBe("¿Reemplazar tus ajustes?");
+    expect(es.categories.backup.keepMine).toBe("Conservar los míos");
+    expect(es.categories.backup.replaceConfirm).toBe("Reemplazar mis ajustes");
+    expect(es.categories.backup.replacedToast).toBe("Ajustes reemplazados");
   });
 });

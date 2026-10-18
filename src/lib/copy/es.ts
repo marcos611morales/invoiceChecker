@@ -297,6 +297,23 @@ export const es = {
       "No se pudieron leer tus ajustes guardados y se usaron los valores iniciales. Si tienes un archivo de respaldo, súbelo.",
     writeFailedAlert:
       "Este navegador no permite guardar tus ajustes. Los cambios se perderán al cerrar la página; descarga tus ajustes para no perderlos.",
+    /** Settings file: download, upload, replace dialog and invalid-file Alert (D-07, D-08). */
+    backup: {
+      download: "Descargar ajustes",
+      upload: "Subir ajustes",
+      closeAlert: "Cerrar aviso",
+      replaceTitle: "¿Reemplazar tus ajustes?",
+      keepMine: "Conservar los míos",
+      replaceConfirm: "Reemplazar mis ajustes",
+      replacedToast: "Ajustes reemplazados",
+      /** The {motivo} of the invalid-file Alert, one per refusal reason. */
+      reasons: {
+        notInvoiceChecker: "no es un archivo de ajustes de InvoiceChecker",
+        damaged: "está dañado o incompleto",
+        newer: "es de una versión más nueva de la app",
+        tooLarge: "es demasiado grande (máx. 1 MB)",
+      },
+    },
   },
 
   errors: {

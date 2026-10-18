@@ -11,6 +11,7 @@ import type {
   DuplicateFile,
   IgnoredKind,
 } from "@/domain/import/types";
+import type { BackupFailure, BackupSummary } from "@/domain/settings/backup";
 import { es } from "./es";
 
 /** Spanish reason shown next to a rejected file (D-14, D-15). */
@@ -461,4 +462,38 @@ export function deleteCategoryBody(suppliers: number, concepts: number): string 
   }
   if (parts.length === 0) return es.dialogs.deleteCategory.unusedBody;
   return `La usan ${parts.join(" y ")}.`;
+}
+
+// Settings file: download toast, invalid-file Alert, replace dialog (D-07, D-08, UI-SPEC E3 and E4).
+
+/** Toast after «Descargar ajustes». */
+export function settingsDownloadedToast(name: string): string {
+  void name;
+  return "";
+}
+
+/** Reason of an invalid settings file, the {motivo} of the Alert. */
+export function backupReasonText(reason: BackupFailure): string {
+  void reason;
+  return "";
+}
+
+/** Text of the invalid-file Alert. The file name is user text, shown in full (E4 long-text). */
+export function invalidFileText(name: string, motivo: string): string {
+  void name;
+  void motivo;
+  return "";
+}
+
+/** {resumen} of the replace dialog: always the three parts, a zero reads «0 …» (D-08). */
+export function replaceSummaryText(summary: BackupSummary): string {
+  void summary;
+  return "";
+}
+
+/** Body of the replace dialog. */
+export function replaceSettingsBody(name: string, resumen: string): string {
+  void name;
+  void resumen;
+  return "";
 }
