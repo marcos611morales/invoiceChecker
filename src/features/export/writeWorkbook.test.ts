@@ -41,6 +41,33 @@ describe("writeWorkbook (D-24)", () => {
     expect(blob.size).toBeGreaterThan(0);
   });
 
+  it("writes every kind of cell, including an empty Total cell and a date", async () => {
+    const mixed: SheetModel = {
+      name: "Mixta",
+      columns: [
+        { header: "Fecha", width: 12 },
+        { header: "Texto", width: 20, wrap: true },
+        { header: "Monto (con IVA)", width: 16 },
+      ],
+      rows: [
+        [
+          { kind: "date", value: new Date(Date.UTC(2025, 4, 28)) },
+          { kind: "text", value: "=1+1" },
+          { kind: "number", value: "NaN", format: "$#,##0.00" },
+        ],
+        [{ kind: "date", value: null }, { kind: "empty" }, { kind: "empty" }],
+      ],
+      totalRow: [
+        { kind: "text", value: "Total" },
+        { kind: "empty" },
+        { kind: "number", value: "0.00", format: "$#,##0.00" },
+      ],
+    };
+    const blob = await writeWorkbook([mixed]);
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    expect(String.fromCharCode(bytes[0] ?? 0, bytes[1] ?? 0)).toBe("PK");
+  });
+
   it("rejects instead of hanging when the library never settles", async () => {
     const never: WriterModule = {
       default: () => ({ toBlob: () => new Promise<Blob>(() => undefined) }),

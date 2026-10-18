@@ -6,6 +6,9 @@ const isDev = process.env.NODE_ENV !== "production";
 // theme script (a static shell cannot carry per-request nonces).
 // connect-src 'self' blocks any request to a third-party origin, so invoice
 // content cannot be sent elsewhere from the browser.
+// The worker-src entry lets the Excel writer compress large sheets (fflate) in a Worker
+// created from a blob: URL; without it the export never finishes for big sheets (D-24).
+// script-src and connect-src stay exactly as they are.
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
@@ -13,6 +16,7 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   "connect-src 'self'",
+  "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
