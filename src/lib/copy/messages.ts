@@ -468,32 +468,40 @@ export function deleteCategoryBody(suppliers: number, concepts: number): string 
 
 /** Toast after «Descargar ajustes». */
 export function settingsDownloadedToast(name: string): string {
-  void name;
-  return "";
+  return `Ajustes descargados: ${name}`;
 }
 
 /** Reason of an invalid settings file, the {motivo} of the Alert. */
 export function backupReasonText(reason: BackupFailure): string {
-  void reason;
-  return "";
+  switch (reason) {
+    case "not-invoicechecker":
+      return es.categories.backup.reasons.notInvoiceChecker;
+    case "damaged":
+      return es.categories.backup.reasons.damaged;
+    case "newer":
+      return es.categories.backup.reasons.newer;
+    case "too-large":
+      return es.categories.backup.reasons.tooLarge;
+  }
 }
 
 /** Text of the invalid-file Alert. The file name is user text, shown in full (E4 long-text). */
 export function invalidFileText(name: string, motivo: string): string {
-  void name;
-  void motivo;
-  return "";
+  return `No se pudo usar el archivo «${name}»: ${motivo}. Tus ajustes actuales no cambiaron.`;
 }
 
 /** {resumen} of the replace dialog: always the three parts, a zero reads «0 …» (D-08). */
 export function replaceSummaryText(summary: BackupSummary): string {
-  void summary;
-  return "";
+  const suppliers =
+    summary.suppliers === 1 ? "1 proveedor" : `${String(summary.suppliers)} proveedores`;
+  const concepts =
+    summary.concepts === 1
+      ? "1 concepto ajustado"
+      : `${String(summary.concepts)} conceptos ajustados`;
+  return `${categoryCountLabel(summary.categories)}, ${suppliers}, ${concepts}`;
 }
 
 /** Body of the replace dialog. */
 export function replaceSettingsBody(name: string, resumen: string): string {
-  void name;
-  void resumen;
-  return "";
+  return `El archivo «${name}» contiene ${resumen}. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados y el modo de IVA actuales. Si quieres conservarlos, descárgalos antes.`;
 }

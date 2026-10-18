@@ -56,7 +56,8 @@ function snapshot(): SettingsData {
 }
 
 function fileInput(): HTMLInputElement {
-  const input = document.querySelector('input[type="file"]');
+  // The app shell also has its own XML pickers; the settings one accepts JSON.
+  const input = document.querySelector('input[type="file"][accept=".json,application/json"]');
   if (!(input instanceof HTMLInputElement)) throw new Error("no file input");
   return input;
 }
@@ -364,6 +365,8 @@ describe("Categorías tab with the backup controls (AJUS-02)", () => {
     expect(
       within(screen.getByTestId("iva-toggle-bar")).getByRole("button", { name: "Sin IVA" }),
     ).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("Eventos")).toBeInTheDocument();
+    // The category list now shows the file's categories (and the nine suggestions are gone).
+    expect(screen.getAllByText("Eventos").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Limpieza e higiene")).toBeNull();
   });
 });
