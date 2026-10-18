@@ -19,6 +19,7 @@ import {
   appliesToText,
   averageLegend,
   batchToastText,
+  categorySubCaption,
   ceroRow,
   chipText,
   conceptsPanelTitle,
@@ -265,6 +266,25 @@ describe("KPI sub-labels and delta line (D-18, D-20, DASH-06)", () => {
 
   it("joins the signed percent and the previous period", () => {
     expect(deltaLine("+12.4 %", "ene\u2013jun 2025")).toBe("+12.4 % vs. ene\u2013jun 2025");
+  });
+});
+
+describe("category block sub-caption (D-16, D-17)", () => {
+  it("states the divisor months and the pair of months of the variation", () => {
+    expect(categorySubCaption(12, "dic 2025", "nov 2025")).toBe(
+      "Promedio mensual entre 12 meses del calendario \u00b7 Variaci\u00f3n: dic 2025 vs. nov 2025",
+    );
+  });
+
+  it("uses the singular for one month", () => {
+    expect(categorySubCaption(1, "ene 2025", "dic 2024")).toBe(
+      "Promedio mensual entre 1 mes del calendario \u00b7 Variaci\u00f3n: ene 2025 vs. dic 2024",
+    );
+  });
+
+  it("keeps only the average part when there is no variation pair", () => {
+    expect(categorySubCaption(3, null, null)).toBe("Promedio mensual entre 3 meses del calendario");
+    expect(categorySubCaption(1, null, null)).toBe("Promedio mensual entre 1 mes del calendario");
   });
 });
 
