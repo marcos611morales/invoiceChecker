@@ -41,6 +41,7 @@ import {
   ignoredReasonText,
   invoicesHeading,
   monthsSubLabel,
+  noCategoryMatch,
   noFormaMatch,
   noSupplierMatch,
   notasSubLabel,
@@ -213,6 +214,12 @@ describe("filter messages", () => {
   it("explains an empty forma de pago search", () => {
     expect(noFormaMatch("xyz")).toBe(
       "Ninguna forma de pago coincide con «xyz». Revisa la búsqueda.",
+    );
+  });
+
+  it("explains an empty category search (D-15)", () => {
+    expect(noCategoryMatch("xyz")).toBe(
+      "Ninguna categoría coincide con «xyz». Revisa la búsqueda.",
     );
   });
 
