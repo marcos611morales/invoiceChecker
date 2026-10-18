@@ -173,3 +173,101 @@ test("clasificar un proveedor, verlo en «Gasto por categoría», recargar, volv
   expectNoXmlLeavesTheBrowser(requests);
   expectNoSettingsLeave(requests);
 });
+
+/** Horizontal measures of the shell, read in the page at the current viewport. */
+interface ShellMeasures {
+  listScrollWidth: number;
+  listClientWidth: number;
+  pageScrollWidth: number;
+  innerWidth: number;
+  headerScrollWidth: number;
+  headerClientWidth: number;
+  ivaCentre: number;
+  headerCentre: number;
+}
+
+async function measureShell(page: Page): Promise<ShellMeasures> {
+  return page.evaluate(() => {
+    const list = document.querySelector('[role="tablist"]');
+    const header = document.querySelector("header");
+    const iva = document.querySelector('[data-testid="iva-toggle-bar"]');
+    if (list === null || header === null || iva === null) {
+      throw new Error("e2e: tab list, header or IVA control not found");
+    }
+    const ivaBox = iva.getBoundingClientRect();
+    const headerBox = header.getBoundingClientRect();
+    return {
+      listScrollWidth: list.scrollWidth,
+      listClientWidth: list.clientWidth,
+      pageScrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+      headerScrollWidth: header.scrollWidth,
+      headerClientWidth: header.clientWidth,
+      ivaCentre: ivaBox.left + ivaBox.width / 2,
+      headerCentre: headerBox.left + headerBox.width / 2,
+    };
+  });
+}
+
+test("diseño adaptable: a 360 px las pestañas se desplazan dentro de su lista y entre 768 y 1023 px la barra superior no desborda", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await logIn(page);
+  await pickFolder(page, syntheticFolder);
+  await page.getByRole("tab", { name: "Dashboard" }).click();
+  await expect(page.getByTestId("kpi-gasto")).toBeVisible();
+
+  // Phones: the four tabs scroll inside their list.
+  await page.setViewportSize({ width: 360, height: 800 });
+  const phone = await measureShell(page);
+  expect(phone.listScrollWidth).toBeGreaterThan(phone.listClientWidth);
+
+  // The last tab is brought into view when it is selected.
+  const importTab = page.getByRole("tab", { name: "Importación" });
+  await importTab.click();
+  await expect(importTab).toHaveAttribute("aria-selected", "true");
+  const list = page.getByRole("tablist", { name: "Secciones" });
+  await expect
+    .poll(async () => {
+      const listBox = await list.boundingBox();
+      const tabBox = await importTab.boundingBox();
+      if (listBox === null || tabBox === null) return false;
+      return tabBox.x >= listBox.x - 1 && tabBox.x + tabBox.width <= listBox.x + listBox.width + 1;
+    })
+    .toBe(true);
+
+  // Tablets: the top bar does not overflow and the IVA control stays centred.
+  for (const width of [768, 900, 1023]) {
+    await page.setViewportSize({ width, height: 900 });
+    // Polled: the measure is read once the layout of the new width has settled.
+    await expect
+      .poll(
+        async () => {
+          const bar = await measureShell(page);
+          return {
+            overflow: bar.headerScrollWidth - bar.headerClientWidth,
+            centred: Math.abs(bar.ivaCentre - bar.headerCentre) <= 24,
+          };
+        },
+        { message: `top bar at ${String(width)} px` },
+      )
+      .toEqual({ overflow: 0, centred: true });
+  }
+});
+
+// PENDING DECISION (03-17 checkpoint): at 360 px the top bar (the name «InvoiceChecker», 149 px,
+// plus four 44 px buttons) is about 29 px wider than the viewport, so the whole page scrolls
+// sideways. The plan requires that it never does, but fixing it means a visual change to TopBar
+// that the plan and UI-SPEC do not describe. The test stays here, skipped, until the user picks
+// the fix; then `fixme` is removed.
+test.fixme("a 360 px la página no se desplaza de lado", async ({ page }) => {
+  await logIn(page);
+  await pickFolder(page, syntheticFolder);
+  for (const tab of ["Dashboard", "Categorías", "Calidad de datos", "Importación"]) {
+    await page.getByRole("tab", { name: new RegExp(`^${tab}`) }).click();
+    await page.setViewportSize({ width: 360, height: 800 });
+    const shell = await measureShell(page);
+    expect(shell.pageScrollWidth, `page width on ${tab}`).toBeLessThanOrEqual(shell.innerWidth);
+  }
+});
