@@ -8,28 +8,51 @@ import { EMPTY_FILTERS, type DateRange } from "@/domain/accounting/filters";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
 import { selectView, type DashboardView } from "@/domain/accounting/view";
 import { makeResolver } from "@/domain/settings/resolver";
-import { SIN_CATEGORIA, defaultSettings } from "@/domain/settings/types";
+import { SIN_CATEGORIA, defaultSettings, type SettingsData } from "@/domain/settings/types";
 import { makeEntry } from "./ledgerFactory";
 import type { WorkbookContext } from "@/features/export/workbook";
 
-const settings = defaultSettings();
-const resolver = makeResolver(settings);
-
-function nameOf(key: string): string {
-  if (key === SIN_CATEGORIA) return "Sin categoría";
-  return settings.categories.find((category) => category.id === key)?.name ?? key;
+/** A display-name lookup for the categories of some settings. */
+function nameOfFor(settings: SettingsData): (key: string) => string {
+  return (key: string): string => {
+    if (key === SIN_CATEGORIA) return "Sin categoría";
+    return settings.categories.find((category) => category.id === key)?.name ?? key;
+  };
 }
 
-export function testContext(mode: IvaMode): WorkbookContext {
+/** A workbook context over the given settings (suppliers, rules, categories). */
+export function contextFor(settings: SettingsData, mode: IvaMode): WorkbookContext {
   return {
     mode,
-    nameOf,
-    resolver,
+    nameOf: nameOfFor(settings),
+    resolver: makeResolver(settings),
     exportedAtText: "17/10/2026 12:00",
     supplierLabels: [],
     categoryLabels: [],
     formaLabels: [],
   };
+}
+
+export function testContext(mode: IvaMode): WorkbookContext {
+  return contextFor(defaultSettings(), mode);
+}
+
+/** A real DashboardView over the given settings, optionally with a category selection. */
+export function viewFor(
+  ledger: readonly LedgerEntry[],
+  range: DateRange | null,
+  mode: IvaMode,
+  settings: SettingsData,
+  categories: readonly string[] = [],
+): DashboardView {
+  return selectView({
+    ledger,
+    filters: { ...EMPTY_FILTERS, range, categories: new Set(categories) },
+    resolver: makeResolver(settings),
+    mode,
+    nameOf: nameOfFor(settings),
+    knownCategories: new Set(settings.categories.map((category) => category.id)),
+  });
 }
 
 export interface SpecEntry {
@@ -56,12 +79,5 @@ export function viewOf(
   range: DateRange | null,
   mode: IvaMode,
 ): DashboardView {
-  return selectView({
-    ledger,
-    filters: { ...EMPTY_FILTERS, range },
-    resolver,
-    mode,
-    nameOf,
-    knownCategories: new Set(settings.categories.map((category) => category.id)),
-  });
+  return viewFor(ledger, range, mode, defaultSettings());
 }

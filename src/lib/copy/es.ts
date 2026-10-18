@@ -348,6 +348,38 @@ export const es = {
     invoices: "Facturas",
     amountCon: "Monto (con IVA)",
     amountSin: "Monto (sin IVA)",
+    /** Estado column of Facturas and Conceptos, one text per row state (D-20). */
+    status: {
+      suma: "Suma",
+      pago: "No suma: Pago",
+      traslado: "No suma: Traslado",
+      nomina: "No suma: Nómina",
+      cero: "No suma: total en $0",
+      monedaSinTc: "No suma: moneda sin tipo de cambio",
+      invalido: "No suma: datos inválidos",
+      excluida: "Excluida",
+      sustituida: "Sustituida",
+    },
+    /** Column headers of the detail sheets (D-22, UI-SPEC Workbook contract). */
+    columns: {
+      date: "Fecha",
+      supplier: "Proveedor",
+      rfc: "RFC emisor",
+      folio: "Folio",
+      uuid: "UUID",
+      type: "Tipo",
+      status: "Estado",
+      forma: "Forma de pago",
+      fullAmountCon: "Monto de la factura completa (con IVA)",
+      fullAmountSin: "Monto de la factura completa (sin IVA)",
+      subtotal: "Subtotal",
+      discount: "Descuento",
+      iva: "IVA",
+      ieps: "IEPS",
+      total: "Total",
+      currency: "Moneda",
+      exchangeRate: "Tipo de cambio",
+    },
   },
 
   errors: {
