@@ -100,6 +100,8 @@ describe("ExportButton: download (D-19, XLS-02)", () => {
     expect(sheets?.map((sheet) => sheet.name)).toEqual([
       "Facturas",
       "Conceptos",
+      "Resumen por categoría",
+      "Resumen por proveedor",
       "Resumen por mes",
     ]);
     expect(downloadMock).toHaveBeenCalledTimes(1);

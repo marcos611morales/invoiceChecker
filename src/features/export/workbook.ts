@@ -10,7 +10,9 @@ import { es } from "@/lib/copy/es";
 import type { SheetModel } from "./cellModel";
 import { buildConceptos } from "./sheets/conceptos";
 import { buildFacturas } from "./sheets/facturas";
+import { buildResumenCategoria } from "./sheets/resumenCategoria";
 import { buildResumenMes } from "./sheets/resumenMes";
+import { buildResumenProveedor } from "./sheets/resumenProveedor";
 
 export interface WorkbookContext {
   mode: IvaMode;
@@ -30,7 +32,13 @@ export function amountHeader(mode: IvaMode): string {
   return mode === "con" ? es.export.amountCon : es.export.amountSin;
 }
 
-/** The sheet models in workbook order; later plans insert the other sheets in UI-SPEC order. */
+/** The sheet models in workbook order; Parámetros is appended in the next task (UI-SPEC order). */
 export function buildWorkbook(view: DashboardView, ctx: WorkbookContext): SheetModel[] {
-  return [buildFacturas(view, ctx), buildConceptos(view, ctx), buildResumenMes(view, ctx)];
+  return [
+    buildFacturas(view, ctx),
+    buildConceptos(view, ctx),
+    buildResumenCategoria(view, ctx),
+    buildResumenProveedor(view, ctx),
+    buildResumenMes(view, ctx),
+  ];
 }

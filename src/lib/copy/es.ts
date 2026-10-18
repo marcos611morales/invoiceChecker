@@ -388,6 +388,16 @@ export const es = {
       category: "Categoría",
       origin: "Origen de la categoría",
     },
+    /** Extra headers of the summary sheets (D-23, UI-SPEC Workbook contract). */
+    summary: {
+      rfc: "RFC",
+      pct: "% del total",
+      monthlyAverage: "Promedio mensual",
+      variation: "Variación % (último mes vs. mes anterior)",
+      ticket: "Ticket promedio",
+    },
+    /** Text of the variation cell when there is no comparable previous month. */
+    noPreviousMonth: "Sin dato del mes anterior",
     /** Origen de la categoría of a line, from where the resolver took it (D-22, Q6). */
     origin: {
       regla: "Ajuste del concepto",
