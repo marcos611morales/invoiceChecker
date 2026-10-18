@@ -103,6 +103,11 @@ interface SettingsState extends SettingsData {
    * exists, the list is at its limit) changes and writes nothing.
    */
   restoreConceptRule: (rfc: string, key: string, previous: ConceptRule | null) => void;
+  /**
+   * Replaces all four stored fields with an already validated settings value, in one `set`
+   * (AJUS-02, D-08), so persist writes once and a reader never sees a half-replaced state.
+   */
+  replaceAll: (data: SettingsData) => void;
 }
 
 /** The four stored fields of the current state, as the domain reducers take them. */
@@ -245,6 +250,14 @@ export const useSettingsStore = create<SettingsState>()(
         // A refused or empty restore comes back as the same object: nothing to write.
         if (next === current) return;
         set({ conceptRules: next.conceptRules });
+      },
+      replaceAll: (data) => {
+        set({
+          ivaMode: data.ivaMode,
+          categories: data.categories,
+          supplierCategories: data.supplierCategories,
+          conceptRules: data.conceptRules,
+        });
       },
     }),
     {

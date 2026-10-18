@@ -40,11 +40,54 @@ const RESERVED_NAME = comparableName("Sin categoría");
 /** Separator that cannot appear in a normalized key or an RFC from XML text. */
 const KEY_SEPARATOR = "\u0000";
 
+/** One broken integrity rule: a message and where it sits in the settings value. */
+export interface IntegrityIssue {
+  message: string;
+  path: (string | number)[];
+}
+
 /**
- * Phase 3 stored data (version 2) with the D-30 caps and the integrity rules:
- * unique ids, an id that is never the reserved key, unique names (D-04), no
- * reserved name, assignments and rules pointing at existing ids, no repeated
- * supplier and no repeated supplier plus key.
+ * The referential integrity rules shared by the stored settings schema and the settings
+ * file schema: unique ids, an id that is never the reserved key, unique names (D-04), no
+ * reserved name, assignments and rules pointing at existing ids, no repeated supplier and
+ * no repeated supplier plus key. Pure and total: it only reads `data`.
+ */
+export function settingsIntegrityIssues(data: SettingsData): IntegrityIssue[] {
+  const issues: IntegrityIssue[] = [];
+  const ids = new Set<string>();
+  const names = new Set<string>();
+  for (const [index, category] of data.categories.entries()) {
+    if (category.id === SIN_CATEGORIA || ids.has(category.id)) {
+      issues.push({ message: "invalid category id", path: ["categories", index, "id"] });
+    }
+    ids.add(category.id);
+    const name = comparableName(category.name);
+    if (name === RESERVED_NAME || names.has(name)) {
+      issues.push({ message: "invalid category name", path: ["categories", index, "name"] });
+    }
+    names.add(name);
+  }
+  const suppliers = new Set<string>();
+  for (const [index, assignment] of data.supplierCategories.entries()) {
+    if (!ids.has(assignment.categoryId) || suppliers.has(assignment.rfc)) {
+      issues.push({ message: "invalid supplier assignment", path: ["supplierCategories", index] });
+    }
+    suppliers.add(assignment.rfc);
+  }
+  const rules = new Set<string>();
+  for (const [index, rule] of data.conceptRules.entries()) {
+    const composite = `${rule.rfc}${KEY_SEPARATOR}${rule.key}`;
+    if ((rule.categoryId !== null && !ids.has(rule.categoryId)) || rules.has(composite)) {
+      issues.push({ message: "invalid concept rule", path: ["conceptRules", index] });
+    }
+    rules.add(composite);
+  }
+  return issues;
+}
+
+/**
+ * Phase 3 stored data (version 2) with the D-30 caps and the integrity rules of
+ * `settingsIntegrityIssues`.
  */
 export const settingsDataSchema: z.ZodType<SettingsData> = z
   .object({
@@ -54,33 +97,8 @@ export const settingsDataSchema: z.ZodType<SettingsData> = z
     conceptRules: z.array(conceptRuleSchema).max(LIMITS.conceptRules),
   })
   .superRefine((data, ctx) => {
-    const ids = new Set<string>();
-    const names = new Set<string>();
-    for (const [index, category] of data.categories.entries()) {
-      if (category.id === SIN_CATEGORIA || ids.has(category.id)) {
-        ctx.addIssue({ code: "custom", message: "invalid category id", path: ["categories", index, "id"] });
-      }
-      ids.add(category.id);
-      const name = comparableName(category.name);
-      if (name === RESERVED_NAME || names.has(name)) {
-        ctx.addIssue({ code: "custom", message: "invalid category name", path: ["categories", index, "name"] });
-      }
-      names.add(name);
-    }
-    const suppliers = new Set<string>();
-    for (const [index, assignment] of data.supplierCategories.entries()) {
-      if (!ids.has(assignment.categoryId) || suppliers.has(assignment.rfc)) {
-        ctx.addIssue({ code: "custom", message: "invalid supplier assignment", path: ["supplierCategories", index] });
-      }
-      suppliers.add(assignment.rfc);
-    }
-    const rules = new Set<string>();
-    for (const [index, rule] of data.conceptRules.entries()) {
-      const composite = `${rule.rfc}${KEY_SEPARATOR}${rule.key}`;
-      if ((rule.categoryId !== null && !ids.has(rule.categoryId)) || rules.has(composite)) {
-        ctx.addIssue({ code: "custom", message: "invalid concept rule", path: ["conceptRules", index] });
-      }
-      rules.add(composite);
+    for (const issue of settingsIntegrityIssues(data)) {
+      ctx.addIssue({ code: "custom", message: issue.message, path: issue.path });
     }
   });
 

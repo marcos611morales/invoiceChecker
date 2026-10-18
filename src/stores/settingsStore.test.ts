@@ -750,3 +750,48 @@ describe("settingsStore storage status flags (Q8, AJUS-01)", () => {
     expect(storedEnvelope()).toBeNull();
   });
 });
+
+describe("settingsStore replaceAll (AJUS-02, D-08)", () => {
+  function incoming(): SettingsData {
+    return {
+      ivaMode: "sin",
+      categories: [
+        { id: "seed:otros", name: "Otros" },
+        { id: "cat_nueva", name: "Eventos" },
+      ],
+      supplierCategories: [{ rfc: "EKU9003173C9", name: "Proveedor uno", categoryId: "cat_nueva" }],
+      conceptRules: [{ rfc: "EKU9003173C9", key: "renta", description: "Renta", categoryId: null }],
+    };
+  }
+
+  it("sets all four fields in one write and stores exactly the envelope of version 2", () => {
+    useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "Proveedor A", "seed:servicios");
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const data = incoming();
+    useSettingsStore.getState().replaceAll(data);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot()).toEqual(data);
+    expect(storedEnvelope()).toEqual({ state: data, version: 2 });
+  });
+
+  it("keeps the actions of the store usable after a replace", () => {
+    useSettingsStore.getState().replaceAll(incoming());
+    const added = useSettingsStore.getState().addCategory("Otra más");
+    expect(added.ok).toBe(true);
+    expect(snapshot().categories.map((category) => category.name)).toEqual([
+      "Otros",
+      "Eventos",
+      "Otra más",
+    ]);
+  });
+
+  it("can replace with empty lists without re-seeding the suggestions", () => {
+    useSettingsStore.getState().replaceAll({
+      ivaMode: "con",
+      categories: [],
+      supplierCategories: [],
+      conceptRules: [],
+    });
+    expect(snapshot().categories).toEqual([]);
+  });
+});
