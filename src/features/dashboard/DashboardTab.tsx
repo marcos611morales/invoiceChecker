@@ -33,7 +33,7 @@ export function DashboardTab() {
   const setActiveTab = useSessionStore((s) => s.setActiveTab);
   const focusRequest = useSessionStore((s) => s.focusRequest);
   const clearFocusRequest = useSessionStore((s) => s.clearFocusRequest);
-  const { ledger, nameOf, mode: ivaMode, view } = useDashboardView();
+  const { ledger, nameOf, settings, mode: ivaMode, view } = useDashboardView();
   const { span, range, visible, current, deltas, series, ranking, categories } = view;
   // The unfiltered ledger decides the notice: an incident changes the amounts whether or
   // not the current filters show its invoice (D-04). The informational D-46 type never
@@ -137,7 +137,16 @@ export function DashboardTab() {
             data-testid="category-supplier-row"
             className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2"
           >
-            <CategorySpend rows={categories} nameOf={nameOf} />
+            <CategorySpend
+              rows={categories}
+              months={current.months}
+              variationMonths={view.variationMonths}
+              nameOf={nameOf}
+              showHint={settings.supplierCategories.length === 0 && settings.conceptRules.length === 0}
+              onGoToCategories={() => {
+                setActiveTab("categorias");
+              }}
+            />
             <SupplierRanking rows={ranking} />
           </div>
           <InvoiceTable

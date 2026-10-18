@@ -258,6 +258,21 @@ export function categoryCaption(pctText: string, promedioText: string): string {
   return `${pctText} del total · Promedio mensual ${promedioText}`;
 }
 
+/**
+ * Sub-caption of the «Gasto por categoría» block (D-16, D-17): the calendar months behind the
+ * monthly average and, when there is a variation pair, the two months it compares. Month labels
+ * arrive formatted; null labels leave only the average part.
+ */
+export function categorySubCaption(
+  months: number,
+  lastLabel: string | null,
+  previousLabel: string | null,
+): string {
+  const average = `Promedio mensual entre ${months === 1 ? "1 mes" : `${String(months)} meses`} del calendario`;
+  if (lastLabel === null || previousLabel === null) return average;
+  return `${average} · Variación: ${lastLabel} vs. ${previousLabel}`;
+}
+
 // Calidad de datos: card and accordion titles and the sentence of every incident row (CAL-01).
 
 /** Card and accordion title of an incident type (D-32, D-35, D-46). */
