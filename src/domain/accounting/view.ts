@@ -22,6 +22,7 @@ import {
 } from "./aggregate";
 import {
   categoryBreakdown,
+  categoryMonthTotals,
   scopeToCategories,
   type CategoryRow,
   type ScopedEntry,
@@ -35,7 +36,7 @@ import {
   type Filters,
 } from "./filters";
 import type { LedgerEntry } from "./ledger";
-import { previousPeriod } from "./months";
+import { previousPeriod, type MonthKey } from "./months";
 
 export interface ViewInput {
   ledger: readonly LedgerEntry[];
@@ -62,6 +63,11 @@ export interface DashboardView {
   series: MonthPoint[];
   ranking: SupplierRow[];
   categories: CategoryRow[];
+  /**
+   * The pair of months behind the variation of each category (D-17): the last month of the
+   * range and the previous calendar month, which may lie outside the range. Null without a range.
+   */
+  variationMonths: { last: MonthKey; previous: MonthKey } | null;
 }
 
 /**
@@ -96,6 +102,32 @@ export function selectView(input: ViewInput): DashboardView {
           resolver,
         );
   const previous = kpis(previousVisible, previousRange, mode);
+  // D-17: the last month of the range against the previous calendar month, under every filter
+  // except the date: the pair is read with its own range, so the previous month may lie outside
+  // the one the user chose.
+  const variationMonths =
+    range === null
+      ? null
+      : { last: range.to, previous: previousPeriod(range.to, range.to).from };
+  const pairVisible =
+    variationMonths === null
+      ? []
+      : scopeToCategories(
+          applyFilters(
+            ledger,
+            { ...filters, range: { from: variationMonths.previous, to: variationMonths.last } },
+            span,
+          ),
+          selected,
+          resolver,
+        );
+  const variation =
+    variationMonths === null
+      ? null
+      : {
+          last: categoryMonthTotals(pairVisible, variationMonths.last, mode),
+          previous: categoryMonthTotals(pairVisible, variationMonths.previous, mode),
+        };
   return {
     span,
     range,
@@ -106,6 +138,7 @@ export function selectView(input: ViewInput): DashboardView {
     deltas: kpiDeltas(current, previous),
     series: monthlySeries(visible, range, mode),
     ranking: supplierRanking(visible, mode),
-    categories: categoryBreakdown(visible, mode, current.months, nameOf),
+    categories: categoryBreakdown(visible, mode, current.months, nameOf, variation),
+    variationMonths,
   };
 }

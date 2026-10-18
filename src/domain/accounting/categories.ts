@@ -16,11 +16,12 @@ import type Big from "big.js";
 import { normalizeDescription, ruleMapKey } from "../settings/normalize";
 import type { Resolver } from "../settings/resolver";
 import { SIN_CATEGORIA, type Category } from "../settings/types";
-import { totalSpend, type IvaMode } from "./aggregate";
+import { deltaFraction, totalSpend, type IvaMode } from "./aggregate";
 import { conceptAmounts } from "./amounts";
 import { ZERO, fromInteger, sum } from "./decimal";
 import { compareOptions, type FilterOption } from "./filters";
 import type { LedgerEntry } from "./ledger";
+import type { MonthKey } from "./months";
 
 /** Spanish order, accents and case ignored (the same rule as the supplier ranking). */
 const COLLATOR = new Intl.Collator("es", { sensitivity: "base" });
@@ -85,6 +86,21 @@ export interface CategoryRow {
   pct: Big | null;
   /** net over the calendar months of the range; zero when there are no months. */
   promedio: Big;
+  /**
+   * Change of the last month of the range against the previous calendar month, as a
+   * fraction (0.25 is +25 %). Null when there is nothing comparable: no variation pair,
+   * no spend in the previous month, or a previous total not above zero (D-17).
+   */
+  variation: Big | null;
+}
+
+/**
+ * The totals per category of the last month of the range and of the month before it,
+ * read from the scoped entries of that pair of months (D-17).
+ */
+export interface VariationTotals {
+  last: ReadonlyMap<string, Big>;
+  previous: ReadonlyMap<string, Big>;
 }
 
 /**
@@ -159,18 +175,49 @@ export function categoryOptions(
 }
 
 /**
+ * Net amount per category of the counted entries whose imputation month is `month`, in the
+ * given IVA mode (D-17). It reads the `parts` of each scoped entry, like `categoryBreakdown`.
+ * A category with no part in that month is absent from the map.
+ */
+export function categoryMonthTotals(
+  scoped: readonly ScopedEntry[],
+  month: MonthKey,
+  mode: IvaMode,
+): Map<string, Big> {
+  const perCategory = new Map<string, Big[]>();
+  for (const entry of scoped) {
+    if (!entry.counted || entry.month !== month) continue;
+    for (const part of entry.parts) {
+      const amount = mode === "con" ? part.con : part.sin;
+      const known = perCategory.get(part.category);
+      if (known === undefined) perCategory.set(part.category, [amount]);
+      else known.push(amount);
+    }
+  }
+  const totals = new Map<string, Big>();
+  for (const [category, amounts] of perCategory) totals.set(category, sum(amounts));
+  return totals;
+}
+
+/**
  * Spend per category over the counted entries of a scoped set, in the given IVA mode,
  * highest net first; a negative net sorts after every non-negative one. It reads the
  * `parts` of each scoped entry and never splits again, because a scoped entry's own
  * amounts are already partial. A category is listed when at least one part of a counted
  * entry carries it. The share is relative to the total of the scoped set, so a filtered
  * view adds up to 100 %. Ties break by the Spanish-collated name from `nameOf`, then by key.
+ *
+ * `variation` carries the monthly totals of the last month of the range and of the month
+ * before it (D-17). Each row's change is `deltaFraction(last, previous)`: a category absent
+ * from the previous month, or with a previous total not above zero, gets null, so a
+ * percentage against $0 is never computed. Without a pair every variation is null.
  */
 export function categoryBreakdown(
   scoped: readonly ScopedEntry[],
   mode: IvaMode,
   months: number,
   nameOf: (category: string) => string,
+  variation: VariationTotals | null = null,
 ): CategoryRow[] {
   const perCategory = new Map<string, Big[]>();
   for (const entry of scoped) {
@@ -193,6 +240,10 @@ export function categoryBreakdown(
       net,
       pct: total.gt(ZERO) ? net.div(total) : null,
       promedio: months > 0 ? net.div(divisor) : ZERO,
+      variation:
+        variation === null
+          ? null
+          : deltaFraction(variation.last.get(category) ?? ZERO, variation.previous.get(category) ?? null),
     });
   }
   return rows.sort((a, b) => {
