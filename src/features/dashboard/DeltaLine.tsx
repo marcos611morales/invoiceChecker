@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
  * (UI-SPEC decision 2); the destructive token is never used here, and the arrow, the sign
  * and the screen-reader prefix always accompany the color. A missing delta never shows a
  * percentage: it shows `missingText` in the muted color. Shared by the KPI cards and the
- * rows of «Gasto por categoría».
+ * rows of «Gasto por categoría». It renders spans only, so it can sit inside a row button
+ * (phrasing content).
  */
 export function DeltaLine({
   testId,
@@ -26,17 +27,17 @@ export function DeltaLine({
 }) {
   if (delta === null) {
     return (
-      <div
+      <span
         data-testid={`${testId}-delta`}
         className="flex items-center gap-1 text-xs text-muted-foreground"
       >
         {missingText}
-      </div>
+      </span>
     );
   }
   const { text, direction } = formatDelta(delta);
   return (
-    <div
+    <span
       data-testid={`${testId}-delta`}
       className={cn(
         "flex items-center gap-1 text-xs",
@@ -51,6 +52,6 @@ export function DeltaLine({
         </span>
       )}
       <span>{deltaLine(text, comparisonLabel)}</span>
-    </div>
+    </span>
   );
 }

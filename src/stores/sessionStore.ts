@@ -59,6 +59,11 @@ interface SessionState extends ImportState {
   restored: ReadonlySet<string>;
   activeTab: AppTab;
   focusRequest: FocusRequest | null;
+  /**
+   * Counter of «show me these invoices» requests from a category or supplier row (D-18). The
+   * Facturas table scrolls into view and takes focus whenever it grows; 0 means none yet.
+   */
+  revealRequest: number;
   importFocus: ImportFocus | null;
   /** Returns null and changes nothing when `generation` is stale. */
   applyBatch: (
@@ -73,6 +78,13 @@ interface SessionState extends ImportState {
   setCategories: (next: ReadonlySet<string>) => void;
   /** Takes a deleted category out of the category filter; changes nothing when the id is not selected (T-03-38). */
   dropCategoryFromFilter: (id: string) => void;
+  /**
+   * Adds the category to the category filter (a set: one already selected stays as it is), clears any
+   * pending focus request and bumps `revealRequest` so the Facturas table comes into view (D-18).
+   */
+  revealCategory: (key: string) => void;
+  /** Same as `revealCategory` for the supplier filter, keyed by RFC (D-18). */
+  revealSupplier: (rfc: string) => void;
   /** Keeps a pending focus request so "Quitar filtros" can still reveal the row. */
   clearFilters: () => void;
   /** Returns the token that `undoExclusion` needs to put this uuid back exactly as it was. */
@@ -115,6 +127,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   restored: new Set<string>(),
   activeTab: "dashboard",
   focusRequest: null,
+  revealRequest: 0,
   importFocus: null,
   applyBatch: (batch, generation) => {
     const current = get();
@@ -152,6 +165,22 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     if (!filters.categories.has(id)) return;
     set({ filters: { ...filters, categories: withoutUuid(filters.categories, id) } });
   },
+  revealCategory: (key) =>
+    set((current) => ({
+      filters: current.filters.categories.has(key)
+        ? current.filters
+        : { ...current.filters, categories: withUuid(current.filters.categories, key) },
+      focusRequest: null,
+      revealRequest: current.revealRequest + 1,
+    })),
+  revealSupplier: (rfc) =>
+    set((current) => ({
+      filters: current.filters.suppliers.has(rfc)
+        ? current.filters
+        : { ...current.filters, suppliers: withUuid(current.filters.suppliers, rfc) },
+      focusRequest: null,
+      revealRequest: current.revealRequest + 1,
+    })),
   clearFilters: () => set({ filters: EMPTY_FILTERS }),
   excludeInvoice: (uuid) => {
     const wasRestored = get().restored.has(uuid);
@@ -190,6 +219,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       restored: new Set<string>(),
       activeTab: "dashboard",
       focusRequest: null,
+      revealRequest: 0,
       importFocus: null,
       generation: current.generation + 1,
     })),

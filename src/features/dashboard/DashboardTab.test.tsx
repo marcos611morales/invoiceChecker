@@ -749,9 +749,13 @@ describe("Dashboard tab: trend and ranking row (DASH-02, DASH-04, DASH-10, D-22,
     load(sample());
     render(<DashboardTab />);
     expect(rankingRows()).toHaveLength(2);
-    expect(within(rankingRow(0)).getByRole("button", { name: "Abarrotes del Sur" })).toBeInTheDocument();
+    expect(
+      within(rankingRow(0)).getByRole("button", { name: "Ver facturas de Abarrotes del Sur" }),
+    ).toBeInTheDocument();
     expect(within(rankingRow(0)).getByText("$464.00")).toBeInTheDocument();
-    expect(within(rankingRow(1)).getByRole("button", { name: "Café Árbol" })).toBeInTheDocument();
+    expect(
+      within(rankingRow(1)).getByRole("button", { name: "Ver facturas de Café Árbol" }),
+    ).toBeInTheDocument();
     expect(within(rankingRow(1)).getByText("$58.00")).toBeInTheDocument();
   });
 
@@ -807,7 +811,9 @@ describe("Dashboard tab: trend and ranking row (DASH-02, DASH-04, DASH-10, D-22,
     ]);
     render(<DashboardTab />);
     // Abarrotes nets 464 - 400 = 64, still above Café Árbol (58).
-    expect(within(rankingRow(0)).getByRole("button", { name: "Abarrotes del Sur" })).toBeInTheDocument();
+    expect(
+      within(rankingRow(0)).getByRole("button", { name: "Ver facturas de Abarrotes del Sur" }),
+    ).toBeInTheDocument();
     expect(within(rankingRow(0)).getByText("$64.00")).toBeInTheDocument();
     expect(within(rankingRow(1)).getByText("$58.00")).toBeInTheDocument();
   });
@@ -1707,5 +1713,82 @@ describe("Dashboard tab: category filter (FILT-03, D-14, D-15, D-27, UI-SPEC Q3)
     choose("borrada");
     expect(screen.queryByTestId("category-caption")).toBeNull();
     expect(gastoText()).toBe("$162.41");
+  });
+});
+
+describe("Dashboard tab: category and supplier rows reveal their invoices (DASH-08, D-18, E6)", () => {
+  const A = { rfc: "AAA010101AAA", nombre: "Proveedor A" };
+  const B = { rfc: "BBB010101BBB", nombre: "Proveedor B" };
+  const LIMPIEZA = "seed:limpieza-higiene";
+
+  function sample(): ParsedInvoice[] {
+    return [
+      makeInvoice({ emisor: A, fecha: "2025-01-15T10:00:00", subTotal: "100.00", total: "116.00" }),
+      makeInvoice({ emisor: B, fecha: "2025-02-11T10:00:00", subTotal: "50.00", total: "58.00" }),
+    ];
+  }
+
+  async function setUp(): Promise<void> {
+    storeSettings({
+      ...defaultSettings(),
+      supplierCategories: [{ rfc: A.rfc, name: A.nombre, categoryId: LIMPIEZA }],
+    });
+    load(sample());
+    await act(async () => {
+      await useSettingsStore.persist.rehydrate();
+    });
+    render(<DashboardTab />);
+  }
+
+  it("a click on a category row adds the filter, announces the chip, scrolls to Facturas and focuses its heading", async () => {
+    await setUp();
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    expect(screen.getByRole("heading", { name: "Facturas (2)" })).not.toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Ver facturas de la categoría Limpieza e higiene" }));
+    expect([...useSessionStore.getState().filters.categories]).toEqual([LIMPIEZA]);
+    const chips = screen.getByTestId("filter-chips");
+    expect(chips).toHaveAttribute("aria-live", "polite");
+    expect(within(chips).getByText(/^Categoría: Limpieza e higiene/)).toBeInTheDocument();
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.calls[0]?.[0]).toMatchObject({ block: "start" });
+    expect(scroll.mock.contexts[0]).toBe(screen.getByRole("region", { name: "Facturas (1)" }));
+    expect(screen.getByRole("heading", { name: "Facturas (1)" })).toHaveFocus();
+    // No dialog, no detail screen and no expanded row.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.querySelector('[aria-expanded="true"]')).toBeNull();
+  });
+
+  it("a second click on the same row changes nothing in the filter and scrolls again", async () => {
+    await setUp();
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    const row = (): HTMLElement =>
+      screen.getByRole("button", { name: "Ver facturas de la categoría Limpieza e higiene" });
+    fireEvent.click(row());
+    fireEvent.click(row());
+    expect([...useSessionStore.getState().filters.categories]).toEqual([LIMPIEZA]);
+    expect(scroll).toHaveBeenCalledTimes(2);
+  });
+
+  it("a click on a supplier ranking row filters by that supplier and goes to the Facturas table", async () => {
+    await setUp();
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    fireEvent.click(screen.getByRole("button", { name: "Ver facturas de Proveedor B" }));
+    expect([...useSessionStore.getState().filters.suppliers]).toEqual([B.rfc]);
+    expect(within(screen.getByTestId("filter-chips")).getByText("Proveedor: Proveedor B")).toBeInTheDocument();
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("heading", { name: "Facturas (1)" })).toHaveFocus();
+    expect(document.querySelector('[aria-expanded="true"]')).toBeNull();
+  });
+
+  it("the chip added by a row click is removable like any other filter chip", async () => {
+    await setUp();
+    fireEvent.click(screen.getByRole("button", { name: "Ver facturas de Proveedor B" }));
+    act(() => {
+      fireEvent.click(
+        within(screen.getByTestId("filter-chips")).getByRole("button", { name: "Quitar filtro Proveedor" }),
+      );
+    });
+    expect(useSessionStore.getState().filters.suppliers.size).toBe(0);
+    expect(screen.getByRole("heading", { name: "Facturas (2)" })).toBeInTheDocument();
   });
 });

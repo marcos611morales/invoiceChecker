@@ -8,8 +8,9 @@ import type { CategoryRow } from "@/domain/accounting/categories";
 import { ZERO, fromInteger } from "@/domain/accounting/decimal";
 import { es } from "@/lib/copy/es";
 import type { MonthKey } from "@/domain/accounting/months";
-import { categoryCaption, categorySubCaption } from "@/lib/copy/messages";
+import { categoryCaption, categorySubCaption, viewCategoryInvoicesAria } from "@/lib/copy/messages";
 import { formatMoney, formatPercent, monthYearLabel } from "@/lib/format";
+import { useSessionStore } from "@/stores/sessionStore";
 import { DeltaLine } from "./DeltaLine";
 
 const HUNDRED = fromInteger(100);
@@ -39,47 +40,57 @@ function CategoryItem({
   /** Label of the month the variation is measured against; null without a variation pair. */
   previousLabel: string | null;
 }) {
+  const revealCategory = useSessionStore((s) => s.revealCategory);
   const negative = row.net.lt(ZERO);
   const fill = fillPercent(row.net, maxAbs);
   return (
-    <li className="flex min-h-[68px] flex-col justify-center gap-1.5 py-2">
-      <div className="flex items-baseline justify-between gap-4">
-        <div className="min-w-0 flex-1 text-sm font-semibold break-words">{name}</div>
-        <span className="shrink-0 text-sm font-semibold whitespace-nowrap tabular-nums">
-          {formatMoney(row.net)}
+    <li>
+      <button
+        type="button"
+        aria-label={viewCategoryInvoicesAria(name)}
+        onClick={() => {
+          revealCategory(row.category);
+        }}
+        className="flex min-h-[68px] w-full cursor-pointer flex-col justify-center gap-1.5 rounded-md px-2 py-2 text-left outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="flex items-baseline justify-between gap-4">
+          <span className="block min-w-0 flex-1 text-sm font-semibold break-words">{name}</span>
+          <span className="shrink-0 text-sm font-semibold whitespace-nowrap tabular-nums">
+            {formatMoney(row.net)}
+          </span>
         </span>
-      </div>
-      <div data-testid="category-track" aria-hidden="true" className="h-1 w-full rounded-[2px] bg-border">
-        {negative ? (
-          <div
-            data-testid="category-tick"
-            className="h-full rounded-[2px] bg-chart-1"
-            style={{ width: "2px" }}
+        <span data-testid="category-track" aria-hidden="true" className="block h-1 w-full rounded-[2px] bg-border">
+          {negative ? (
+            <span
+              data-testid="category-tick"
+              className="block h-full rounded-[2px] bg-chart-1"
+              style={{ width: "2px" }}
+            />
+          ) : fill > 0 ? (
+            <span
+              data-testid="category-fill"
+              className="block h-full rounded-[2px] bg-chart-1"
+              style={{ width: `${fill}%` }}
+            />
+          ) : null}
+        </span>
+        <span className="flex flex-wrap gap-x-3 gap-y-1">
+          <span className="text-xs text-muted-foreground">
+            {negative
+              ? es.charts.negativeNet
+              : categoryCaption(
+                  row.pct === null ? MISSING : formatPercent(row.pct),
+                  formatMoney(row.promedio),
+                )}
+          </span>
+          <DeltaLine
+            testId={`category-delta-${String(index)}`}
+            delta={row.variation}
+            comparisonLabel={previousLabel ?? ""}
+            missingText={es.charts.noPreviousMonth}
           />
-        ) : fill > 0 ? (
-          <div
-            data-testid="category-fill"
-            className="h-full rounded-[2px] bg-chart-1"
-            style={{ width: `${fill}%` }}
-          />
-        ) : null}
-      </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1">
-        <p className="text-xs text-muted-foreground">
-          {negative
-            ? es.charts.negativeNet
-            : categoryCaption(
-                row.pct === null ? MISSING : formatPercent(row.pct),
-                formatMoney(row.promedio),
-              )}
-        </p>
-        <DeltaLine
-          testId={`category-delta-${String(index)}`}
-          delta={row.variation}
-          comparisonLabel={previousLabel ?? ""}
-          missingText={es.charts.noPreviousMonth}
-        />
-      </div>
+        </span>
+      </button>
     </li>
   );
 }

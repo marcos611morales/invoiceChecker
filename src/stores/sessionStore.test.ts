@@ -318,6 +318,78 @@ describe("sessionStore", () => {
       expect(raw).not.toContain("filters");
     });
 
+    it("starts with no reveal request", () => {
+      expect(useSessionStore.getState().revealRequest).toBe(0);
+    });
+
+    it("revealCategory adds the key as a new Set, bumps revealRequest and clears the focus request (D-18)", () => {
+      useSessionStore.getState().setSuppliers(new Set(["RFC1"]));
+      useSessionStore.getState().requestFocus("A");
+      const before = useSessionStore.getState().filters.categories;
+      useSessionStore.getState().revealCategory("seed:limpieza-higiene");
+      const state = useSessionStore.getState();
+      expect([...state.filters.categories]).toEqual(["seed:limpieza-higiene"]);
+      expect(state.filters.categories).not.toBe(before);
+      expect(before.size).toBe(0);
+      expect([...state.filters.suppliers]).toEqual(["RFC1"]);
+      expect(state.revealRequest).toBe(1);
+      expect(state.focusRequest).toBeNull();
+    });
+
+    it("revealCategory keeps the categories already selected and adds the new one", () => {
+      useSessionStore.getState().setCategories(new Set(["seed:otros"]));
+      useSessionStore.getState().revealCategory("seed:limpieza-higiene");
+      expect([...useSessionStore.getState().filters.categories].sort()).toEqual([
+        "seed:limpieza-higiene",
+        "seed:otros",
+      ]);
+    });
+
+    it("revealCategory with a key that is already selected changes no filter and still bumps revealRequest", () => {
+      useSessionStore.getState().revealCategory("seed:limpieza-higiene");
+      useSessionStore.getState().revealCategory("seed:limpieza-higiene");
+      const state = useSessionStore.getState();
+      expect([...state.filters.categories]).toEqual(["seed:limpieza-higiene"]);
+      expect(state.revealRequest).toBe(2);
+    });
+
+    it("revealSupplier adds the rfc as a new Set, bumps revealRequest and clears the focus request (D-18)", () => {
+      useSessionStore.getState().setCategories(new Set(["seed:otros"]));
+      useSessionStore.getState().requestFocus("A");
+      const before = useSessionStore.getState().filters.suppliers;
+      useSessionStore.getState().revealSupplier("RFC1");
+      const state = useSessionStore.getState();
+      expect([...state.filters.suppliers]).toEqual(["RFC1"]);
+      expect(state.filters.suppliers).not.toBe(before);
+      expect(before.size).toBe(0);
+      expect([...state.filters.categories]).toEqual(["seed:otros"]);
+      expect(state.revealRequest).toBe(1);
+      expect(state.focusRequest).toBeNull();
+    });
+
+    it("revealSupplier with an rfc that is already selected changes no filter and still bumps revealRequest", () => {
+      useSessionStore.getState().revealSupplier("RFC1");
+      useSessionStore.getState().revealSupplier("RFC1");
+      const state = useSessionStore.getState();
+      expect([...state.filters.suppliers]).toEqual(["RFC1"]);
+      expect(state.revealRequest).toBe(2);
+    });
+
+    it("clearFilters keeps revealRequest and clearAll resets it to 0", () => {
+      useSessionStore.getState().revealCategory("seed:otros");
+      useSessionStore.getState().clearFilters();
+      expect(useSessionStore.getState().revealRequest).toBe(1);
+      useSessionStore.getState().clearAll();
+      expect(useSessionStore.getState().revealRequest).toBe(0);
+    });
+
+    it("a reveal never writes to browser storage (D-15, CARGA-06)", () => {
+      useSessionStore.getState().revealCategory("seed:otros");
+      useSessionStore.getState().revealSupplier("RFC1");
+      expect(window.localStorage.length).toBe(0);
+      expect(window.sessionStorage.length).toBe(0);
+    });
+
     it("setRange(null) goes back to the whole loaded span", () => {
       useSessionStore.getState().setRange(RANGE);
       useSessionStore.getState().setRange(null);

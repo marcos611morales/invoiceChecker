@@ -71,6 +71,8 @@ import {
   replaceSettingsBody,
   replaceSummaryText,
   settingsDownloadedToast,
+  viewCategoryInvoicesAria,
+  viewSupplierInvoicesAria,
 } from "./messages";
 
 describe("rejectReasonText", () => {
@@ -306,6 +308,24 @@ describe("ranking caption (D-23)", () => {
 
   it("keeps the dashes it is given for a missing share or ticket", () => {
     expect(rankingCaption("—", "—")).toBe("— del total · Ticket promedio —");
+  });
+});
+
+describe("row button accessible names (D-18, UI-SPEC accessibility)", () => {
+  it("names a category row after the category", () => {
+    expect(viewCategoryInvoicesAria("Limpieza e higiene")).toBe(
+      "Ver facturas de la categoría Limpieza e higiene",
+    );
+  });
+
+  it("names a supplier row after the supplier", () => {
+    expect(viewSupplierInvoicesAria("Abarrotes del Sur")).toBe("Ver facturas de Abarrotes del Sur");
+  });
+
+  it("keeps a long name whole, as the visible text does", () => {
+    const long = "Comercializadora ".repeat(8).trim();
+    expect(viewSupplierInvoicesAria(long)).toBe(`Ver facturas de ${long}`);
+    expect(viewCategoryInvoicesAria(long)).toBe(`Ver facturas de la categoría ${long}`);
   });
 });
 
