@@ -1379,6 +1379,48 @@ describe("Dashboard tab: Gasto por categoría (DASH-03, DASH-05, AJUS-01, D-12, 
     expect(within(categoryRow(1)).getByText(/del total · Promedio mensual \$29\.00$/)).toBeInTheDocument();
   });
 
+  it("explains the divisor and the pair of months of the variation in the block header (D-16, D-17)", async () => {
+    assignA();
+    load(sample());
+    await rehydrateStore();
+    render(<DashboardTab />);
+    expect(
+      screen.getByText(
+        "Promedio mensual entre 2 meses del calendario · Variación: feb 2025 vs. ene 2025",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("compares the last month with the previous calendar month for each category (DASH-07, D-17)", async () => {
+    assignA();
+    load(sample());
+    await rehydrateStore();
+    render(<DashboardTab />);
+    // Limpieza e higiene: January 116.01, February -11.60 (credit note) -> negative, a drop of 110 %.
+    expect(within(categoryRow(0)).getByTestId("category-delta-0-delta")).toHaveTextContent(
+      "−110.0 % vs. ene 2025",
+    );
+    // Sin categoría: B has no January invoice, so there is no comparable month.
+    expect(within(categoryRow(1)).getByTestId("category-delta-1-delta")).toHaveTextContent(
+      "Sin dato del mes anterior",
+    );
+  });
+
+  it("shows the hint while nothing is classified and leaves it once a supplier is assigned (E6 empty)", async () => {
+    load(sample());
+    await rehydrateStore();
+    const { unmount } = render(<DashboardTab />);
+    expect(screen.getByText(/Todavía no clasificaste ningún proveedor ni concepto/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ir a Categorías" }));
+    expect(useSessionStore.getState().activeTab).toBe("categorias");
+    unmount();
+    useSessionStore.getState().setActiveTab("dashboard");
+    assignA();
+    await rehydrateStore();
+    render(<DashboardTab />);
+    expect(screen.queryByText(/Todavía no clasificaste ningún proveedor ni concepto/)).toBeNull();
+  });
+
   it("opens a Phase 2 browser with Sin IVA kept, the suggestions and every supplier under Sin categoría", async () => {
     storeIvaMode("sin");
     load(sample());

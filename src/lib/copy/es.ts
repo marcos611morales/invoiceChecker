@@ -249,6 +249,10 @@ export const es = {
     rankingAria: "Top 10 de proveedores por gasto neto",
     seeAll: "Ver todos",
     negativeNet: "Neto negativo: las notas de crédito superan las compras",
+    noPreviousMonth: "Sin dato del mes anterior",
+    categoryHint:
+      "Todavía no clasificaste ningún proveedor ni concepto. Asigna categorías en la pestaña Categorías.",
+    goToCategories: "Ir a Categorías",
     dialogDescription: "Todos los proveedores del filtro actual, ordenados por gasto neto.",
     close: "Cerrar",
     columns: {
