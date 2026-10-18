@@ -15,6 +15,8 @@ import { conceptAmounts, iepsOf } from "@/domain/accounting/amounts";
 import type { ScopedEntry } from "@/domain/accounting/categories";
 import { ZERO, parseDecimal, sum, toMoneyString } from "@/domain/accounting/decimal";
 import type { EntryKind, LedgerEntry } from "@/domain/accounting/ledger";
+import { rowState } from "@/domain/accounting/status";
+import type { RowState } from "@/domain/accounting/status";
 import { normalizeDescription } from "@/domain/settings/normalize";
 import type { CategorySource, Resolver } from "@/domain/settings/resolver";
 import { es } from "@/lib/copy/es";
@@ -24,8 +26,7 @@ import {
   formatQuantity,
 } from "@/lib/format";
 
-/** What the row shows and how it is attenuated or labelled (D-27, D-28). */
-export type RowState = "normal" | "no-suma" | "excluida" | "sustituida";
+export type { RowState };
 
 /**
  * One display row of the Facturas table (D-24), built from a ledger entry.
@@ -53,7 +54,8 @@ export interface InvoiceRow {
   state: RowState;
 }
 
-function kindLabel(kind: EntryKind): string {
+/** Spanish name of an entry kind; the Excel «Tipo» column reads the same text. */
+export function kindLabel(kind: EntryKind): string {
   switch (kind) {
     case "ingreso":
       return es.invoices.kinds.ingreso;
@@ -66,13 +68,6 @@ function kindLabel(kind: EntryKind): string {
     case "nomina":
       return es.invoices.kinds.nomina;
   }
-}
-
-function stateOf(entry: LedgerEntry): RowState {
-  if (entry.noSuma !== null) return "no-suma";
-  if (entry.exclusion === "manual") return "excluida";
-  if (entry.exclusion === "sustituida") return "sustituida";
-  return "normal";
 }
 
 /** True for an entry that went through `scopeToCategories` and so carries its full amounts apart. */
@@ -113,7 +108,7 @@ export function toInvoiceRows(
     tipoLabel: kindLabel(entry.kind),
     amount: entryAmount(entry, mode) ?? undefined,
     fullAmount: isScoped(entry) ? (entryAmount(withFullAmounts(entry), mode) ?? undefined) : undefined,
-    state: stateOf(entry),
+    state: rowState(entry),
   }));
 }
 

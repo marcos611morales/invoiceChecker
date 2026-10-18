@@ -8,6 +8,8 @@ import type { DashboardView } from "@/domain/accounting/view";
 import type { Resolver } from "@/domain/settings/resolver";
 import { es } from "@/lib/copy/es";
 import type { SheetModel } from "./cellModel";
+import { buildConceptos } from "./sheets/conceptos";
+import { buildFacturas } from "./sheets/facturas";
 import { buildResumenMes } from "./sheets/resumenMes";
 
 export interface WorkbookContext {
@@ -30,5 +32,5 @@ export function amountHeader(mode: IvaMode): string {
 
 /** The sheet models in workbook order; later plans insert the other sheets in UI-SPEC order. */
 export function buildWorkbook(view: DashboardView, ctx: WorkbookContext): SheetModel[] {
-  return [buildResumenMes(view, ctx)];
+  return [buildFacturas(view, ctx), buildConceptos(view, ctx), buildResumenMes(view, ctx)];
 }

@@ -97,7 +97,11 @@ describe("ExportButton: download (D-19, XLS-02)", () => {
     });
     expect(writeMock).toHaveBeenCalledTimes(1);
     const sheets = writeMock.mock.calls[0]?.[0];
-    expect(sheets?.map((sheet) => sheet.name)).toEqual(["Resumen por mes"]);
+    expect(sheets?.map((sheet) => sheet.name)).toEqual([
+      "Facturas",
+      "Conceptos",
+      "Resumen por mes",
+    ]);
     expect(downloadMock).toHaveBeenCalledTimes(1);
     expect(downloadMock).toHaveBeenCalledWith(BLOB, FILE_CON);
   });
@@ -111,7 +115,8 @@ describe("ExportButton: download (D-19, XLS-02)", () => {
     await waitFor(() => {
       expect(downloadMock).toHaveBeenCalledWith(BLOB, FILE_SIN);
     });
-    expect(writeMock.mock.calls[0]?.[0][0]?.columns[1]?.header).toBe("Monto (sin IVA)");
+    const resumen = writeMock.mock.calls[0]?.[0].find((sheet) => sheet.name === "Resumen por mes");
+    expect(resumen?.columns[1]?.header).toBe("Monto (sin IVA)");
   });
 });
 
