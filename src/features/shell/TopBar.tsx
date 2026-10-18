@@ -21,7 +21,7 @@ export function TopBar({
   return (
     <>
       <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-4 border-b border-border bg-secondary px-4 sm:px-6">
-        <span className="text-xl font-semibold whitespace-nowrap">{es.global.appName}</span>
+        <span className="text-xl font-semibold whitespace-nowrap max-[399px]:sr-only">{es.global.appName}</span>
         <div data-slot="topbar-center" className="flex flex-1 items-center justify-center">
           {showIva && <IvaToggle variant="bar" />}
         </div>

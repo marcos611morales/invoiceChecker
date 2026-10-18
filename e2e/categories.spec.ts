@@ -256,12 +256,10 @@ test("diseño adaptable: a 360 px las pestañas se desplazan dentro de su lista 
   }
 });
 
-// PENDING DECISION (03-17 checkpoint): at 360 px the top bar (the name «InvoiceChecker», 149 px,
-// plus four 44 px buttons) is about 29 px wider than the viewport, so the whole page scrolls
-// sideways. The plan requires that it never does, but fixing it means a visual change to TopBar
-// that the plan and UI-SPEC do not describe. The test stays here, skipped, until the user picks
-// the fix; then `fixme` is removed.
-test.fixme("a 360 px la página no se desplaza de lado", async ({ page }) => {
+// At 360 px the name «InvoiceChecker» plus four 44 px buttons did not fit the top bar. User
+// decision 2026-10-18: below 400 px the name is visually hidden (still read by screen readers)
+// and the buttons keep their 44 px targets.
+test("a 360 px la página no se desplaza de lado", async ({ page }) => {
   await logIn(page);
   await pickFolder(page, syntheticFolder);
   for (const tab of ["Dashboard", "Categorías", "Calidad de datos", "Importación"]) {

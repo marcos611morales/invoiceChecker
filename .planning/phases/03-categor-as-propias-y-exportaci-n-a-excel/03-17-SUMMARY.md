@@ -106,3 +106,9 @@ None. T-03-32 is mitigated in e2e: storage keys asserted in both contexts, and n
 
 - `e2e/categories.spec.ts` exists; commits `5bc312d`, `42a27aa`, `8e2d8ad` are ancestors of HEAD.
 - The plan is not complete: the human check and the two open decisions are pending.
+
+## Orchestrator follow-up (2026-10-18, user decisions on the checkpoint)
+
+- **360 px overflow — resolved.** User chose to hide the app name below 400 px. `TopBar.tsx` adds `max-[399px]:sr-only` to «InvoiceChecker» (still read by screen readers); the buttons keep their 44 px targets. `test.fixme` was removed from `e2e/categories.spec.ts`; «a 360 px la página no se desplaza de lado» now passes on the production build (Playwright: 7 passed, 1 skipped — smoke «muestra real», needs `E2E_FACTURAS_DIR`).
+- **`dangerouslySetInnerHTML` gate — resolved by scope.** User chose to exclude the vendored shadcn `src/components/ui/chart.tsx` (`ChartStyle`, constant config, no user data). The gate is `grep -rn "dangerouslySetInner[H]TML" src/features src/components --exclude=chart.tsx` and it is clean.
+- **Human check:** still PENDING; it is persisted for `/gsd-verify-work 03`.
