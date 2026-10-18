@@ -919,6 +919,110 @@ describe("InvoiceTable focus request (D-33, Pitfall 17)", () => {
   });
 });
 
+describe("InvoiceTable reveal request (D-18, DASH-08)", () => {
+  function reveal(): void {
+    act(() => {
+      useSessionStore.getState().revealCategory("seed:limpieza-higiene");
+    });
+  }
+
+  function stubMatchMedia(reduce: boolean): void {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: reduce && query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps room for the sticky header above the section: 72 px, 124 px below 640 px", () => {
+    seed([inv("A"), inv("B")]);
+    render(<Harness />);
+    const section = screen.getByRole("region", { name: "Facturas (2)" });
+    expect(section.className).toContain("scroll-mt-[72px]");
+    expect(section.className).toContain("max-sm:scroll-mt-[124px]");
+  });
+
+  it("makes the heading programmatically focusable and out of the tab order", () => {
+    seed([inv("A")]);
+    render(<Harness />);
+    expect(screen.getByRole("heading", { name: "Facturas (1)" })).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("scrolls the section to the top of the screen, smoothly, and focuses the heading without scrolling", () => {
+    seed([inv("A"), inv("B")]);
+    stubMatchMedia(false);
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    render(<Harness />);
+    reveal();
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.contexts[0]).toBe(screen.getByRole("region", { name: "Facturas (2)" }));
+    expect(scroll.mock.calls[0]?.[0]).toMatchObject({ block: "start", behavior: "smooth" });
+    const heading = screen.getByRole("heading", { name: "Facturas (2)" });
+    expect(heading).toHaveFocus();
+    const call = focus.mock.calls.findIndex((_args, index) => focus.mock.contexts[index] === heading);
+    expect(focus.mock.calls[call]?.[0]).toMatchObject({ preventScroll: true });
+  });
+
+  it("jumps instead of gliding when prefers-reduced-motion matches", () => {
+    seed([inv("A")]);
+    stubMatchMedia(true);
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<Harness />);
+    reveal();
+    expect(scroll.mock.calls[0]?.[0]).toMatchObject({ block: "start", behavior: "auto" });
+  });
+
+  it("jumps instead of gliding when matchMedia is unavailable", () => {
+    seed([inv("A")]);
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<Harness />);
+    reveal();
+    expect(scroll.mock.calls[0]?.[0]).toMatchObject({ block: "start", behavior: "auto" });
+  });
+
+  it("scrolls again for a repeated reveal of a value that is already in the filter", () => {
+    seed([inv("A")]);
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<Harness />);
+    reveal();
+    reveal();
+    expect(scroll).toHaveBeenCalledTimes(2);
+  });
+
+  it("does nothing for the request value present when the table mounts, nor for 0", () => {
+    seed([inv("A")]);
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    act(() => {
+      useSessionStore.setState({ revealRequest: 5 });
+    });
+    render(<Harness />);
+    expect(scroll).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Facturas (1)" })).not.toHaveFocus();
+  });
+
+  it("does not repeat the scroll when the table re-renders without a new request", () => {
+    seed([inv("A"), inv("B")]);
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<Harness />);
+    reveal();
+    clickHeader("Folio");
+    expect(scroll).toHaveBeenCalledTimes(1);
+  });
+
+  it("expands no row", () => {
+    seed([inv("A"), inv("B")]);
+    render(<Harness />);
+    reveal();
+    expect(document.querySelector('[aria-expanded="true"]')).toBeNull();
+  });
+});
+
 describe("InvoiceTable concept category selector (CAT-03, D-09 to D-12, E7)", () => {
   const A = { rfc: "AAA010101AAA", nombre: "Proveedor A" };
   const B = { rfc: "BBB010101BBB", nombre: "Proveedor B" };
