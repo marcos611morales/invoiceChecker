@@ -3,84 +3,22 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { readFixture, withUuid } from "../tests/support/cfdiVariants";
+import { expectNoXmlLeavesTheBrowser, logIn, pickFolder, recordRequests } from "./helpers";
 
 // Local Chrome smoke against a production build (see playwright.config.ts).
 // The synthetic folder is generated at runtime in the OS temp dir from the
 // fixtures; nothing real is committed. E2E_FACTURAS_DIR points at a real sample
-// and is only used on the machine that owns it.
-
-const ORIGIN = "http://localhost:3210";
-const ORIGIN_PREFIX = `${ORIGIN}/`;
+// and is only used on the machine that owns it. The login, folder pick and request
+// recording helpers live in ./helpers.
 
 let syntheticRoot = "";
 let syntheticFolder = "";
-
-function requirePassword(): string {
-  const password = process.env.E2E_APP_PASSWORD;
-  if (password === undefined || password === "") {
-    throw new Error("E2E_APP_PASSWORD is not set; run through playwright.config.ts");
-  }
-  return password;
-}
-
-interface RecordedRequest {
-  method: string;
-  url: string;
-  body: string | null;
-}
-
-/** Records every request (method, URL, body) the page makes from now on. */
-function recordRequests(page: Page): RecordedRequest[] {
-  const recorded: RecordedRequest[] = [];
-  page.on("request", (request) => {
-    recorded.push({
-      method: request.method(),
-      url: request.url(),
-      body: request.postData(),
-    });
-  });
-  return recorded;
-}
 
 /** Accepts every dialog (used where the beforeunload prompt is not under test). */
 function acceptDialogs(page: Page): void {
   page.on("dialog", (dialog) => {
     void dialog.accept();
   });
-}
-
-async function logIn(page: Page): Promise<void> {
-  await page.goto("/");
-  await expect(page).toHaveURL(/\/login/);
-  // The field has a "Mostrar contraseña" toggle, so getByLabel would match two elements.
-  await page.getByRole("textbox", { name: "Contraseña" }).fill(requirePassword());
-  await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page.getByRole("button", { name: "Seleccionar carpeta" })).toBeVisible();
-}
-
-async function pickFolder(page: Page, folder: string): Promise<void> {
-  await page.locator('input[type="file"][webkitdirectory]').setInputFiles(folder);
-  // The loaded screen opens on Dashboard; the import report lives in its own tab.
-  const importTab = page.getByRole("tab", { name: "Importación" });
-  await expect(importTab).toBeVisible({ timeout: 60_000 });
-  await importTab.click();
-  await expect(page.getByText("Reporte de importación")).toBeVisible();
-}
-
-/** No request carries XML, bodies exist only for the login POST, and every URL is same-origin. */
-function expectNoXmlLeavesTheBrowser(requests: RecordedRequest[]): void {
-  const withXml = requests.filter(
-    (r) => r.body !== null && (r.body.includes("<?xml") || r.body.includes("Comprobante")),
-  );
-  expect(withXml).toHaveLength(0);
-
-  const withBody = requests.filter((r) => r.body !== null && r.body !== "");
-  expect(withBody.every((r) => r.method === "POST" && r.url === `${ORIGIN}/api/auth/login`)).toBe(
-    true,
-  );
-
-  const foreign = requests.filter((r) => !r.url.startsWith(ORIGIN_PREFIX));
-  expect(foreign.map((r) => r.url)).toEqual([]);
 }
 
 test.beforeAll(() => {
