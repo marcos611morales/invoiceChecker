@@ -32,7 +32,7 @@ Siguen vigentes las decisiones de las Fases 1–3 (01/02/03-CONTEXT.md). Las má
 ### Qué es un producto
 - **D-09:** Un **miembro** de producto es **RFC del proveedor + descripción normalizada** (la misma clave y normalización que las reglas de concepto: D-09/D-10/D-26 de la Fase 3), y se guarda también la descripción legible y el nombre del proveedor. La misma descripción en dos tiendas son dos miembros distintos, así la Fase 5 sabe de qué tienda viene cada precio. — **Reversibility:** one-way — forma parte del esquema persistido y del archivo de respaldo.
 - **D-10:** Un miembro pertenece **como máximo a un producto**. Para cambiarlo de producto se mueve o se separa y se une.
-- **D-11:** Una descripción sin pareja se sugiere igualmente como **producto de un solo miembro** (por ejemplo "JAMON ZWAN"): todo lo que se envía vuelve como algún producto sugerido.
+- **D-11:** Una descripción sin pareja se sugiere igualmente como **producto de un solo miembro** (el ejemplo original, "JAMON ZWAN", ya no aplica: ver D-32): todo lo que se envía vuelve como algún producto sugerido.
 - **D-12:** DeepSeek **propone un nombre legible** para cada producto (por ejemplo "Leche entera" para "MM LECHE ENT" y "LECHE ENTERA 1L"). El nombre se puede editar en la cola y después. **No se repite**, con la misma regla que las categorías (D-04 de la Fase 3: sin distinguir mayúsculas y sin espacios en los extremos). Cada producto tiene un id interno estable.
 - **D-13:** **Persistencia:** los productos aceptados (id, nombre, categoría o ninguna, miembros) y las descripciones marcadas "No agrupar" van en el store de ajustes con una **versión nueva** (v2 → v3 con `migrate`, que conserva todo lo de la v2) y en el **archivo de respaldo** (como anunció D-07 de la Fase 3). Un archivo de respaldo v2 debe seguir siendo válido al subirlo. Se extienden los límites de D-30 de la Fase 3 para productos y miembros (los números los fija el planner). — **Reversibility:** one-way — esquema de localStorage de los usuarios y contrato del archivo de respaldo.
 - **D-14:** La pestaña Productos tiene una **lista completa editable** de productos aceptados: nombre, categoría (selector), número de miembros y proveedores. Al abrir una fila se ven sus miembros (descripción · proveedor). Se puede renombrar, cambiar la categoría, quitar un miembro, mover un miembro a otro producto y borrar el producto, con el aviso **"Deshacer"** como en la Fase 3.
@@ -59,6 +59,17 @@ Siguen vigentes las decisiones de las Fases 1–3 (01/02/03-CONTEXT.md). Las má
 
 ### Seguridad de la ruta (ACC-03/ACC-04)
 - ACC-03 y ACC-04 aplican tal cual. La ruta (o rutas) del LLM llama a `requireSession()` dentro del handler, además del proxy, y devuelve 401 sin sesión válida. `DEEPSEEK_API_KEY` se lee solo en el servidor (sin `NEXT_PUBLIC_`). Una prueba verifica que la key no aparece en el bundle del cliente ni en las respuestas. La CSP `connect-src 'self'` no cambia: el navegador solo llama a la ruta propia.
+
+### Resueltas al planear (2026-10-19)
+Preguntas abiertas de 04-RESEARCH.md que el usuario contestó antes de `/gsd-plan-phase 04`. Las de interfaz ya quedaron en 04-UI-SPEC.md ("Resolved with the user"); no se vuelven a preguntar.
+- **D-29:** **Cliente de DeepSeek:** el servidor llama a DeepSeek con **`fetch` directo + zod**, sin el paquete `openai` (pregunta abierta 2 de RESEARCH). No se agrega ninguna dependencia y `thinking: { type: "disabled" }` va en un objeto normal, sin `@ts-expect-error`. El reintento, el tiempo límite y la cancelación los controla nuestro código (D-27). Sustituye lo que dicen sobre el SDK `.claude/CLAUDE.md` §DeepSeek client y "Faltan dependencias" en este archivo.
+- **D-30:** **RFC en la cola pendiente (enmienda a D-24):** la cola de sugerencias pendientes **sí guarda el RFC del proveedor** de cada miembro, solo en este navegador, para poder crear los miembros (D-09) al aceptar aunque tras recargar no estén cargadas las facturas o dos RFC compartan nombre. El RFC sigue sin ir a DeepSeek, al archivo de respaldo ni al servidor. El resto de D-24 no cambia: sin montos ni UUID, clave propia, versionada, validada con zod y fuera del respaldo (pregunta abierta 1 de RESEARCH). — **Reversibility:** costly — es parte del esquema persistido nuevo de la cola.
+- **D-31:** **Tamaño del archivo de respaldo:** el límite sube de 1 MB a **4 MB** (4,194,304 bytes, la misma unidad que el 1 MB actual: `LIMITS.backupBytes` = 1,048,576), para que cualquier respaldo que la app descargue con productos y miembros se pueda volver a subir. Cambia el contrato publicado (D-30 de la Fase 3) (pregunta abierta 6 de RESEARCH). — **Reversibility:** one-way — un archivo de hasta 4 MB pasa a ser válido y volver a 1 MB rechazaría respaldos ya descargados.
+- **D-32:** **Caso guía "JAMON ZWAN":** "JAMON ZWAN" y "JAMON ZWAN VIRGINIA1X1KG & 10360 1/1 KG" (de otro proveedor) son el **mismo producto**. En el set de prueba es un caso "debe agruparse", y en la revisión en vivo cuenta como fallo de calidad si no se juntan. Reemplaza el ejemplo de D-11 y de "Casos guía"; la regla de D-11 sigue vigente (una descripción sin pareja vuelve como producto de un solo miembro) (pregunta abierta 12 de RESEARCH).
+
+- **D-33:** **Nombres de contexto (aclara D-04, D-25 y D-28):** en cada "Agrupar productos" se envían siempre los **nombres de los productos aceptados**. Si la corrida se parte en varios lotes, cada lote recibe también los nombres propuestos por los **lotes anteriores de esa misma corrida**. Los nombres de tarjetas pendientes de corridas anteriores **no se envían** y esas tarjetas no se modifican (contestada en la compuerta de 04-11, 2026-10-19).
+
+Las demás preguntas abiertas de RESEARCH ya tienen dueño: la 3 (límite de lote y tiempos) la fija el research por D-28; la 4 (reintentos) y la 5 (una ruta o dos) son de Claude's Discretion; los números de la 6 para productos y miembros los fija el planner por D-13; la 7, la 8, la 9, la 10 y la 11 se resolvieron en el UI-SPEC (OQ1, OQ2, OQ3 y OQ7); la 13 (vaciar las facturas cancela la corrida) está en "Defaults taken" del UI-SPEC aprobado.
 
 ### Claude's Discretion
 - Textos exactos de botones, diálogos, avisos y estados vacíos, más allá de los citados.
@@ -87,7 +98,7 @@ Siguen vigentes las decisiones de las Fases 1–3 (01/02/03-CONTEXT.md). Las má
 - `.planning/phases/01-acceso-protegido-y-carga-de-facturas/01-CONTEXT.md` — D-01/D-02 (sesión), D-11 (barra de progreso).
 
 ### Stack e investigación
-- `.claude/CLAUDE.md` §DeepSeek client — `openai` SDK con `baseURL` de DeepSeek, `response_format: json_object`, `thinking: { type: "disabled" }` con `@ts-expect-error`, reintento ante contenido vacío, zod siempre, `maxDuration = 60`, solo `{ id, description }` con `.strict()`.
+- `.claude/CLAUDE.md` §DeepSeek client — `openai` SDK con `baseURL` de DeepSeek, `response_format: json_object`, `thinking: { type: "disabled" }` con `@ts-expect-error`, reintento ante contenido vacío, zod siempre, `maxDuration = 60`, solo `{ id, description }` con `.strict()`. **Superado en parte:** el SDK y el `@ts-expect-error` por D-29 (`fetch` + zod); `maxDuration` y el tamaño de lote por 04-RESEARCH.md (D-28); el cuerpo lleva pares `{ descripción, proveedor }` por D-05.
 - `.claude/CLAUDE.md` §Password gate — `requireSession()` dentro de cada handler `/api/llm/*` (defensa en profundidad).
 - `.claude/CLAUDE.md` §State management — zustand `persist` con `version`, `migrate`, `partialize`, `skipHydration` y validación zod.
 - `.planning/research/ARCHITECTURE.md`, `.planning/research/PITFALLS.md`, `.planning/research/FEATURES.md` — Capa de dominio pura, riesgos del LLM, expectativas de agrupación.
@@ -119,7 +130,7 @@ Siguen vigentes las decisiones de las Fases 1–3 (01/02/03-CONTEXT.md). Las má
 - Pruebas `*.anon.test.ts` y `*.realdata.test.ts`.
 
 ### Integration Points
-- **Faltan dependencias:** el paquete `openai` (7.32.0) para el cliente de DeepSeek; hay que aprobarlo antes de instalarlo.
+- **Dependencias:** ninguna nueva. El cliente de DeepSeek usa `fetch` + zod (D-29); el paquete `openai` no se instala.
 - Variables de entorno nuevas: `DEEPSEEK_API_KEY` y `DEEPSEEK_MODEL` (opcional) en `.env.example` y en Vercel.
 - `src/app/api/` hoy solo tiene `auth/`; se agrega `llm/`.
 
@@ -128,7 +139,7 @@ Siguen vigentes las decisiones de las Fases 1–3 (01/02/03-CONTEXT.md). Las má
 <specifics>
 ## Specific Ideas
 
-- Casos guía: "MM LECHE ENT" (Walmart) + "LECHE ENTERA 1L" (otra tienda) → producto "Leche entera"; "1K MANCHEGO" y "QSO MANCHEGO" son candidatos al mismo producto; "JAMON ZWAN" queda como producto de un solo miembro.
+- Casos guía: "MM LECHE ENT" (Walmart) + "LECHE ENTERA 1L" (otra tienda) → producto "Leche entera"; "1K MANCHEGO" y "QSO MANCHEGO" son candidatos al mismo producto; "JAMON ZWAN" y "JAMON ZWAN VIRGINIA1X1KG & 10360 1/1 KG" (otro proveedor) son el mismo producto (D-32).
 - El texto del aviso incluye la lista literal de lo que se envía, no solo los conteos.
 - Un concepto con categoría por producto se ve como "Insumos de cafetería · del producto Leche entera".
 
