@@ -1,7 +1,8 @@
 ---
 phase: "04"
 slug: agrupacion-de-productos-con-deepseek
-status: draft
+status: approved
+reviewed_at: "2026-10-19"
 shadcn_initialized: true
 preset: "base-nova (preset code b2fA, neutral, geist, lucide)"
 created: "2026-10-19"
@@ -466,7 +467,7 @@ Vertical order, 32px gaps: (1) title row, (2) Alerts present (settings write fai
 
 ## UI Considerations
 
-Probe run 2026-10-19 (ui-consideration-probe, 8 elements: E1 entry buttons and captions, E2 send dialog, E3 run card, E4 product-suggestion queue, E5 category-suggestion table, E6 "Mis productos", E7 «No agrupar» list, E8 concept Select with the product source). Element kinds were proposed by the researcher and **not confirmed by the user**; the three considerations that were unresolved were closed by the user's answers of 2026-10-19. Empty/error COPY lives in the Copywriting Contract; rows reference it. Dismissals below were made by the researcher (no interactive session) and carry their reason.
+Probe run 2026-10-19 (ui-consideration-probe, 8 elements: E1 entry buttons and captions, E2 send dialog, E3 run card, E4 product-suggestion queue, E5 category-suggestion table, E6 "Mis productos", E7 «No agrupar» list, E8 concept Select with the product source). Element kinds were proposed by the researcher and **confirmed by the user on 2026-10-19** together with the dismissals below; the three considerations that were unresolved were closed by the user's answers of 2026-10-19. Empty/error COPY lives in the Copywriting Contract; rows reference it. Dismissals below were made by the researcher (no interactive session) and carry their reason.
 
 Applicable state considerations resolved: 41 covered, 3 backstop, 0 unresolved, 7 dismissed with a reason (51 considerations).
 
@@ -578,12 +579,12 @@ The seven open questions of the first draft were answered by the user. All are n
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS
+- [x] Dimension 1 Copywriting: PASS (FLAG: single-verb «Aceptar»/«Rechazar» on cards and rows, mitigated by aria-labels; optional «Descartar cambio de nombre»)
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-10-19 (gsd-ui-checker, after revision 1)
