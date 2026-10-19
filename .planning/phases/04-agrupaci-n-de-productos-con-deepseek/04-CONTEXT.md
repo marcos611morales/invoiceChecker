@@ -69,6 +69,9 @@ Preguntas abiertas de 04-RESEARCH.md que el usuario contestó antes de `/gsd-pla
 
 - **D-33:** **Nombres de contexto (aclara D-04, D-25 y D-28):** en cada "Agrupar productos" se envían siempre los **nombres de los productos aceptados**. Si la corrida se parte en varios lotes, cada lote recibe también los nombres propuestos por los **lotes anteriores de esa misma corrida**. Los nombres de tarjetas pendientes de corridas anteriores **no se envían** y esas tarjetas no se modifican (contestada en la compuerta de 04-11, 2026-10-19).
 
+- **D-34:** **Fila de categoría que quedó vieja:** una fila pendiente de "Sugerir categorías" cuyo proveedor o producto ya recibió categoría por otro lado, o cuyo producto se borró, **sale de la tabla sin aplicarse** (D-07, D-18). Confirma la suposición A-3 de 04-01 (contestada al verificar los planes, 2026-10-19).
+- **D-35:** **Aviso al aceptar en bloque:** "Aceptar seleccionadas" y "Aceptar todas las visibles" aplican la regla de una tarjeta a cada tarjeta. Las que no se pueden aceptar se quedan en la cola con su error, y el aviso dice «{n} productos creados» y, si alguna quedó, «; {k} quedaron en la cola». Confirma la suposición A-4 de 04-01 (contestada al verificar los planes, 2026-10-19).
+
 Las demás preguntas abiertas de RESEARCH ya tienen dueño: la 3 (límite de lote y tiempos) la fija el research por D-28; la 4 (reintentos) y la 5 (una ruta o dos) son de Claude's Discretion; los números de la 6 para productos y miembros los fija el planner por D-13; la 7, la 8, la 9, la 10 y la 11 se resolvieron en el UI-SPEC (OQ1, OQ2, OQ3 y OQ7); la 13 (vaciar las facturas cancela la corrida) está en "Defaults taken" del UI-SPEC aprobado.
 
 ### Claude's Discretion
