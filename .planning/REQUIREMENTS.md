@@ -37,12 +37,12 @@
 
 - [x] **DASH-01**: Usuario ve KPIs: gasto total, número de facturas, ticket promedio y promedio mensual del rango filtrado
 - [x] **DASH-02**: Usuario ve la tendencia de gasto por mes (incluyendo meses sin gasto en $0)
-- [ ] **DASH-03**: Usuario ve ranking de gasto por categoría ("en qué gastamos más")
+- [x] **DASH-03**: Usuario ve ranking de gasto por categoría ("en qué gastamos más")
 - [x] **DASH-04**: Usuario ve ranking de gasto por proveedor con ticket promedio por proveedor
-- [ ] **DASH-05**: Usuario ve promedio mensual por categoría
+- [x] **DASH-05**: Usuario ve promedio mensual por categoría
 - [x] **DASH-06**: El promedio mensual divide entre los meses del calendario del rango filtrado (aunque no tengan facturas), indicado en pantalla
-- [ ] **DASH-07**: Usuario ve la variación % mes contra mes por categoría
-- [ ] **DASH-08**: Usuario puede hacer clic en una categoría o proveedor y ver sus facturas y conceptos
+- [x] **DASH-07**: Usuario ve la variación % mes contra mes por categoría
+- [x] **DASH-08**: Usuario puede hacer clic en una categoría o proveedor y ver sus facturas y conceptos
 - [x] **DASH-09**: Usuario ve una tabla de facturas/conceptos ordenable
 - [x] **DASH-10**: Interfaz en español con formato es-MX (moneda MXN, fechas)
 
@@ -50,22 +50,22 @@
 
 - [x] **FILT-01**: Usuario puede filtrar por rango de fechas o mes
 - [x] **FILT-02**: Usuario puede filtrar por uno o varios proveedores
-- [ ] **FILT-03**: Usuario puede filtrar por una o varias categorías
+- [x] **FILT-03**: Usuario puede filtrar por una o varias categorías
 - [x] **FILT-04**: Usuario puede filtrar por forma de pago (con nombres del catálogo SAT, no códigos)
 - [x] **FILT-05**: Los filtros aplican de forma consistente a KPIs, gráficas, tablas y export
 
 ### Categorías (CAT)
 
-- [ ] **CAT-01**: Usuario puede crear, renombrar y borrar categorías propias desde la página
-- [ ] **CAT-02**: Usuario puede asignar una categoría por defecto a cada proveedor
-- [ ] **CAT-03**: Usuario puede cambiar la categoría de un concepto individual
+- [x] **CAT-01**: Usuario puede crear, renombrar y borrar categorías propias desde la página
+- [x] **CAT-02**: Usuario puede asignar una categoría por defecto a cada proveedor
+- [x] **CAT-03**: Usuario puede cambiar la categoría de un concepto individual
 - [ ] **CAT-04**: Precedencia: ajuste del concepto > categoría del producto agrupado > categoría del proveedor > "Sin categoría"
-- [ ] **CAT-05**: Al borrar una categoría, sus asignaciones pasan a "Sin categoría" (o a otra que el usuario elija)
+- [x] **CAT-05**: Al borrar una categoría, sus asignaciones pasan a "Sin categoría" (o a otra que el usuario elija)
 
 ### Ajustes y respaldo (AJUS)
 
-- [ ] **AJUS-01**: Categorías, asignaciones y agrupaciones aceptadas se guardan en localStorage, con versión y validación
-- [ ] **AJUS-02**: Usuario puede descargar sus ajustes en un archivo y subirlos en otro navegador/computadora
+- [x] **AJUS-01**: Categorías, asignaciones y agrupaciones aceptadas se guardan en localStorage, con versión y validación
+- [x] **AJUS-02**: Usuario puede descargar sus ajustes en un archivo y subirlos en otro navegador/computadora
 
 ### LLM DeepSeek (LLM)
 
@@ -91,9 +91,9 @@
 
 ### Exportar a Excel (XLS)
 
-- [ ] **XLS-01**: Usuario puede descargar un Excel (write-excel-file) con hojas: Facturas, Conceptos, Resumen por categoría, por proveedor, por mes y Parámetros (filtros y modo IVA usados)
-- [ ] **XLS-02**: El Excel respeta los filtros activos y el modo con/sin IVA
-- [ ] **XLS-03**: Montos como números con formato MXN, fechas como fechas y RFC/UUID/folio como texto; totales del Excel coinciden con el dashboard
+- [x] **XLS-01**: Usuario puede descargar un Excel (write-excel-file) con hojas: Facturas, Conceptos, Resumen por categoría, por proveedor, por mes y Parámetros (filtros y modo IVA usados)
+- [x] **XLS-02**: El Excel respeta los filtros activos y el modo con/sin IVA
+- [x] **XLS-03**: Montos como números con formato MXN, fechas como fechas y RFC/UUID/folio como texto; totales del Excel coinciden con el dashboard
 
 ### Calidad de código (DEV)
 
@@ -148,26 +148,26 @@
 | REGLA-09 | Phase 2 | Complete |
 | DASH-01 | Phase 2 | Complete |
 | DASH-02 | Phase 2 | Complete |
-| DASH-03 | Phase 3 | Pending |
+| DASH-03 | Phase 3 | Complete |
 | DASH-04 | Phase 2 | Complete |
-| DASH-05 | Phase 3 | Pending |
+| DASH-05 | Phase 3 | Complete |
 | DASH-06 | Phase 2 | Complete |
-| DASH-07 | Phase 3 | Pending |
-| DASH-08 | Phase 3 | Pending |
+| DASH-07 | Phase 3 | Complete |
+| DASH-08 | Phase 3 | Complete |
 | DASH-09 | Phase 2 | Complete |
 | DASH-10 | Phase 2 | Complete |
 | FILT-01 | Phase 2 | Complete |
 | FILT-02 | Phase 2 | Complete |
-| FILT-03 | Phase 3 | Pending |
+| FILT-03 | Phase 3 | Complete |
 | FILT-04 | Phase 2 | Complete |
 | FILT-05 | Phase 2 | Complete |
-| CAT-01 | Phase 3 | Pending |
-| CAT-02 | Phase 3 | Pending |
-| CAT-03 | Phase 3 | Pending |
+| CAT-01 | Phase 3 | Complete |
+| CAT-02 | Phase 3 | Complete |
+| CAT-03 | Phase 3 | Complete |
 | CAT-04 | Phase 4 | Pending |
-| CAT-05 | Phase 3 | Pending |
-| AJUS-01 | Phase 3 | Pending |
-| AJUS-02 | Phase 3 | Pending |
+| CAT-05 | Phase 3 | Complete |
+| AJUS-01 | Phase 3 | Complete |
+| AJUS-02 | Phase 3 | Complete |
 | LLM-01 | Phase 4 | Pending |
 | LLM-02 | Phase 4 | Pending |
 | LLM-03 | Phase 4 | Pending |
@@ -181,9 +181,9 @@
 | PREC-05 | Phase 5 | Pending |
 | PREC-06 | Phase 5 | Pending |
 | CAL-01 | Phase 2 | Complete |
-| XLS-01 | Phase 3 | Pending |
-| XLS-02 | Phase 3 | Pending |
-| XLS-03 | Phase 3 | Pending |
+| XLS-01 | Phase 3 | Complete |
+| XLS-02 | Phase 3 | Complete |
+| XLS-03 | Phase 3 | Complete |
 | DEV-01 | Phase 1 | Complete |
 | DEV-02 | Phase 1 | Complete |
 | DEV-03 | Phase 2 | Complete |

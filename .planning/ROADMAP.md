@@ -14,7 +14,7 @@ Las fases decimales aparecen entre sus enteros vecinos en orden numérico.
 
 - [x] **Phase 1: Acceso protegido y carga de facturas** - Contraseña compartida, app desplegada en Vercel y carga de XML en el navegador con reporte de importación (completed 2026-10-14)
 - [x] **Phase 2: Dashboard de gasto confiable** - Reglas de montos (I/E/P, con/sin IVA, $0, excluidas), KPIs, tendencia mensual, ranking por proveedor, filtros y calidad de datos (completed 2026-10-16)
-- [ ] **Phase 3: Categorías propias y exportación a Excel** - Categorías editables por proveedor y por concepto, persistidas y respaldables, vistas por categoría y Excel de varias hojas
+- [x] **Phase 3: Categorías propias y exportación a Excel** - Categorías editables por proveedor y por concepto, persistidas y respaldables, vistas por categoría y Excel de varias hojas (completed 2026-10-19)
 - [ ] **Phase 4: Agrupación de productos con DeepSeek** - Agrupación de "mismo producto" y sugerencias de categoría por una ruta protegida, con cola de revisión
 - [ ] **Phase 5: Comparación de precios entre tiendas** - Precio unitario neto por producto y tienda, tienda más barata, ahorro estimado e historial de precio
 
@@ -159,7 +159,7 @@ Plans:
   4. El usuario descarga un Excel con las hojas Facturas, Conceptos, Resumen por categoría, Resumen por proveedor, Resumen por mes y Parámetros (filtros y modo IVA usados), que respeta los filtros activos y el modo con/sin IVA.
   5. En el Excel los montos son números con formato MXN, las fechas son fechas y RFC, UUID y folio son texto, y los totales coinciden con los del dashboard para el mismo filtro y modo.
 
-**Plans:** 20/20 plans executed (3 gap closure plans from UAT pending)
+**Plans:** 20/20 plans complete (3 gap closure plans from UAT pending)
 
 Plans:
 **Wave 1**
@@ -263,6 +263,6 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
-| 3. Categorías propias y exportación a Excel | 20/20 | In Progress | - |
+| 3. Categorías propias y exportación a Excel | 20/20 | Complete    | 2026-10-19 |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |

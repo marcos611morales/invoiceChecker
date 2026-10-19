@@ -14,21 +14,22 @@ Ver con claridad, a partir de las facturas XML, **en qué gastamos más y dónde
 
 - ✓ Cargar varios archivos CFDI XML en el navegador (arrastrar/soltar) y parsearlos del lado del cliente — Phase 1
 - ✓ Acceso protegido con una contraseña simple compartida que protege la página — Phase 1 (la protección de la ruta del LLM sigue activa para la Fase 4)
+- ✓ Extraer de cada factura fecha, emisor, tipo, forma/método de pago, moneda, subtotal, impuestos, total y conceptos — Phase 2
+- ✓ Tratamiento por tipo: I suma, E resta, P se excluye — Phase 2
+- ✓ Selector global con IVA / sin IVA — Phase 2
+- ✓ Promedios mensual, por factura y ticket promedio por proveedor — Phase 2; por categoría (mensual) — Phase 3
+- ✓ Ranking de gasto por proveedor — Phase 2; por categoría — Phase 3
+- ✓ Filtros por fechas/mes, proveedor y forma de pago — Phase 2; por categoría — Phase 3
+- ✓ Categorías propias editables (crear/renombrar/borrar con deshacer) — Phase 3
+- ✓ Categoría por proveedor por defecto, ajustable por concepto (precedencia concepto > proveedor; el nivel producto llega en la Fase 4) — Phase 3
+- ✓ Exportar a Excel con seis hojas (facturas, conceptos, resúmenes por categoría, proveedor y mes, parámetros) respetando los filtros — Phase 3
+- ✓ Ajustes de categorías persistidos en localStorage, con archivo de respaldo para llevarlos a otro navegador — Phase 3
 
 ### Active
 
-- [ ] Extraer de cada factura: fecha, emisor (RFC/nombre), tipo de comprobante, forma y método de pago, moneda, subtotal, impuestos, total y conceptos (descripción, cantidad, unidad, valor unitario, importe, ClaveProdServ)
-- [ ] Tratamiento por tipo: Ingreso (I) cuenta como gasto, Egreso (E, notas de crédito) resta, Pago (P, complementos) se excluye para no duplicar
-- [ ] Selector global para ver los montos con IVA (total) o sin IVA (subtotal)
-- [ ] Categorías propias, editables en la página (crear/renombrar/borrar)
-- [ ] Categoría asignada por proveedor por defecto, con opción de cambiarla en conceptos individuales
 - [ ] LLM (DeepSeek) que agrupa como "mismo producto" conceptos con descripciones distintas entre tiendas y sugiere categorías; el usuario revisa y ajusta
 - [ ] Comparación de precio unitario del mismo producto entre tiendas/proveedores ("dónde sale más económico")
-- [ ] Promedios: mensual, por factura, por categoría (mensual) y por proveedor (ticket promedio)
-- [ ] Ranking de gasto por categoría y por proveedor ("en qué gastamos más")
-- [ ] Filtros: rango de fechas/mes, proveedor, categoría y forma de pago
-- [ ] Exportar a Excel con varias hojas (facturas, conceptos/productos, resúmenes por categoría, proveedor y mes) respetando los filtros activos
-- [ ] Los ajustes de categorías y las agrupaciones del LLM se guardan en el navegador (localStorage)
+- [ ] Las agrupaciones del LLM se guardan en el navegador (localStorage)
 - [ ] La contraseña compartida también protege el uso del LLM (401 en la ruta sin sesión; key fuera del bundle)
 
 ### Out of Scope
@@ -66,8 +67,8 @@ Ver con claridad, a partir de las facturas XML, **en qué gastamos más y dónde
 | Carga en el navegador, sin DB | Requisito del usuario: procesamiento local y sin persistencia en servidor | ✓ Good (Phase 1) |
 | DeepSeek para agrupar productos y sugerir categorías | Elección del usuario; las descripciones varían entre tiendas | — Pending |
 | API key en variable de Vercel + contraseña simple | Evita exponer la key y que terceros gasten el saldo | ✓ Good (Phase 1) |
-| Ajustes en localStorage | Persistencia sin DB; el usuario aceptó que es por navegador | — Pending |
-| Categoría por proveedor, ajustable por concepto | Equilibrio entre esfuerzo y precisión (en Walmart se compran cosas de varias categorías) | — Pending |
+| Ajustes en localStorage | Persistencia sin DB; el usuario aceptó que es por navegador | ✓ Good (Phase 3) — con archivo de respaldo de 1 MB máx. validado con zod |
+| Categoría por proveedor, ajustable por concepto | Equilibrio entre esfuerzo y precisión (en Walmart se compran cosas de varias categorías) | ✓ Good (Phase 3) |
 | Notas de crédito restan, complementos de Pago se excluyen | Evita duplicar el gasto y refleja las devoluciones | — Pending |
 | Next.js + TS strict + pnpm + ESLint | Elección del usuario; Next.js es nativo de Vercel | ✓ Good (Phase 1) |
 | "Sin IVA" = Subtotal − Descuento + IEPS (solo se quita IVA) | 68/143 facturas con descuento; IEPS es costo real | — Pending |
@@ -80,10 +81,13 @@ Ver con claridad, a partir de las facturas XML, **en qué gastamos más y dónde
 | Se envía nombre de proveedor (no RFC) a DeepSeek | Mejora sugerencias de categoría | — Pending |
 | Servicios/combustible excluidos de comparación de precios | No son productos comparables | — Pending |
 | Solo CFDI 4.0; otras monedas se convierten con TipoCambio | Elección del usuario | ✓ 4.0-only rejection shipped (Phase 1); TipoCambio pending |
-| write-excel-file, DOMParser nativo, big.js | Elegidos tras research (estilos, robustez de namespaces, exactitud decimal) | — Pending |
+| write-excel-file, DOMParser nativo, big.js | Elegidos tras research (estilos, robustez de namespaces, exactitud decimal) | ✓ Good (Phase 3) — write-excel-file 4.1.1 fijado; CSP solo añade `worker-src 'self' blob:` |
 | Facturas/ fuera de git; pruebas con XML anonimizados | Contienen RFCs y datos personales | ✓ Good (Phase 1) |
 | Sesión JWT HS256 (jose) con claim HMAC de la contraseña | Cambiar APP_PASSWORD invalida sesiones sin DB (D-02) | ✓ Good (Phase 1) |
 | CSP `connect-src 'self'` + E2E que prueba cero XML en la red | Garantiza que las facturas no salen del navegador | ✓ Good (Phase 1) |
+| Todo texto en el Excel es celda de texto con formato @ | Evita inyección de fórmulas y que RFC/UUID/folio se conviertan en números | ✓ Good (Phase 3) |
+| Montos del Excel redondeados por fila, con nota en Parámetros | Las sumas de columna pueden diferir por centavos del Gasto total; se avisa en lugar de escribir valores sin redondear (WR-02, D-20) | ✓ Good (Phase 3) |
+| Al restaurar ajustes se depura el filtro de categorías | El chip y Parámetros nunca muestran un id crudo (WR-01) | ✓ Good (Phase 3) |
 
 ## Evolution
 
@@ -103,4 +107,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-14 after Phase 1*
+*Last updated: 2026-10-19 after Phase 3*
