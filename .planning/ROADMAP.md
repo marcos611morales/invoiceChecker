@@ -215,7 +215,7 @@ Plans:
 
 **Wave 18** *(gap closure G-03-7-WR01, G-03-7-WR02, G-03-7-WR03; blocked on Wave 17 completion; the three plans run in parallel)*
 - [ ] 03-18-PLAN.md — WR-01: «Subir ajustes» quita del filtro de categoría los ids que ya no existen; el chip y la hoja «Parámetros» leen la selección efectiva (nunca un id crudo)
-- [ ] 03-19-PLAN.md — WR-02: nota de redondeo a centavos en «Parámetros» con texto confirmado por el usuario en un checkpoint, y D-20 actualizada (aviso, no montos sin redondear)
+- [ ] 03-19-PLAN.md — WR-02: nota de redondeo a centavos añadida a la «Nota» de «Parámetros» con el texto que confirmó el usuario (opción a, 2026-10-18), y D-20 actualizada (aviso, no montos sin redondear)
 - [ ] 03-20-PLAN.md — WR-03: las pruebas de writeWorkbook revisan, con el loader inyectado, las hojas que recibe la biblioteca (nombres, «=1+1» como texto «@», NaN vacío), sin fflate ni unzip (D-29)
 
 **UI hint**: yes
