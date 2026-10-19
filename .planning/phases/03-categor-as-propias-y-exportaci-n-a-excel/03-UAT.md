@@ -1,18 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 03-categor-as-propias-y-exportaci-n-a-excel
 source: [03-VERIFICATION.md]
 started: 2026-10-18T17:16:29Z
-updated: 2026-10-19T16:36:02Z
+updated: 2026-10-19T17:04:28.164Z
 ---
 
 ## Current Test
 
-number: 8
-name: WR-01 fix with real data — restoring settings never leaves a raw category id in the chip or in Parámetros
-expected: |
-  In the production build with the real XML, with a «Limpieza e higiene» + «Otros» category filter active, «Subir ajustes» a settings file and confirm. The FilterBar chip reads «Categoría: Otros» (never a seed:… or cat_… id), and the exported Parámetros «Categorías» row reads «Otros».
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -48,14 +44,14 @@ severity: major
 
 ### 8. WR-01 fix with real data — restoring settings never leaves a raw category id in the chip or in Parámetros (re-verification after gap closure 03-18).
 expected: In the production build with the real XML, with a «Limpieza e higiene» + «Otros» category filter active, «Subir ajustes» a settings file and confirm. The FilterBar chip reads «Categoría: Otros» (never a seed:… or cat_… id), and the exported Parámetros «Categorías» row reads «Otros».
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 8
-passed: 6
+passed: 7
 issues: 1
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
@@ -63,7 +59,9 @@ blocked: 0
 
 - gap_id: G-03-7-WR01
   truth: "After «Subir ajustes» replaces the categories, the filter chip and the exported «Parámetros» sheet show only categories that actually exist and are applied (never a raw id)"
-  status: failed
+  status: resolved
+  resolved_by: 03-18-PLAN.md
+  resolved_at: 2026-10-19
   reason: "User triage of code review WR-01: fix now"
   severity: major
   test: 7
@@ -83,7 +81,9 @@ blocked: 0
 
 - gap_id: G-03-7-WR02
   truth: "The exported workbook tells the accountant that each Monto is rounded to cents, so the column sums of Facturas/Conceptos may differ by cents from the summary Totals / Gasto total"
-  status: failed
+  status: resolved
+  resolved_by: 03-19-PLAN.md
+  resolved_at: 2026-10-19
   reason: "User triage of code review WR-02: fix by disclosing it with a note in Parámetros (not by writing unrounded values)"
   severity: minor
   test: 7
@@ -101,7 +101,9 @@ blocked: 0
 
 - gap_id: G-03-7-WR03
   truth: "writeWorkbook tests assert what their titles claim: sheet count/names, «=1+1» written as a String cell with format «@», NaN written as null"
-  status: failed
+  status: resolved
+  resolved_by: 03-20-PLAN.md
+  resolved_at: 2026-10-19
   reason: "User triage of code review WR-03: fix with real assertions via the injected loader"
   severity: minor
   test: 7
