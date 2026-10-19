@@ -48,9 +48,10 @@ export function ExportButton() {
         resolver,
         exportedAtText: exportedAtText(new Date()),
         supplierLabels: selectedNames(supplierOptions(ledger), filters.suppliers),
+        // Parámetros must list the categories that produced the file (WR-01).
         categoryLabels: selectedNames(
           categoryOptions(ledger, resolver, settings.categories, nameOf),
-          filters.categories,
+          view.selected,
         ),
         formaLabels: selectedNames(formaOptions(ledger, formaPagoLabel), filters.formas),
       };
