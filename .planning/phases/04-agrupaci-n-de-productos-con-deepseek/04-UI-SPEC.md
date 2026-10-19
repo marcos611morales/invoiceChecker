@@ -14,7 +14,7 @@ created: "2026-10-19"
 >
 > This phase **extends** `01-UI-SPEC.md`, `02-UI-SPEC.md` and `03-UI-SPEC.md` (all approved). Tokens, the 4 type sizes, the 2 weights, the spacing scale, theme behavior, top bar, the 44px touch-target rule, the Tooltip / tap-Popover rule for truncated text, the "Deshacer" toast rule (6 s, bottom-right, closable), the inline-rename pattern, the `AlertDialog` focus rule and the accessibility floor stay in force and are **not repeated** unless this phase adds to them. "As Phase 3" means follow the Phase 3 contract exactly. The new tab must look like the same app: same bordered `background` blocks, same 20/600 headings with a 12px muted intro, same row captions.
 >
-> Source key: **[D-nn]** = locked decision in 04-CONTEXT.md (decisions of earlier phases are cited as **[P1 D-nn]**, **[P2 D-nn]**, **[P3 D-nn]**). **[P1]** / **[P2]** / **[P3]** = rule inherited from that phase's UI-SPEC. **[CLAUDE.md]** = stack decision locked by the user. **[RESEARCH]** = fact or constraint from 04-RESEARCH.md ("UI-relevant constraints", latency estimates, error taxonomy). **[default]** = low-risk value chosen by the researcher because no upstream artifact answers it (listed under "Defaults taken"). **[pending OQn]** = value recommended by the researcher but **not decided by the user**; it is also listed in "Open Questions" with options. The planner must not treat a `[pending OQn]` item as locked until the orchestrator brings back the user's answer.
+> Source key: **[D-nn]** = locked decision in 04-CONTEXT.md (decisions of earlier phases are cited as **[P1 D-nn]**, **[P2 D-nn]**, **[P3 D-nn]**). **[P1]** / **[P2]** / **[P3]** = rule inherited from that phase's UI-SPEC. **[CLAUDE.md]** = stack decision locked by the user. **[RESEARCH]** = fact or constraint from 04-RESEARCH.md ("UI-relevant constraints", latency estimates, error taxonomy). **[default]** = low-risk value chosen by the researcher because no upstream artifact answers it (listed under "Defaults taken"). **[user-confirmed OQn]** = decision the user locked on 2026-10-19 by answering open question n (recorded under "Resolved with the user"; do not re-ask).
 
 ---
 
@@ -158,13 +158,13 @@ Destructive reserved for (Phase 3 list plus one icon):
 
 ## Copywriting Contract
 
-All strings are final unless marked `{…}` (interpolated), `[pending OQn]` (recommended, not decided) or when a row cites a user decision. Plurals: singular for 1 ("1 descripción", "1 línea"), as Phase 3. Quotation marks around user data are «…». Number formats as Phase 2. Strings quoted in 04-CONTEXT.md are locked and marked **[D-nn]**.
+All strings are final unless marked `{…}` (interpolated), `[user-confirmed OQn]` (decided by the user) or when a row cites a user decision. Plurals: singular for 1 ("1 descripción", "1 línea"), as Phase 3. Quotation marks around user data are «…». Number formats as Phase 2. Strings quoted in 04-CONTEXT.md are locked and marked **[D-nn]**.
 
 ### Shell and tab
 
 | Element | Copy |
 |---------|------|
-| Tab order [pending OQ4] | Dashboard · Categorías · **Productos** · Calidad de datos · Importación |
+| Tab order [user-confirmed OQ4] | Dashboard · Categorías · **Productos** · Calidad de datos · Importación |
 | Tab label | Productos |
 | Tab label with pending suggestions (n > 0; n = pending product cards + pending category rows) | Productos · {n} |
 | Tab accessible name | Productos, {n} sugerencias por revisar ("1 sugerencia por revisar"); without pending: "Productos" |
@@ -196,12 +196,12 @@ Opens before **every** send (also for "Reintentar" and for a repeated press). No
 | Summary, "Agrupar productos" **[D-08, locked]** | Se enviarán a DeepSeek {N} descripciones de conceptos y {M} nombres de proveedor. No se envían RFC, UUID, montos, fechas ni folios. ("1 descripción de concepto", "1 nombre de proveedor"; the verb stays plural because two kinds of data always travel) |
 | Extra line when product names go as context [D-04] | Como contexto también se enviarán {n} nombres de productos que ya aceptaste. ("1 nombre de producto") |
 | Extra line when more than one batch | Se enviarán en {M} lotes. |
-| Extra line about people and third party [pending OQ1] | Algunos nombres de proveedor pueden ser nombres de personas. DeepSeek es un servicio externo a esta aplicación. |
+| Extra line about people and third party [user-confirmed OQ1] | Algunos nombres de proveedor pueden ser nombres de personas. DeepSeek es un servicio externo a esta aplicación. |
 | Summary, "Sugerir categorías" [D-07] | Se enviarán a DeepSeek {m} nombres de proveedor, {p} nombres de producto con las descripciones de sus {k} miembros y los nombres de tus {c} categorías. No se envían RFC, UUID, montos, fechas ni folios. (a zero part is omitted; singular forms as above) |
 | Disclosure trigger **[D-08, locked]** | Ver exactamente qué se envía |
 | Disclosure group headings (14/600) | Descripciones y proveedores ({N}) · Productos existentes, solo como contexto ({n}) · Proveedores sin categoría ({m}) · Productos sin categoría ({p}) · Tus categorías ({c}) |
 | List row | {descripción} (14/400, wraps) and {proveedor} (12px muted, same row, wraps under on narrow widths). Product rows in "Sugerir categorías" list their member descriptions beneath the product name (12px muted). The text is exactly the text that travels, including any cut applied by the builder, which ends in "…". |
-| Group not sent [pending OQ7] | No se enviarán ({n}): contienen algo que parece un RFC, un UUID, un correo o un número largo. |
+| Group not sent [user-confirmed OQ7] | No se enviarán ({n}): contienen algo que parece un RFC, un UUID, un correo o un número largo. |
 | Buttons **[D-08, locked]** | Cancelar (dismiss, default focus) · Enviar a DeepSeek (accent) |
 
 ### Run progress, cancel and result [D-26, D-27, LLM-05, RESEARCH]
@@ -232,7 +232,7 @@ Distinct failure messages (one per condition of the RESEARCH error taxonomy; the
 | Rate limit or overload | DeepSeek está saturado o no responde. Espera un momento y pulsa «Reintentar». |
 | Timeout | DeepSeek tardó demasiado en responder. Pulsa «Reintentar». |
 | Invalid or empty answer | DeepSeek respondió algo que no se pudo usar. Pulsa «Reintentar». |
-| Incomplete answer (items omitted) [pending OQ3] | DeepSeek dejó descripciones sin agrupar. Pulsa «Reintentar». |
+| Incomplete answer (items omitted) [user-confirmed OQ3] | DeepSeek dejó descripciones sin agrupar. Pulsa «Reintentar». |
 | No connection | No hay conexión con el servidor. Revisa tu internet y pulsa «Reintentar». |
 | Bad request / too large | No se pudo enviar la solicitud. Recarga la página; si sigue igual, avisa a quien administra la aplicación. |
 
@@ -285,7 +285,7 @@ Distinct failure messages (one per condition of the RESEARCH error taxonomy; the
 | New category item / trigger value **[D-17]** | Nueva: {nombre} (the item is first in the list; the user's categories follow in list order) |
 | Select placeholder (suggested category no longer exists) | Elige una categoría (Aceptar disabled until chosen) |
 | Row buttons | Aceptar · Rechazar |
-| Bulk button **[D-23, locked]** | Aceptar todas (confirmation: same dialog pattern as products, title «¿Aceptar {n} sugerencias de categoría?» [pending OQ6]) |
+| Bulk button **[D-23, locked]** | Aceptar todas (confirmation: same dialog pattern as products, title «¿Aceptar {n} sugerencias de categoría?» [user-confirmed OQ6]) |
 | Toast after Aceptar, existing category | Categoría de «{nombre, 40 caracteres máx.}»: {categoría} |
 | Toast after Aceptar, new category | Categoría «{categoría}» creada y asignada a «{nombre, 40 caracteres máx.}» |
 | Error: category limit [D-17, limit 200 of P3 D-30] | Alcanzaste el límite de {n} categorías. Elige una existente. |
@@ -311,7 +311,7 @@ Distinct failure messages (one per condition of the RESEARCH error taxonomy; the
 | Toast after Borrar producto **[D-14: "Deshacer"]** | Producto «{nombre, 40 caracteres máx.}» borrado · action «Deshacer» (6 s). Description line: "Sus {n} descripciones vuelven a quedar libres." |
 | Toast after Quitar miembro [D-15] | «{descripción, 40 caracteres máx.}» quitada de «{producto}» · Deshacer |
 | Toast after Mover miembro | «{descripción, 40 caracteres máx.}» movida a «{producto}» · Deshacer |
-| Removing or moving the last member of a product [pending OQ5] | The product is deleted too and the toast reads "Producto «{nombre}» borrado porque se quedó sin descripciones · Deshacer" |
+| Removing or moving the last member of a product [user-confirmed OQ5] | The product is deleted too and the toast reads "Producto «{nombre}» borrado porque se quedó sin descripciones · Deshacer" |
 | Empty (no accepted products, nothing pending) heading | Todavía no hay productos agrupados |
 | Empty body | Pulsa «Agrupar productos» para que DeepSeek junte las descripciones que son el mismo producto en distintas tiendas. Antes de enviar verás exactamente qué datos salen. |
 | Pagination | As Phase 2: «Mostrando {a}–{b} de {n}» · «Página {p} de {P}» · Anterior · Siguiente (only above 50 rows) |
@@ -344,11 +344,11 @@ Distinct failure messages (one per condition of the RESEARCH error taxonomy; the
 | Category usage caption in "Mis categorías" | {n} proveedores · {p} productos · {m} conceptos (zero parts omitted; both zero reads «Sin uso») |
 | Replace-settings summary `{resumen}` | "9 categorías, 24 proveedores, 7 conceptos ajustados, 5 productos (14 descripciones)"; always lists all parts, a zero part reads «0 …» ("1 producto (1 descripción)"). A v1/v2 backup file therefore reads «0 productos (0 descripciones)». |
 | Replace dialog body (updated sentence) | Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados, los productos agrupados y el modo de IVA actuales. Si quieres conservarlos, descárgalos antes. |
-| Footer privacy line (`es.global.privacyLine`) [pending OQ1] | Tus facturas se procesan en este navegador. Solo si lo pides, se envían a DeepSeek descripciones de conceptos y nombres de proveedor (nunca RFC, UUID ni montos). The current text is **false** after this phase and must change. |
+| Footer privacy line (`es.global.privacyLine`) [user-confirmed OQ1] | Tus facturas se procesan en este navegador. Solo si lo pides, se envían a DeepSeek descripciones de conceptos y nombres de proveedor (nunca RFC, UUID ni montos). The current text is **false** after this phase and must change; the README privacy statement changes with it. Neither the footer nor the dialog names DeepSeek's country or data retention. |
 
 ### Errors and destructive confirmations
 
-- Confirmation dialogs in this phase: the **send dialog** (every send) and the **bulk-accept** confirmation ("Aceptar todas las visibles", and "Aceptar todas" of categories [pending OQ6]). Neither is destructive.
+- Confirmation dialogs in this phase: the **send dialog** (every send) and the **bulk-accept** confirmation ("Aceptar todas las visibles", and "Aceptar todas" of categories [user-confirmed OQ6]). Neither is destructive.
 - **No destructive confirmation dialog exists in this phase.** "Borrar producto", "Quitar miembro", "Mover", "Rechazar", "No agrupar", "Unir" and "Separar" apply at once and offer «Deshacer» for 6 s [D-14, D-15, default]. Deleting a product or removing a member never loses data permanently: the descriptions return to the free set [D-15].
 - Network and API failures use the run Alerts above; field errors (names, limits) appear under the field in 12px `foreground` with `aria-invalid`, and clear when the user types.
 
@@ -366,7 +366,7 @@ Distinct failure messages (one per condition of the RESEARCH error taxonomy; the
 
 ### Shell and tabs [D-01]
 
-- Five tabs; `AppTab` gains `"productos"`; `isAppTab`, `TABS` and the `TabsContent` list in `AppShell.tsx` and `es.tabs.products` are extended. Same trigger styling (14/600, 40px list, accent 2px underline). Position after "Categorías" **[pending OQ4]**.
+- Five tabs; `AppTab` gains `"productos"`; `isAppTab`, `TABS` and the `TabsContent` list in `AppShell.tsx` and `es.tabs.products` are extended. Same trigger styling (14/600, 40px list, accent 2px underline). Position after "Categorías" **[user-confirmed OQ4]**.
 - The trigger shows " · {n}" when n > 0 (pending product cards + pending category rows), like "Calidad de datos", with the accessible name from the copy table.
 - The five triggers must not wrap; the Phase 3 behavior stays (under 640px the list scrolls horizontally, the active trigger is scrolled into view). **The verification run must check 640 to 767px**, where five triggers with two counters are tight; if they overflow the container there, the list scrolls (`overflow-x-auto`) at that width as well.
 - The run keeps going if the user switches tab (the run lives in a non-persisted store [RESEARCH Pattern 2], the panel unmount does not abort it). When it finishes while another tab is active, the end-of-run toast offers «Revisar».
@@ -377,7 +377,7 @@ Vertical order, 32px gaps: (1) title row, (2) Alerts present (settings write fai
 
 **Title row (1):** left, Heading "Productos" with the two intro lines (12px muted). Right (wraps below the heading under 768px, each button full width and 44px under 640px): two columns, each a button (`outline`, 36px, icon 16px) with its 12px muted caption underneath. Buttons are never disabled with `disabled`; see Copywriting (`aria-disabled`).
 
-**Source of the data [D-03, D-04]:** the free set and the counts in the captions are computed from **all loaded invoices** (the unfiltered ledger), regardless of Dashboard filters, exclusions or whether the invoice counts. Which concept types are included (tipo P "Pago") is **[pending OQ2]**: the captions, the dialog counts and the golden numbers depend on it.
+**Source of the data [D-03, D-04]:** the free set and the counts in the captions are computed from **all loaded invoices** (the unfiltered ledger), regardless of Dashboard filters, exclusions or whether the invoice counts. **Every concept type is included [user-confirmed OQ2]**: tipo P ("Pago") and tipo E (credit notes) are sent like tipo I, so the captions and dialog counts include them (the sample has 227 distinct items, one of them the payment-complement concept «Pago»). No exclusion copy exists.
 
 ### Send flow and dialog [D-08, LLM-06]
 
@@ -401,7 +401,7 @@ Vertical order, 32px gaps: (1) title row, (2) Alerts present (settings write fai
 
 - **Order [default]:** "Agregar a" cards first, then groups with several members (members descending, then total lines descending), then singletons (lines descending, then name `es`). New batches append in this order; the position of cards the user is working on does not jump while a run is in progress (new cards are inserted only below the last card already shown, then the list re-sorts on the next filter or page change).
 - **Filter bar:** search `Input` (36px, 320px wide, full width under 640px) and a `ToggleGroup` (single selection, "Todas" default). Both narrow the list; the counts in the toggles are over all pending cards.
-- **Bulk bar [D-20]** (a `secondary` row: select-all checkbox "Seleccionar visibles", the selected count, "Aceptar seleccionadas", "Rechazar seleccionadas", and "Aceptar todas las visibles" at the right; wraps on narrow widths). "Visibles" = every card matching the active filter and search, including cards not yet shown by "Mostrar más" **[pending OQ6]**; the confirmation dialog states the exact count, so the user always sees how many will be created. "Aceptar seleccionadas" has no confirmation (the user picked each card) [default]. The page does nothing without one of these explicit actions.
+- **Bulk bar [D-20]** (a `secondary` row: select-all checkbox "Seleccionar visibles", the selected count, "Aceptar seleccionadas", "Rechazar seleccionadas", and "Aceptar todas las visibles" at the right; wraps on narrow widths). "Visibles" = every card matching the active filter and search, including cards not yet shown by "Mostrar más" **[user-confirmed OQ6]**; the confirmation dialog states the exact count, so the user always sees how many will be created. "Aceptar seleccionadas" has no confirmation (the user picked each card) [default]. The page does nothing without one of these explicit actions.
 - **Cards:** a `<ul>` of `<li>` cards, 16px gaps, 50 shown at first, «Mostrar {n} más» below. Card layout:
   - header row: card checkbox (bulk) + name `Input` (the proposed name, editable in place, 60 max, Enter or blur commits to the pending suggestion; errors under the input) + member count caption right-aligned ("3 descripciones"; singletons show no count);
   - member rows (min 44px): member checkbox, description (wraps), 12px muted caption "{proveedor} · {n} líneas" or the «Sin líneas cargadas» Badge, and the `Ban` icon button "No agrupar esta descripción" at the right;
@@ -419,7 +419,7 @@ Vertical order, 32px gaps: (1) title row, (2) Alerts present (settings write fai
 
 - Plain `Table` in a bordered block (24px padding) with `overflow-x-auto`; one row per supplier or product; order: suppliers first then products, each alphabetical (`es`) **[default]**; 50 rows then «Mostrar {n} más».
 - The Select is preselected with the suggested category (a user category, or the "Nueva: …" item). Changing it is allowed; "Sin categoría" is **not** an option here (that would be the same as rejecting). Accepting writes the supplier default category (same RFC + name assignment as P3 D-03 [D-18]) or the product category; a new category is created on the first accepted suggestion that uses it and reused by the rest [D-17]; a name equal (case-insensitive) to an existing category uses the existing one.
-- «Aceptar todas» applies every row with its current Select value (rows whose Select is empty are skipped and counted in the confirmation) [pending OQ6 for the confirmation].
+- «Aceptar todas» applies every row with its current Select value (rows whose Select is empty are skipped and counted in the confirmation) [user-confirmed OQ6: same confirmation as products; "visibles" = every row matching the active search, including rows not yet shown by «Mostrar más», with the exact count in the dialog].
 - Accepting a row removes it, shows the toast, and moves focus to the next row's Select (heading when last). Rejecting offers «Deshacer».
 
 ### "Mis productos" [D-14, D-15]
@@ -429,7 +429,7 @@ Vertical order, 32px gaps: (1) title row, (2) Alerts present (settings write fai
 - Changing the Select applies immediately and persists, no toast (the control shows the value); it changes the category of every concept of the product's members that has no concept rule [D-16]. Selecting «Sin categoría» removes the product's level (the concepts fall to the supplier's category) [D-16].
 - Rename: the Phase 3 inline pattern (pencil swaps the name for an Input; Enter saves, Esc cancels; focus returns to that row's pencil).
 - Delete: `Trash2` applies immediately, toast «Deshacer». Focus moves to the section heading. «Deshacer» restores the product with the same id, name, category and members. Deleting a product whose category is later deleted before undoing is handled by the pure reducer (the restored product's category falls back to none), not by the UI.
-- Quitar / Mover a member: toasts with «Deshacer»; the freed description joins the free set [D-15]. What happens to a product that loses its last member is **[pending OQ5]**.
+- Quitar / Mover a member: toasts with «Deshacer»; the freed description joins the free set [D-15]. A product that loses its last member (removed or moved) is deleted too, with the same «Deshacer» toast **[user-confirmed OQ5]**.
 - Product limit reached: the accept action shows the limit error; the list itself has no limit UI.
 
 ### «No agrupar» section [D-22]
@@ -466,9 +466,9 @@ Vertical order, 32px gaps: (1) title row, (2) Alerts present (settings write fai
 
 ## UI Considerations
 
-Probe run 2026-10-19 (ui-consideration-probe, 8 elements: E1 entry buttons and captions, E2 send dialog, E3 run card, E4 product-suggestion queue, E5 category-suggestion table, E6 "Mis productos", E7 «No agrupar» list, E8 concept Select with the product source). Element kinds were proposed by the researcher and **not confirmed by the user**; gaps are marked unresolved and tied to Open Questions. Empty/error COPY lives in the Copywriting Contract; rows reference it. Dismissals below were made by the researcher (no interactive session) and carry their reason.
+Probe run 2026-10-19 (ui-consideration-probe, 8 elements: E1 entry buttons and captions, E2 send dialog, E3 run card, E4 product-suggestion queue, E5 category-suggestion table, E6 "Mis productos", E7 «No agrupar» list, E8 concept Select with the product source). Element kinds were proposed by the researcher and **not confirmed by the user**; the three considerations that were unresolved were closed by the user's answers of 2026-10-19. Empty/error COPY lives in the Copywriting Contract; rows reference it. Dismissals below were made by the researcher (no interactive session) and carry their reason.
 
-Applicable state considerations resolved: 38 covered, 3 backstop, 3 unresolved (each tied to an Open Question), 7 dismissed with a reason (51 considerations).
+Applicable state considerations resolved: 41 covered, 3 backstop, 0 unresolved, 7 dismissed with a reason (51 considerations).
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
@@ -476,17 +476,17 @@ Applicable state considerations resolved: 38 covered, 3 backstop, 3 unresolved (
 | loading | E1 Entry buttons | ✅ covered | During a run both buttons are `aria-disabled` with the caption «Hay un proceso en curso»; progress lives in the run card. |
 | error | E1 Entry buttons | ✅ covered | Failures are reported by the run Alerts (see "Run progress"); the buttons themselves have no error state. |
 | long-text | E1 Entry buttons | dismissed | Fixed short labels and captions with only numeric interpolation. |
-| populated | E1 Entry buttons | ⚠ unresolved | The number shown in the caption depends on whether tipo P concepts are counted (OQ2); the planner treats the recommendation (exclude tipo P) as an assumption. |
+| populated | E1 Entry buttons | ✅ covered | Caption counts every free description of every loaded invoice, tipo P and tipo E included (user-confirmed OQ2). |
 | empty | E2 Send dialog | ✅ covered | The dialog never opens with zero items (the button is `aria-disabled`); a group with zero items is not rendered. |
 | loading | E2 Send dialog | dismissed | The payload is built synchronously in the browser from in-memory data; no loading indicator. |
 | error | E2 Send dialog | dismissed | The dialog performs no network call; failures happen after confirming and are shown by the run Alerts. |
-| populated | E2 Send dialog | ⚠ unresolved | The recommended "No se enviarán" group (sensitive-pattern guard) and the people/third-party sentence are not decided (OQ7, OQ1). |
+| populated | E2 Send dialog | ✅ covered | Summary, optional context/batch lines, the people/external-service sentence (user-confirmed OQ1) and the «No se enviarán ({n})» group for descriptions kept out by the sensitive-pattern guard, with the 200-character cut shown ending in "…" (user-confirmed OQ7). |
 | partial | E2 Send dialog | ✅ covered | Optional lines appear only when they apply (context names, "Se enviarán en {M} lotes.", categorize parts with zero count omitted). |
 | overflow | E2 Send dialog | ✅ covered | The literal list scrolls inside a `ScrollArea` of max 288px (about 227 rows on the first run); the dialog is capped at the viewport. |
 | zero-one-many | E2 Send dialog | ✅ covered | Singular/plural for every noun ("1 descripción de concepto", "1 nombre de proveedor"); the verb stays plural. |
 | long-text | E2 Send dialog | ✅ covered | Descriptions wrap in full inside the list; the cut applied by the builder ends in "…" so the list matches the payload. |
 | loading | E3 Run card | ✅ covered | Spinner + "Lote {k} de {M}" + caption «Esperando la respuesta de DeepSeek. Puede tardar hasta un minuto.»; Cancel enabled the whole time. |
-| error | E3 Run card | ⚠ unresolved | Ten failure messages are specified; the "Incomplete answer" message and whether it exists at all depend on OQ3 (omitted items fail the batch vs. local fallback). |
+| error | E3 Run card | ✅ covered | Ten failure messages are specified, including «DeepSeek dejó descripciones sin agrupar. Pulsa «Reintentar».»: a batch with omitted items is invalid, retried once, then failed with its items left free (user-confirmed OQ3). |
 | partial | E3 Run card | ✅ covered | Finished with failures: Alert «{n} lotes fallaron · Reintentar» keeps the batches that landed; stopped Alert for non-retryable conditions; canceled Alert. |
 | zero-one-many | E3 Run card | ✅ covered | "Lote 1 de 1" with the bar at 0 until the response lands; "1 lote falló"; counts in captions pluralize. |
 | long-text | E3 Run card | dismissed | Fixed copy with numeric interpolation only. |
@@ -512,7 +512,7 @@ Applicable state considerations resolved: 38 covered, 3 backstop, 3 unresolved (
 | populated | E6 Mis productos | ✅ covered | Sortable table, category Select, member count, expandable members sub-table, Deshacer toasts. |
 | partial | E6 Mis productos | ✅ covered | A product without category shows «Sin categoría» (muted) and contributes no level; members whose supplier has no loaded lines show «Sin líneas cargadas». |
 | overflow | E6 Mis productos | ✅ covered | Pagination above 50 rows; min width 880px inside `overflow-x-auto`. |
-| zero-one-many | E6 Mis productos | ✅ covered | "1 producto", "1 miembro"; the last-member behavior is pending OQ5 and does not change this row. |
+| zero-one-many | E6 Mis productos | ✅ covered | "1 producto", "1 miembro"; a product left without members is deleted with «Deshacer» (user-confirmed OQ5). |
 | long-text | E6 Mis productos | 🧪 backstop | Product name wraps to 2 lines then truncates with Tooltip; supplier cell `TruncatedText`; visual check of 60-character names. |
 | empty | E7 «No agrupar» list | ✅ covered | The collapsible is not rendered when there are no marks. |
 | populated | E7 «No agrupar» list | ✅ covered | Description + supplier + «Quitar marca»; closed by default; intro explains the effect. |
@@ -538,7 +538,7 @@ No third-party registries declared; the vetting gate does not apply. No package 
 
 ## User decisions
 
-None collected in this session: the UI researcher runs without an interactive channel. Everything locked comes from 04-CONTEXT.md. Every item that is not locked and changes what the user sees is in "Open Questions" below.
+Everything locked comes from 04-CONTEXT.md plus the seven answers the user gave on 2026-10-19 (recorded under "Resolved with the user" below; do not re-ask).
 
 ## Defaults taken (low-risk, not asked; listed so the checker and planner can see them)
 
@@ -559,76 +559,19 @@ Confirmed upstream (do not re-ask): everything in 04-CONTEXT.md D-01..D-28 and i
 
 ---
 
-## Open Questions
+## Resolved with the user (2026-10-19)
 
-Per CLAUDE.md §1 these go to the user before planning; each has a recommendation, none is decided. Items 1 to 4 are the ones the orchestrator flagged; 5 to 7 were found while designing the screens.
+The seven open questions of the first draft were answered by the user. All are now locked decisions and are marked **[user-confirmed OQn]** where they apply.
 
-### OQ1. Privacy copy: footer line and send dialog (RESEARCH OQ7)
-
-`es.global.privacyLine` says «Tus facturas se procesan en este navegador y no se suben a ningún servidor», shown on the loaded screen. After this phase it is false: descriptions and supplier names go to DeepSeek (supplier names can be people's names). The README statement has the same problem.
-
-| Option | Footer line | Send dialog |
-|--------|-------------|-------------|
-| **a (recommended)** | «Tus facturas se procesan en este navegador. Solo si lo pides, se envían a DeepSeek descripciones de conceptos y nombres de proveedor (nunca RFC, UUID ni montos).» | Add «Algunos nombres de proveedor pueden ser nombres de personas. DeepSeek es un servicio externo a esta aplicación.» |
-| b | Shorter: «Tus facturas se procesan en este navegador; a DeepSeek solo se envía lo que tú confirmas.» | Locked D-08 sentence only |
-| c | Leave unchanged (not recommended: the text would be false) | Locked D-08 sentence only |
-
-Also decide whether to name DeepSeek's country or data retention in the UI; the researcher did not verify DeepSeek's terms and the recommendation is not to assert either.
-
-### OQ2. Are "Pago" (tipo P) concepts sent? (RESEARCH OQ8)
-
-D-03 says all loaded invoices. In the sample, 1 of 227 distinct items is the payment-complement concept «Pago».
-
-| Option | Effect on the UI |
-|--------|------------------|
-| **a (recommended)** | Exclude tipo P concepts from the free set (they are not products); keep tipo E (credit notes have real product text). Caption and dialog counts exclude them. |
-| b | Send everything (literal D-03). The «Pago» item appears in the dialog and in the queue as a singleton. |
-| c | Exclude tipo P and tipo E. |
-
-### OQ3. When the model omits items (RESEARCH OQ9)
-
-D-11 says everything sent comes back as some suggested product.
-
-| Option | Effect on the UI |
-|--------|------------------|
-| **a (recommended)** | A batch with any missing, unknown or duplicated id is invalid: one retry, then the batch fails; its items stay free and the user sees «DeepSeek dejó descripciones sin agrupar. Pulsa «Reintentar».» |
-| b | Omitted items become singleton cards automatically (satisfies D-11 literally but hides model errors; no message exists). |
-
-### OQ4. Position of the "Productos" tab
-
-D-01 adds the tab but does not say where.
-
-| Option | Order |
-|--------|-------|
-| **a (recommended)** | Dashboard · Categorías · **Productos** · Calidad de datos · Importación (it belongs with categories; Phase 5 prices will grow in this tab) |
-| b | Dashboard · Categorías · Calidad de datos · **Productos** · Importación |
-| c | Dashboard · Categorías · Calidad de datos · Importación · **Productos** |
-
-### OQ5. Removing or moving the last member of an accepted product
-
-D-14/D-15 allow removing or moving a member but do not say what happens to a product left with zero members.
-
-| Option | Behavior |
-|--------|----------|
-| **a (recommended)** | The product is deleted too, with the same «Deshacer» toast («Producto «X» borrado porque se quedó sin descripciones · Deshacer»). |
-| b | The action is blocked with «Un producto necesita al menos una descripción. Bórralo si ya no lo quieres.» |
-| c | Keep the empty product (it would sit in the list with 0 members and no effect). |
-
-### OQ6. Confirmation for "Aceptar todas" of category suggestions, and the meaning of "visibles"
-
-D-20 gives a confirmation to "Aceptar todas las visibles" for products; D-23 only says «Aceptar todas» for category suggestions.
-
-| Option | Behavior |
-|--------|----------|
-| **a (recommended)** | Same confirmation dialog for both (title «¿Aceptar {n} sugerencias de categoría?»); "visibles" = every card/row matching the active filter and search, including those not yet shown by «Mostrar más», and the dialog states the exact count. |
-| b | No confirmation for category suggestions (rows are easy to fix afterwards in "Categoría por proveedor" and "Mis productos"); "visibles" = only the cards currently rendered on screen. |
-
-### OQ7. Guard for sensitive-looking descriptions (RESEARCH OQ10) and the description cap (RESEARCH OQ11)
-
-| Option | Behavior |
-|--------|----------|
-| **a (recommended)** | A small check keeps a description that looks like an RFC, UUID, e-mail or 8+ digit run out of the payload; the dialog lists those under «No se enviarán ({n})». Descriptions longer than 200 characters are cut, and the dialog shows the cut text ending in "…". Sample hits: 0 guarded, p99 length 191, max 250. |
-| b | No guard and no cut (the strict schema still rejects any extra field). |
+| # | Decision |
+|---|----------|
+| OQ1 | Privacy copy: new footer line («Tus facturas se procesan en este navegador. Solo si lo pides, se envían a DeepSeek descripciones de conceptos y nombres de proveedor (nunca RFC, UUID ni montos).»), the README statement changes with it, and the send dialog adds «Algunos nombres de proveedor pueden ser nombres de personas. DeepSeek es un servicio externo a esta aplicación.» DeepSeek's country and data retention are **not** asserted anywhere in the UI. |
+| OQ2 | Everything is sent (literal D-03): tipo P «Pago» concepts are **not** excluded and tipo E is sent too. Captions, dialog counts and wording include them; no exclusion copy exists. |
+| OQ3 | Omitted items: a batch with any missing, unknown or duplicated item is invalid, retried once, then failed; its items stay free and the user sees «DeepSeek dejó descripciones sin agrupar. Pulsa «Reintentar».» No local singleton fallback. |
+| OQ4 | Tab order: Dashboard · Categorías · Productos · Calidad de datos · Importación. |
+| OQ5 | Removing or moving the last member of an accepted product also deletes the product, with a «Deshacer» toast. |
+| OQ6 | «Aceptar todas» of category suggestions uses the same confirmation as products (title «¿Aceptar {n} sugerencias de categoría?»). "Visibles" = every card or row matching the active filter and search, including those not yet rendered by «Mostrar más», and the dialog states the exact count. |
+| OQ7 | A sensitive-pattern guard (RFC-, UUID-, e-mail- or 8+ digit-looking text) keeps matching descriptions out of the payload and lists them under «No se enviarán ({n})»; descriptions are cut at 200 characters and the dialog shows the cut text ending in "…". |
 
 ---
 
