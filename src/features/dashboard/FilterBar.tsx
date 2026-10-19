@@ -11,8 +11,10 @@ import {
   supplierOptions,
   type DateRange,
   type FilterOption,
+  type Filters,
 } from "@/domain/accounting/filters";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
+import { effectiveSelection } from "@/domain/accounting/view";
 import { useCategorySettings } from "@/features/categories/useCategorySettings";
 import { es } from "@/lib/copy/es";
 import {
@@ -39,11 +41,12 @@ function FilterTriggers(props: {
   suppliers: readonly FilterOption[];
   categories: readonly FilterOption[];
   formas: readonly FilterOption[];
+  /** The effective category selection: ids that no longer exist are not shown (WR-01). */
+  selectedCategories: ReadonlySet<string>;
 }) {
-  const { span, suppliers, categories, formas } = props;
+  const { span, suppliers, categories, formas, selectedCategories } = props;
   const range = useSessionStore((s) => s.filters.range);
   const selectedSuppliers = useSessionStore((s) => s.filters.suppliers);
-  const selectedCategories = useSessionStore((s) => s.filters.categories);
   const selectedFormas = useSessionStore((s) => s.filters.formas);
   const setRange = useSessionStore((s) => s.setRange);
   const setSuppliers = useSessionStore((s) => s.setSuppliers);
@@ -110,7 +113,7 @@ function Chip(props: { text: string; removeLabel: string; onRemove: () => void }
  */
 export function FilterBar(props: { ledger: readonly LedgerEntry[]; span: DateRange | null }) {
   const { ledger, span } = props;
-  const filters = useSessionStore((s) => s.filters);
+  const sessionFilters = useSessionStore((s) => s.filters);
   const setRange = useSessionStore((s) => s.setRange);
   const setSuppliers = useSessionStore((s) => s.setSuppliers);
   const setCategories = useSessionStore((s) => s.setCategories);
@@ -125,6 +128,20 @@ export function FilterBar(props: { ledger: readonly LedgerEntry[]; span: DateRan
     [ledger, resolver, settings.categories, nameOf],
   );
   const formas = useMemo(() => formaOptions(ledger, formaPagoLabel), [ledger]);
+
+  const knownCategories = useMemo(
+    () => new Set(settings.categories.map((category) => category.id)),
+    [settings.categories],
+  );
+  // An id of a deleted or replaced category is ignored, as selectView does (T-03-20, WR-01).
+  const effectiveCategories = useMemo(
+    () => effectiveSelection(sessionFilters.categories, knownCategories),
+    [sessionFilters.categories, knownCategories],
+  );
+  const filters = useMemo<Filters>(
+    () => ({ ...sessionFilters, categories: effectiveCategories }),
+    [sessionFilters, effectiveCategories],
+  );
 
   const hasRange = filters.range !== null;
   const hasSuppliers = filters.suppliers.size > 0;
@@ -141,7 +158,13 @@ export function FilterBar(props: { ledger: readonly LedgerEntry[]; span: DateRan
           data-testid="filter-triggers-desktop"
           className="flex flex-wrap items-center gap-2 max-sm:hidden"
         >
-          <FilterTriggers span={span} suppliers={suppliers} categories={categories} formas={formas} />
+          <FilterTriggers
+            span={span}
+            suppliers={suppliers}
+            categories={categories}
+            formas={formas}
+            selectedCategories={effectiveCategories}
+          />
         </div>
         <div data-testid="filter-fold" className="w-full sm:hidden">
           <Collapsible open={foldOpen} onOpenChange={setFoldOpen}>
@@ -151,7 +174,13 @@ export function FilterBar(props: { ledger: readonly LedgerEntry[]; span: DateRan
               {filtersButtonText(activeCount)}
             </CollapsibleTrigger>
             <CollapsibleContent className="flex flex-col gap-2 pt-2">
-              <FilterTriggers span={span} suppliers={suppliers} categories={categories} formas={formas} />
+              <FilterTriggers
+            span={span}
+            suppliers={suppliers}
+            categories={categories}
+            formas={formas}
+            selectedCategories={effectiveCategories}
+          />
             </CollapsibleContent>
           </Collapsible>
         </div>

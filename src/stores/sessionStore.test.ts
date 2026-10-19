@@ -304,6 +304,42 @@ describe("sessionStore", () => {
       expect([...after.suppliers]).toEqual(["RFC1"]);
     });
 
+    it("pruneCategoryFilter keeps only known ids and SIN_CATEGORIA, in a new Set (WR-01)", () => {
+      const suppliers = new Set(["RFC1"]);
+      useSessionStore.getState().setSuppliers(suppliers);
+      useSessionStore
+        .getState()
+        .setCategories(new Set(["seed:servicios", "seed:otros", SIN_CATEGORIA, "cat_x"]));
+      useSessionStore.getState().requestFocus("A");
+      const before = useSessionStore.getState();
+      useSessionStore.getState().pruneCategoryFilter(new Set(["seed:otros", "cat_a"]));
+      const after = useSessionStore.getState();
+      expect([...after.filters.categories]).toEqual(["seed:otros", "sin-categoria"]);
+      expect(after.filters.categories).not.toBe(before.filters.categories);
+      expect(after.filters.suppliers).toBe(suppliers);
+      expect(after.focusRequest).toBe(before.focusRequest);
+      expect(after.focusRequest).not.toBeNull();
+    });
+
+    it("pruneCategoryFilter leaves the filters object itself when nothing is dropped (WR-01)", () => {
+      const known = new Set(["seed:otros", "cat_a"]);
+      useSessionStore.getState().pruneCategoryFilter(known);
+      const empty = useSessionStore.getState().filters;
+      useSessionStore.getState().pruneCategoryFilter(known);
+      expect(useSessionStore.getState().filters).toBe(empty);
+
+      useSessionStore.getState().setCategories(new Set(["seed:otros", SIN_CATEGORIA]));
+      const before = useSessionStore.getState().filters;
+      useSessionStore.getState().pruneCategoryFilter(known);
+      expect(useSessionStore.getState().filters).toBe(before);
+    });
+
+    it("pruneCategoryFilter empties the selection when only unknown ids are selected (WR-01)", () => {
+      useSessionStore.getState().setCategories(new Set(["seed:servicios", "cat_x"]));
+      useSessionStore.getState().pruneCategoryFilter(new Set(["seed:otros"]));
+      expect(useSessionStore.getState().filters.categories.size).toBe(0);
+    });
+
     it("a category selection is never written to browser storage (D-15, CARGA-06)", () => {
       useSessionStore.getState().setCategories(new Set(["seed:servicios", SIN_CATEGORIA]));
       useSessionStore.getState().dropCategoryFromFilter("seed:servicios");

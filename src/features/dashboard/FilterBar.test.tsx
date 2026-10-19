@@ -399,4 +399,27 @@ describe("FilterBar category filter (FILT-03, D-15, D-28)", () => {
     fireEvent.click(fold().getByRole("button", { name: "Filtros · 1" }));
     expect(fold().getByRole("button", { name: /^Categoría/ })).toBeInTheDocument();
   });
+
+  it("WR-01: an id of a category that no longer exists is no filter at all", () => {
+    assignSuppliers();
+    renderBar();
+    set(() => useSessionStore.getState().setCategories(new Set(["borrada"])));
+    expect(chips().queryByText(/^Categoría/)).toBeNull();
+    expect(desktop().getByRole("button", { name: "Categoría" })).toBeInTheDocument();
+    expect(fold().getByRole("button", { name: "Filtros" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Quitar filtros" })).toBeNull();
+    expect(screen.queryByText(/borrada/)).toBeNull();
+  });
+
+  it("WR-01: the chip and the count name only existing categories, and the first toggle drops the unknown id", () => {
+    assignSuppliers();
+    renderBar();
+    set(() => useSessionStore.getState().setCategories(new Set(["borrada", LIMPIEZA])));
+    expect(chips().getByText("Categoría: Limpieza e higiene")).toBeInTheDocument();
+    expect(screen.queryByText(/borrada/)).toBeNull();
+    expect(fold().getByRole("button", { name: "Filtros · 1" })).toBeInTheDocument();
+    fireEvent.click(desktop().getByRole("button", { name: /^Categoría/ }));
+    set(() => fireEvent.click(screen.getByText("Sin categoría")));
+    expect([...filters().categories]).toEqual([LIMPIEZA, SIN]);
+  });
 });
