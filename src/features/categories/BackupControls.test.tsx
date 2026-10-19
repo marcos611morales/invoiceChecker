@@ -3,7 +3,8 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { BACKUP_APP, buildBackupText } from "@/domain/settings/backup";
-import type { SettingsData } from "@/domain/settings/types";
+import { SIN_CATEGORIA, type SettingsData } from "@/domain/settings/types";
+import type { SheetModel, XCell } from "@/features/export/cellModel";
 import { AppShell } from "@/features/shell/AppShell";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -17,6 +18,12 @@ vi.mock("sonner", () => ({ toast: toastMock }));
 
 const downloadMock = vi.hoisted(() => vi.fn<(blob: Blob, fileName: string) => void>());
 vi.mock("@/lib/client/download", () => ({ downloadBlob: downloadMock }));
+
+const writeMock = vi.hoisted(() => vi.fn<(sheets: SheetModel[]) => Promise<Blob>>());
+vi.mock("@/features/export/writeWorkbook", () => ({
+  EXPORT_TIMEOUT_MS: 30000,
+  writeWorkbook: writeMock,
+}));
 
 function Harness() {
   const [error, setError] = useState<BackupError | null>(null);
@@ -78,6 +85,8 @@ beforeEach(() => {
   resetSettingsStore();
   toastMock.mockReset();
   downloadMock.mockReset();
+  writeMock.mockReset();
+  writeMock.mockResolvedValue(new Blob(["PK"]));
 });
 
 afterEach(() => {
@@ -368,5 +377,75 @@ describe("Categorías tab with the backup controls (AJUS-02)", () => {
     // The category list now shows the file's categories (and the nine suggestions are gone).
     expect(screen.getAllByText("Eventos").length).toBeGreaterThan(0);
     expect(screen.queryByText("Limpieza e higiene")).toBeNull();
+  });
+
+  /** The Valor cell of the Parámetros row named `label` in the first workbook handed to the writer. */
+  function parameter(label: string): XCell | undefined {
+    const sheets = writeMock.mock.calls[0]?.[0];
+    const sheet = sheets?.find((candidate) => candidate.name === "Parámetros");
+    return sheet?.rows.find((row) => {
+      const first = row[0];
+      return first !== undefined && first.kind === "text" && first.value === label;
+    })?.[1];
+  }
+
+  function selectCategories(...ids: string[]): void {
+    act(() => {
+      useSessionStore.getState().setCategories(new Set(ids));
+    });
+  }
+
+  async function uploadAndConfirm(): Promise<void> {
+    await choose(jsonFile(buildBackupText(incoming()), "otro-navegador.json"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reemplazar mis ajustes" }));
+    await waitFor(() => {
+      expect(snapshot()).toEqual(incoming());
+    });
+  }
+
+  async function exportFromTopBar(): Promise<void> {
+    fireEvent.click(screen.getByRole("button", { name: "Exportar a Excel" }));
+    await waitFor(() => {
+      expect(writeMock).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  it("WR-01: confirming the replace keeps only existing categories in the chip and in Parámetros", async () => {
+    await renderShellOnCategories();
+    selectCategories("seed:limpieza-higiene", "seed:otros", SIN_CATEGORIA);
+    await uploadAndConfirm();
+    expect([...useSessionStore.getState().filters.categories].sort()).toEqual([
+      "seed:otros",
+      "sin-categoria",
+    ]);
+    fireEvent.click(screen.getByRole("tab", { name: "Dashboard" }));
+    expect(within(screen.getByTestId("filter-chips")).getByText("Categoría: Sin categoría, Otros")).toBeInTheDocument();
+    expect(screen.queryByText(/seed:limpieza-higiene/)).toBeNull();
+    await exportFromTopBar();
+    expect(parameter("Categorías")).toEqual({ kind: "text", value: "Sin categoría, Otros" });
+  });
+
+  it("WR-01: when only dropped ids were selected there is no Categoría chip and the file says Todas", async () => {
+    await renderShellOnCategories();
+    selectCategories("seed:limpieza-higiene");
+    await uploadAndConfirm();
+    expect(useSessionStore.getState().filters.categories.size).toBe(0);
+    fireEvent.click(screen.getByRole("tab", { name: "Dashboard" }));
+    expect(within(screen.getByTestId("filter-chips")).queryByText(/^Categoría/)).toBeNull();
+    await exportFromTopBar();
+    expect(parameter("Categorías")).toEqual({ kind: "text", value: "Todas" });
+  });
+
+  it("WR-01: «Conservar los míos» leaves the category filter untouched (D-08)", async () => {
+    await renderShellOnCategories();
+    selectCategories("seed:limpieza-higiene");
+    await choose(jsonFile(buildBackupText(incoming()), "otro-navegador.json"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Conservar los míos" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+    });
+    expect([...useSessionStore.getState().filters.categories]).toEqual(["seed:limpieza-higiene"]);
   });
 });
