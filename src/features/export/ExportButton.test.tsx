@@ -177,6 +177,31 @@ describe("ExportButton: context of the Parámetros sheet (XLS-01, XLS-02)", () =
     expect(parameter("Categorías")).toEqual({ kind: "text", value: "Sin categoría" });
     expect(parameter("Formas de pago")).toEqual({ kind: "text", value: formaPagoLabel("03") });
   });
+
+  it("WR-01: lists only the categories the figures use, never a raw id", async () => {
+    act(() => {
+      useSessionStore.getState().setCategories(new Set(["borrada", SIN_CATEGORIA]));
+    });
+    render(<ExportButton />);
+    fireEvent.click(exportButton());
+    await waitFor(() => {
+      expect(writeMock).toHaveBeenCalledTimes(1);
+    });
+    expect(parameter("Categorías")).toEqual({ kind: "text", value: "Sin categoría" });
+  });
+
+  it("WR-01: an unknown id alone is no filter: enabled button and «Todas»", async () => {
+    act(() => {
+      useSessionStore.getState().setCategories(new Set(["borrada"]));
+    });
+    render(<ExportButton />);
+    expect(exportButton()).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(exportButton());
+    await waitFor(() => {
+      expect(writeMock).toHaveBeenCalledTimes(1);
+    });
+    expect(parameter("Categorías")).toEqual({ kind: "text", value: "Todas" });
+  });
 });
 
 describe("ExportButton: pending state (E8 loading, XLS-01 concurrency)", () => {
