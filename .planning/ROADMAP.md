@@ -234,7 +234,55 @@ Plans:
   4. Al aceptar un producto agrupado con categoría, sus conceptos toman esa categoría salvo los que el usuario ajustó a mano; los conceptos sin grupo usan la categoría de su proveedor o quedan en "Sin categoría".
   5. Una llamada a las rutas del LLM sin sesión válida recibe 401, y la API key de DeepSeek no aparece en ningún archivo del bundle del cliente ni en ninguna respuesta al navegador.
 
-**Plans**: TBD
+**Plans:** 16 plans
+
+Plans:
+**Wave 1**
+- [ ] 04-01-PLAN.md — Tracer: pestaña Productos, «Agrupar productos», aviso con la lista literal, ruta protegida /api/llm/group, DeepSeek con fetch + zod y tarjetas de sugerencias
+
+**Wave 2** *(blocked on Wave 1 completion; the two plans run in parallel)*
+- [ ] 04-02-PLAN.md — Servidor: un reintento con plazo, taxonomía de errores, línea de log sin contenido, pruebas de no-fuga de la key, frontera de imports, escaneo del bundle y smoke de la ruta
+- [ ] 04-03-PLAN.md — Aceptar una tarjeta: ajustes versión 3 con productos y marcas «No agrupar» (D-13), migración desde la versión 2 y errores al aceptar
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 04-04-PLAN.md — Revisión en vivo con la key del usuario: set dorado (D-32), JSON con thinking deshabilitado, latencia y elección del límite de lote
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 04-05-PLAN.md — Mis productos: tabla con miembros, renombrar, borrar, quitar y mover miembros con Deshacer
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 04-06-PLAN.md — CAT-04: categoría del producto, precedencia concepto > producto > proveedor, «· del producto», Excel «Del producto» y borrar categoría con productos
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 04-07-PLAN.md — Archivo de ajustes versión 2 con productos y límite de 4 MB (D-31)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 04-08-PLAN.md — Cola pendiente guardada con clave propia (D-24, D-30), avisos de almacenamiento y contador de la pestaña
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 04-09-PLAN.md — Lotes por proveedor, «Lote N de M», «Detener lotes», fallos parciales con Reintentar y aviso al terminar
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [ ] 04-10-PLAN.md — Tarjetas: nombre editable, Rechazar y «No agrupar esta descripción» con su lista
+
+**Wave 10** *(blocked on Wave 9 completion; starts with a decision checkpoint)*
+- [ ] 04-11-PLAN.md — Nombres de contexto (decisión del usuario) y tarjetas «Agregar a «X»» (D-21)
+
+**Wave 11** *(blocked on Wave 10 completion)*
+- [ ] 04-12-PLAN.md — «Unir con…» y «Separar en producto nuevo» con Deshacer
+
+**Wave 12** *(blocked on Wave 11 completion)*
+- [ ] 04-13-PLAN.md — Revisión en bloque: orden, búsqueda, filtros, «Mostrar más» y «Aceptar todas las visibles»
+
+**Wave 13** *(blocked on Wave 12 completion)*
+- [ ] 04-14-PLAN.md — «Sugerir categorías» de punta a punta: ruta /api/llm/categorize y tabla de sugerencias
+
+**Wave 14** *(blocked on Wave 13 completion)*
+- [ ] 04-15-PLAN.md — «Aceptar todas» de categorías y guardia de patrones sensibles en ambos flujos
+
+**Wave 15** *(blocked on Wave 14 completion)*
+- [ ] 04-16-PLAN.md — Cierre: e2e con rutas simuladas, capturas de estados de UI, compuertas de la fase y revisión humana final
+
 **UI hint**: yes
 **Research flag**: sí — spike de DeepSeek antes de planear (calidad de agrupación en español, tasa de JSON vacío, modo JSON con thinking deshabilitado, latencia, tamaño de lote y `maxDuration` en Vercel Hobby). Candidata a `/gsd-ai-integration-phase`.
 
