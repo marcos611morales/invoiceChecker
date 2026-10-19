@@ -100,11 +100,14 @@ describe("buildParametros (XLS-01)", () => {
     });
   });
 
-  it("explains how excluded invoices appear", () => {
-    const sheet = buildParametros(viewOf(ENTRIES, RANGE, "con"), testContext("con"));
-    expect(valueOf(sheet, "Nota")).toEqual(
-      text("Las facturas excluidas a mano se listan con Estado «Excluida» y no suman."),
-    );
+  it("explains excluded invoices and the rounding to cents (D-20, WR-02)", () => {
+    // The confirmed copy (user, option-a, 2026-10-18), written out here so the test pins it.
+    const note =
+      "Las facturas excluidas a mano se listan con Estado «Excluida» y no suman. Cada monto está redondeado a centavos, por lo que la suma de una columna de montos puede diferir en unos centavos del Gasto total y de la fila Total de los resúmenes, que redondean la suma exacta.";
+    const con = buildParametros(viewOf(ENTRIES, RANGE, "con"), testContext("con"));
+    expect(valueOf(con, "Nota")).toEqual(text(note));
+    const sin = buildParametros(viewOf(ENTRIES, RANGE, "sin"), testContext("sin"));
+    expect(valueOf(sin, "Nota")).toEqual(text(note));
   });
 
   it("writes a dash for the range and the variation months when there is no range", () => {
