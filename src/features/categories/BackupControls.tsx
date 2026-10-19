@@ -33,6 +33,7 @@ import {
   replaceSummaryText,
   settingsDownloadedToast,
 } from "@/lib/copy/messages";
+import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 
 /** Why the last chosen file was refused, kept by the tab while its Alert is shown. */
@@ -164,6 +165,10 @@ export function BackupControls({ onError }: { onError: (error: BackupError | nul
               onClick={() => {
                 if (pending !== null) {
                   replaceAll(pending.settings);
+                  // A restored file can drop categories that are selected in the Dashboard filter; they must not stay selected (WR-01, like T-03-38 on delete).
+                  useSessionStore
+                    .getState()
+                    .pruneCategoryFilter(new Set(pending.settings.categories.map((category) => category.id)));
                   toast(es.categories.backup.replacedToast);
                 }
                 setOpen(false);

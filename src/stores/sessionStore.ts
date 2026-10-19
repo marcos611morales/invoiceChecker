@@ -4,6 +4,7 @@ import {
   type DateRange,
   type Filters,
 } from "@/domain/accounting/filters";
+import { effectiveSelection } from "@/domain/accounting/view";
 import { applyBatch, emptyImportState } from "@/domain/import/applyBatch";
 import type {
   BatchEntry,
@@ -78,6 +79,12 @@ interface SessionState extends ImportState {
   setCategories: (next: ReadonlySet<string>) => void;
   /** Takes a deleted category out of the category filter; changes nothing when the id is not selected (T-03-38). */
   dropCategoryFromFilter: (id: string) => void;
+  /**
+   * Keeps in the category filter only SIN_CATEGORIA and the ids in `known` (effectiveSelection). Called
+   * after the settings are replaced so no category id from the old settings stays selected (WR-01);
+   * changes nothing, with no set call, when no id is dropped.
+   */
+  pruneCategoryFilter: (known: ReadonlySet<string>) => void;
   /**
    * Adds the category to the category filter (a set: one already selected stays as it is), clears any
    * pending focus request and bumps `revealRequest` so the Facturas table comes into view (D-18).
@@ -164,6 +171,12 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     const { filters } = get();
     if (!filters.categories.has(id)) return;
     set({ filters: { ...filters, categories: withoutUuid(filters.categories, id) } });
+  },
+  pruneCategoryFilter: (known) => {
+    const { filters } = get();
+    const effective = effectiveSelection(filters.categories, known);
+    if (effective.size === filters.categories.size) return;
+    set({ filters: { ...filters, categories: effective } });
   },
   revealCategory: (key) =>
     set((current) => ({

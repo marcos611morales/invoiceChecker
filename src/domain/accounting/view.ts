@@ -73,8 +73,10 @@ export interface DashboardView {
 /**
  * A selection can hold ids of categories deleted meanwhile; they are ignored so a stale
  * id can never hide every invoice (T-03-20). Only stale ids left selected means no filter.
+ * It is also the rule the session store uses to prune the filter after «Subir ajustes» and the
+ * rule FilterBar and the export read, so screen, figures and file agree (WR-01).
  */
-function effectiveSelection(
+export function effectiveSelection(
   selected: ReadonlySet<string>,
   known: ReadonlySet<string>,
 ): ReadonlySet<string> {
