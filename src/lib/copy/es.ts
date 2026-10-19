@@ -414,7 +414,8 @@ export const es = {
       total: "Gasto total",
       variationMonth: "Mes de la variación",
       note: "Nota",
-      noteText: "Las facturas excluidas a mano se listan con Estado «Excluida» y no suman.",
+      noteText:
+        "Las facturas excluidas a mano se listan con Estado «Excluida» y no suman. Cada monto está redondeado a centavos, por lo que la suma de una columna de montos puede diferir en unos centavos del Gasto total y de la fila Total de los resúmenes, que redondean la suma exacta.",
       all: "Todos",
       allFem: "Todas",
       none: "—",

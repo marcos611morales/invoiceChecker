@@ -3,7 +3,9 @@
  * can reproduce it. Two columns, Parámetro and Valor. Every value is a text cell (format @), so
  * a supplier or category name that starts with = + - or @ is never evaluated (T-03-41); the only
  * numbers are the invoice count (the Facturas KPI, A-1) and the Gasto total, both read from
- * `view.current` so they equal the Dashboard.
+ * `view.current` so they equal the Dashboard. The Nota also says that each amount is rounded to
+ * cents, so a column sum can differ by cents from the Gasto total and the summary Total rows
+ * (D-20, WR-02).
  */
 import type { DashboardView } from "@/domain/accounting/view";
 import { es } from "@/lib/copy/es";
