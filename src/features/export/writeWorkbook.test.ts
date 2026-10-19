@@ -1,6 +1,34 @@
 import { describe, expect, it } from "vitest";
+import type { Sheet } from "write-excel-file/universal";
 import type { SheetModel } from "./cellModel";
 import { EXPORT_TIMEOUT_MS, writeWorkbook, type WriterModule } from "./writeWorkbook";
+
+/**
+ * A loader that records the sheets the writer library receives (WR-03) and still hands them
+ * to the real library, so the file is really written. This lets the tests check what reaches
+ * the library without unzipping the result (D-29).
+ */
+function capturingLoader(): {
+  loader: () => Promise<WriterModule>;
+  calls: Sheet<Blob>[][];
+} {
+  const calls: Sheet<Blob>[][] = [];
+  const loader = async (): Promise<WriterModule> => {
+    const real: WriterModule = await import("write-excel-file/universal");
+    return {
+      default: (sheets) => {
+        calls.push(sheets);
+        return real.default(sheets);
+      },
+    };
+  };
+  return { loader, calls };
+}
+
+async function startsWithPk(blob: Blob): Promise<boolean> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  return String.fromCharCode(bytes[0] ?? 0, bytes[1] ?? 0) === "PK";
+}
 
 const MODEL: SheetModel = {
   name: "Resumen por mes",
@@ -35,10 +63,16 @@ describe("writeWorkbook (D-24)", () => {
     expect(String.fromCharCode(bytes[0] ?? 0, bytes[1] ?? 0)).toBe("PK");
   });
 
-  it("writes several sheets", async () => {
+  it("writes several sheets, in order (WR-03)", async () => {
     const second: SheetModel = { ...MODEL, name: "Otra" };
-    const blob = await writeWorkbook([MODEL, second]);
-    expect(blob.size).toBeGreaterThan(0);
+    const { loader, calls } = capturingLoader();
+    const blob = await writeWorkbook([MODEL, second], EXPORT_TIMEOUT_MS, loader);
+    expect(calls).toHaveLength(1);
+    const received = calls[0] ?? [];
+    expect(received).toHaveLength(2);
+    expect(received.map((sheet) => sheet.sheet)).toEqual(["Resumen por mes", "Otra"]);
+    expect(received.map((sheet) => sheet.stickyRowsCount)).toEqual([1, 1]);
+    expect(await startsWithPk(blob)).toBe(true);
   });
 
   it("writes every kind of cell, including an empty Total cell and a date", async () => {
