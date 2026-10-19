@@ -47,7 +47,7 @@ The table is a **non-exhaustive** list of known-good components for this phase, 
 | Component | Import path | Notes |
 |-----------|-------------|-------|
 | Tabs | `@/components/ui/tabs` | Fifth tab "Productos" with a pending counter, same pattern as "Calidad de datos · n" [D-01]. Installed. |
-| Button | `@/components/ui/button` | "Agrupar productos", "Sugerir categorías", "Cancelar", row/card actions: `outline`; row actions that are secondary: `ghost`; `default` (accent) **only** for the confirm buttons of the two modal dialogs (see Color). Installed. |
+| Button | `@/components/ui/button` | "Agrupar productos", "Sugerir categorías", "Detener lotes", row/card actions: `outline`; row actions that are secondary: `ghost`; `default` (accent) **only** for the confirm buttons of the two modal dialogs (see Color). Installed. |
 | AlertDialog | `@/components/ui/alert-dialog` | Privacy / send dialog [D-08] (widened, see Spacing) and the "Aceptar todas las visibles" confirmation [D-20]. Focus lands on the dismiss button; Esc dismisses; overlay click does not (Base UI AlertDialog, as Phase 3). Installed. |
 | Collapsible | `@/components/ui/collapsible` | "Ver exactamente qué se envía" disclosure [D-08] and the «No agrupar» section. Installed. |
 | ScrollArea | `@/components/ui/scroll-area` | The literal send list (max 288px) and the "Unir con…" list. Installed. |
@@ -92,7 +92,7 @@ Exceptions (all multiples of 4, outside the 7-step scale on purpose):
 - "Unir con…" / "Mover a…" popover: width 320px (full width of its trigger under 640px), list max height 288px, items 36px (44px under 640px). Same width as the category filter popover.
 - Suggested-category table: min width 760px inside `overflow-x-auto` (the page never scrolls horizontally); row min height 56px; Select trigger width 240px (full width of its cell under 640px); actions column 220px.
 - "Mis productos" table: row min height 56px; table min width 880px inside `overflow-x-auto`; Select trigger width 240px; actions column 96px; the expand column 48px.
-- Run card: same padding as `ProcessingIndicator` (`gap-3 px-4`); Progress bar 8px tall; the "Cancelar" button 36px (44px under 640px) on the right of the first line (wraps under the text below 640px).
+- Run card: same padding as `ProcessingIndicator` (`gap-3 px-4`); Progress bar 8px tall; the "Detener lotes" button 36px (44px under 640px) on the right of the first line (wraps under the text below 640px).
 - Concept category Select: the "del producto" suffix block is capped at 120px for the product name (see Layout → Concept panel); trigger min width stays 240px.
 - Tab list: five triggers; the list keeps the Phase 3 behavior (horizontal scroll under 640px, 44px height).
 
@@ -139,7 +139,7 @@ Rules:
 
 Accent reserved for (Phase 3 list, items 3 and 6 extend to this phase; **item 7 is new**; nothing else):
 
-1. Primary buttons: "Entrar", "Seleccionar archivos", "Agregar facturas" (still the only accent-filled button on any **non-modal** screen; "Agrupar productos", "Sugerir categorías", "Aceptar", "Unir con…", "Cancelar" and every other button in this phase are `outline` or `ghost`).
+1. Primary buttons: "Entrar", "Seleccionar archivos", "Agregar facturas" (still the only accent-filled button on any **non-modal** screen; "Agrupar productos", "Sugerir categorías", "Aceptar", "Unir con…", "Detener lotes" and every other button in this phase are `outline` or `ghost`).
 2. Dropzone drag-over state and the window drop overlay border.
 3. Progress bar fill (now also the "Lote N de M" bar).
 4. The active sort icon in any table header (including "Mis productos").
@@ -202,7 +202,7 @@ Opens before **every** send (also for "Reintentar" and for a repeated press). No
 | Disclosure group headings (14/600) | Descripciones y proveedores ({N}) · Productos existentes, solo como contexto ({n}) · Proveedores sin categoría ({m}) · Productos sin categoría ({p}) · Tus categorías ({c}) |
 | List row | {descripción} (14/400, wraps) and {proveedor} (12px muted, same row, wraps under on narrow widths). Product rows in "Sugerir categorías" list their member descriptions beneath the product name (12px muted). The text is exactly the text that travels, including any cut applied by the builder, which ends in "…". |
 | Group not sent [user-confirmed OQ7] | No se enviarán ({n}): contienen algo que parece un RFC, un UUID, un correo o un número largo. |
-| Buttons **[D-08, locked]** | Cancelar (dismiss, default focus) · Enviar a DeepSeek (accent) |
+| Buttons **[D-08; dismiss label replaced by the user, 2026-10-19]** | No enviar (dismiss, default focus; closes the dialog and sends nothing) · Enviar a DeepSeek (accent) |
 
 ### Run progress, cancel and result [D-26, D-27, LLM-05, RESEARCH]
 
@@ -212,8 +212,8 @@ Opens before **every** send (also for "Reintentar" and for a repeated press). No
 | Run card line 1, categorize | Sugiriendo categorías · Lote {k} de {M} |
 | Run card caption (12px muted) | Esperando la respuesta de DeepSeek. Puede tardar hasta un minuto. |
 | Run card caption after at least one batch landed | {n} sugerencias nuevas en la cola. Ya puedes empezar a revisarlas. |
-| Cancel button | Cancelar |
-| Cancelling state (button inert, `aria-busy`) | Cancelando… |
+| Stop button **[D-26; label replaced by the user, 2026-10-19]** | Detener lotes (stops the remaining batches and keeps the ones already received) |
+| Stopping state (button inert, `aria-busy`) | Deteniendo… |
 | Canceled Alert (Info, role `status`, dismissible, close `aria-label` "Cerrar aviso") | Proceso cancelado. Llegaron {n} sugerencias nuevas y están en la cola; las descripciones de los lotes que faltaron siguen libres. |
 | Finished toast (also announced) | DeepSeek terminó: {n} sugerencias de productos por revisar ("1 sugerencia") · for categories: "DeepSeek terminó: {n} sugerencias de categoría por revisar" |
 | Finished toast action, only when the Productos tab is not the active one | Revisar (switches to the tab and focuses the section heading) |
@@ -362,7 +362,7 @@ Distinct failure messages (one per condition of the RESEARCH error taxonomy; the
 |--------|---------------------|-----------------------|
 | Productos tab, with pending suggestions | The "Sugerencias de productos" queue (first section after the title row) | Heading 20/600, bordered cards, the first card's name input and "Aceptar" visible without scrolling on desktop. |
 | Productos tab, nothing pending | The two entry buttons in the title row | They are the only controls above the `Empty` state or the accepted list. |
-| Send dialog | The summary sentence, then "Enviar a DeepSeek" | Summary is the first text; the literal list is collapsed until requested; default focus is on «Cancelar» so Enter never sends by accident. |
+| Send dialog | The summary sentence, then "Enviar a DeepSeek" | Summary is the first text; the literal list is collapsed until requested; default focus is on «No enviar» so Enter never sends by accident. |
 
 ### Shell and tabs [D-01]
 
@@ -383,7 +383,7 @@ Vertical order, 32px gaps: (1) title row, (2) Alerts present (settings write fai
 
 1. Press the entry button. If nothing is free, nothing opens (caption already says so).
 2. The send dialog opens. The summary and the list are generated from **the very object that will be serialized as the request body** (what you see is what is sent; RESEARCH Pattern 4). If a run needs M batches, the dialog covers the whole run (N items, "Se enviarán en M lotes.").
-3. «Enviar a DeepSeek» closes the dialog, starts the run and moves focus to the run card's «Cancelar» button. «Cancelar» (or Esc) closes it and sends nothing; focus returns to the entry button.
+3. «Enviar a DeepSeek» closes the dialog, starts the run and moves focus to the run card's «Detener lotes» button. «No enviar» (or Esc) closes it and sends nothing; focus returns to the entry button.
 4. The disclosure («Ver exactamente qué se envía») is a `Collapsible` closed by default, `aria-expanded`; content in a `ScrollArea` (max 288px), grouped as in the copy table, each group with its heading. Long lists scroll inside the dialog; the dialog itself never exceeds the viewport (max height viewport minus 32px, content scrolls).
 5. Under 640px the dialog buttons stack (primary last), 44px tall.
 
@@ -392,7 +392,7 @@ Vertical order, 32px gaps: (1) title row, (2) Alerts present (settings write fai
 - Appears in position (3) as soon as a run starts and stays until it ends. States: **running**, **cancelling**, **finished** (card disappears, toast), **finished with failures** (card disappears, partial-failure Alert), **stopped** (non-retryable condition, Alert), **canceled** (Info Alert).
 - The Progress bar fill = completed batches ÷ M (accent, 8px, `aria-label` "Progreso de los lotes", `aria-valuenow/min/max`). A request is not streamed, so there is no intra-batch progress: the Spinner beside "Lote {k} de {M}" shows that the current batch is in flight. With M = 1 the bar stays at 0 until the response lands (the Spinner and the caption carry the feedback); **no indeterminate animation is added**, so nothing needs a reduced-motion fallback.
 - The status text container is `aria-live="polite"` and `aria-atomic="true"`; it updates when a batch starts or ends, at most once per batch.
-- «Cancelar» is enabled the whole time. Pressing it sets "Cancelando…" (inert, `aria-busy`), stops later batches, keeps what already arrived, and ends in the canceled Alert. Nothing from the cancelled batch is enqueued.
+- «Detener lotes» is enabled the whole time. Pressing it sets "Deteniendo…" (inert, `aria-busy`), stops later batches, keeps what already arrived, and ends in the canceled Alert. Nothing from the cancelled batch is enqueued.
 - The two entry buttons are `aria-disabled` while a run is active (single run slot).
 - A batch that fails shows nothing while the run continues; failures are summarized at the end ("{n} lotes fallaron · Reintentar") with the last reason underneath. A non-retryable condition stops the run after that batch with the stopped Alert (no further batches are sent).
 - Clearing all invoices ("Quitar todas") while a run is active cancels the run **[default]**; pending cards stay.
@@ -485,7 +485,7 @@ Applicable state considerations resolved: 41 covered, 3 backstop, 0 unresolved, 
 | overflow | E2 Send dialog | ✅ covered | The literal list scrolls inside a `ScrollArea` of max 288px (about 227 rows on the first run); the dialog is capped at the viewport. |
 | zero-one-many | E2 Send dialog | ✅ covered | Singular/plural for every noun ("1 descripción de concepto", "1 nombre de proveedor"); the verb stays plural. |
 | long-text | E2 Send dialog | ✅ covered | Descriptions wrap in full inside the list; the cut applied by the builder ends in "…" so the list matches the payload. |
-| loading | E3 Run card | ✅ covered | Spinner + "Lote {k} de {M}" + caption «Esperando la respuesta de DeepSeek. Puede tardar hasta un minuto.»; Cancel enabled the whole time. |
+| loading | E3 Run card | ✅ covered | Spinner + "Lote {k} de {M}" + caption «Esperando la respuesta de DeepSeek. Puede tardar hasta un minuto.»; «Detener lotes» enabled the whole time. |
 | error | E3 Run card | ✅ covered | Ten failure messages are specified, including «DeepSeek dejó descripciones sin agrupar. Pulsa «Reintentar».»: a batch with omitted items is invalid, retried once, then failed with its items left free (user-confirmed OQ3). |
 | partial | E3 Run card | ✅ covered | Finished with failures: Alert «{n} lotes fallaron · Reintentar» keeps the batches that landed; stopped Alert for non-retryable conditions; canceled Alert. |
 | zero-one-many | E3 Run card | ✅ covered | "Lote 1 de 1" with the bar at 0 until the response lands; "1 lote falló"; counts in captions pluralize. |
@@ -571,6 +571,7 @@ The seven open questions of the first draft were answered by the user. All are n
 | OQ4 | Tab order: Dashboard · Categorías · Productos · Calidad de datos · Importación. |
 | OQ5 | Removing or moving the last member of an accepted product also deletes the product, with a «Deshacer» toast. |
 | OQ6 | «Aceptar todas» of category suggestions uses the same confirmation as products (title «¿Aceptar {n} sugerencias de categoría?»). "Visibles" = every card or row matching the active filter and search, including those not yet rendered by «Mostrar más», and the dialog states the exact count. |
+| Labels | Revision 1 (checker Dimension 1, generic "Cancelar" not allowed): the send dialog dismiss button is «No enviar» (default focus; closes the dialog and sends nothing) and the run card stop button is «Detener lotes» (stops the remaining batches and keeps the ones already received; its in-progress state reads «Deteniendo…»). These two labels replace the wording of D-08 («Cancelar») and D-26 («Cancelar») at the user's request; behaviour is unchanged. |
 | OQ7 | A sensitive-pattern guard (RFC-, UUID-, e-mail- or 8+ digit-looking text) keeps matching descriptions out of the payload and lists them under «No se enviarán ({n})»; descriptions are cut at 200 characters and the dialog shows the cut text ending in "…". |
 
 ---
