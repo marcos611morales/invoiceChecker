@@ -1,14 +1,18 @@
 ---
-status: diagnosed
+status: testing
 phase: 03-categor-as-propias-y-exportaci-n-a-excel
 source: [03-VERIFICATION.md]
 started: 2026-10-18T17:16:29Z
-updated: 2026-10-18T23:22:41.795Z
+updated: 2026-10-19T16:36:02Z
 ---
 
 ## Current Test
 
-[testing complete]
+number: 8
+name: WR-01 fix with real data — restoring settings never leaves a raw category id in the chip or in Parámetros
+expected: |
+  In the production build with the real XML, with a «Limpieza e higiene» + «Otros» category filter active, «Subir ajustes» a settings file and confirm. The FilterBar chip reads «Categoría: Otros» (never a seed:… or cat_… id), and the exported Parámetros «Categorías» row reads «Otros».
+awaiting: user response
 
 ## Tests
 
@@ -42,12 +46,16 @@ result: issue
 reported: "pass — triage decisions: WR-01 fix now; WR-02 fix by adding a rounding note to Parámetros; WR-03 fix with real assertions via the injected loader"
 severity: major
 
+### 8. WR-01 fix with real data — restoring settings never leaves a raw category id in the chip or in Parámetros (re-verification after gap closure 03-18).
+expected: In the production build with the real XML, with a «Limpieza e higiene» + «Otros» category filter active, «Subir ajustes» a settings file and confirm. The FilterBar chip reads «Categoría: Otros» (never a seed:… or cat_… id), and the exported Parámetros «Categorías» row reads «Otros».
+result: [pending]
+
 ## Summary
 
-total: 7
+total: 8
 passed: 6
 issues: 1
-pending: 0
+pending: 1
 skipped: 0
 blocked: 0
 
