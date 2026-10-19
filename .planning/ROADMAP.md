@@ -159,7 +159,7 @@ Plans:
   4. El usuario descarga un Excel con las hojas Facturas, Conceptos, Resumen por categoría, Resumen por proveedor, Resumen por mes y Parámetros (filtros y modo IVA usados), que respeta los filtros activos y el modo con/sin IVA.
   5. En el Excel los montos son números con formato MXN, las fechas son fechas y RFC, UUID y folio son texto, y los totales coinciden con los del dashboard para el mismo filtro y modo.
 
-**Plans:** 17/20 plans executed (3 gap closure plans from UAT pending)
+**Plans:** 20/20 plans executed (3 gap closure plans from UAT pending)
 
 Plans:
 **Wave 1**
@@ -214,9 +214,9 @@ Plans:
 - [x] 03-17-PLAN.md — Cierre: e2e de clasificación, persistencia y respaldo entre perfiles, barra responsiva (Q9) y revisión humana en Excel
 
 **Wave 18** *(gap closure G-03-7-WR01, G-03-7-WR02, G-03-7-WR03; blocked on Wave 17 completion; the three plans run in parallel)*
-- [ ] 03-18-PLAN.md — WR-01: «Subir ajustes» quita del filtro de categoría los ids que ya no existen; el chip y la hoja «Parámetros» leen la selección efectiva (nunca un id crudo)
-- [ ] 03-19-PLAN.md — WR-02: nota de redondeo a centavos añadida a la «Nota» de «Parámetros» con el texto que confirmó el usuario (opción a, 2026-10-18), y D-20 actualizada (aviso, no montos sin redondear)
-- [ ] 03-20-PLAN.md — WR-03: las pruebas de writeWorkbook revisan, con el loader inyectado, las hojas que recibe la biblioteca (nombres, «=1+1» como texto «@», NaN vacío), sin fflate ni unzip (D-29)
+- [x] 03-18-PLAN.md — WR-01: «Subir ajustes» quita del filtro de categoría los ids que ya no existen; el chip y la hoja «Parámetros» leen la selección efectiva (nunca un id crudo)
+- [x] 03-19-PLAN.md — WR-02: nota de redondeo a centavos añadida a la «Nota» de «Parámetros» con el texto que confirmó el usuario (opción a, 2026-10-18), y D-20 actualizada (aviso, no montos sin redondear)
+- [x] 03-20-PLAN.md — WR-03: las pruebas de writeWorkbook revisan, con el loader inyectado, las hojas que recibe la biblioteca (nombres, «=1+1» como texto «@», NaN vacío), sin fflate ni unzip (D-29)
 
 **UI hint**: yes
 **Research flag**: ligero — confirmar en ejecución real write-excel-file (`/universal`) y la API de la versión elegida de TanStack Table (solo se verificaron en compilación).
@@ -263,6 +263,6 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
-| 3. Categorías propias y exportación a Excel | 17/17 | In Progress | - |
+| 3. Categorías propias y exportación a Excel | 20/20 | In Progress | - |
 | 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
