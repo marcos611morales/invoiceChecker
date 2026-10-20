@@ -7,6 +7,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -20,6 +21,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { GroupRun } from "@/domain/llm/candidates";
 import { es } from "@/lib/copy/es";
+import { groupSendSummary, itemsGroupHeading } from "@/lib/copy/messages";
 
 /**
  * Privacy dialog shown before every send (D-08, LLM-06). The rows are rendered from
@@ -40,6 +42,7 @@ export function SendDialog({
   onConfirm: () => void;
 }) {
   const dismissRef = useRef<HTMLButtonElement>(null);
+  const sent = run.batches.reduce((sum, batch) => sum + batch.body.items.length, 0);
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent
@@ -50,6 +53,8 @@ export function SendDialog({
           <AlertDialogTitle className="text-xl leading-[1.2] font-semibold">
             {es.products.dialog.title}
           </AlertDialogTitle>
+          <AlertDialogDescription>{groupSendSummary(sent, run.suppliers)}</AlertDialogDescription>
+          <p className="text-sm text-muted-foreground">{es.products.dialog.peopleLine}</p>
         </AlertDialogHeader>
         <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
           <Collapsible>
@@ -61,21 +66,26 @@ export function SendDialog({
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2">
               <ScrollArea className="max-h-72 rounded-lg border [&_[data-slot=scroll-area-viewport]]:max-h-72">
-                <ul className="flex flex-col">
-                  {run.batches.map((batch, batchIndex) =>
-                    batch.body.items.map((item) => (
-                      <li
-                        key={`${String(batchIndex)}-${item.id}`}
-                        className="flex flex-col gap-0.5 border-b px-3 py-2 last:border-b-0"
-                      >
-                        <span className="text-sm break-words">{item.description}</span>
-                        <span className="text-xs break-words text-muted-foreground">
-                          {item.supplier}
-                        </span>
-                      </li>
-                    )),
-                  )}
-                </ul>
+                {sent > 0 ? (
+                  <section className="flex flex-col">
+                    <h3 className="px-3 pt-2 text-sm font-semibold">{itemsGroupHeading(sent)}</h3>
+                    <ul className="flex flex-col">
+                      {run.batches.map((batch, batchIndex) =>
+                        batch.body.items.map((item) => (
+                          <li
+                            key={`${String(batchIndex)}-${item.id}`}
+                            className="flex flex-col gap-0.5 border-b px-3 py-2 last:border-b-0"
+                          >
+                            <span className="text-sm break-words">{item.description}</span>
+                            <span className="text-xs break-words text-muted-foreground">
+                              {item.supplier}
+                            </span>
+                          </li>
+                        )),
+                      )}
+                    </ul>
+                  </section>
+                ) : null}
               </ScrollArea>
             </CollapsibleContent>
           </Collapsible>

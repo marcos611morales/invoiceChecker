@@ -21,7 +21,7 @@ export const es = {
       toLight: "Cambiar a tema claro",
     },
     privacyLine:
-      "Tus facturas se procesan en este navegador y no se suben a ningún servidor",
+      "Tus facturas se procesan en este navegador. Solo si lo pides, se envían a DeepSeek descripciones de conceptos y nombres de proveedor (nunca RFC, UUID ni montos).",
     reloadNote:
       "Por privacidad, las facturas no se guardan; vuelve a soltarlas para analizarlas",
   },
@@ -147,6 +147,7 @@ export const es = {
     ariaLabel: "Secciones",
     dashboard: "Dashboard",
     categories: "Categorías",
+    products: "Productos",
     quality: "Calidad de datos",
     import: "Importación",
   },
@@ -438,11 +439,39 @@ export const es = {
     intro2:
       "Lo que aceptas se guarda en este navegador y va en tu archivo de ajustes. Las sugerencias pendientes también se guardan aquí, pero no van en el archivo.",
     groupButton: "Agrupar productos",
+    noneFree: "No hay descripciones nuevas para agrupar",
+    runActive: "Hay un proceso en curso",
+    noLines: "Sin líneas cargadas",
+    queueIntro:
+      "Revisa cada grupo. Puedes cambiar el nombre, separar descripciones o unir grupos antes de aceptar.",
+    closeAlert: "Cerrar aviso",
+    signIn: "Iniciar sesión",
     dialog: {
       title: "¿Enviar estos datos a DeepSeek?",
+      peopleLine:
+        "Algunos nombres de proveedor pueden ser nombres de personas. DeepSeek es un servicio externo a esta aplicación.",
       disclosure: "Ver exactamente qué se envía",
       dismiss: "No enviar",
       confirm: "Enviar a DeepSeek",
+    },
+    /** One message per condition of the error taxonomy; each states the problem and the next step. */
+    failures: {
+      unauthorized: "Tu sesión terminó. Vuelve a iniciar sesión para continuar.",
+      serverNotConfigured:
+        "DeepSeek no está configurado en el servidor. Avisa a quien administra la aplicación.",
+      upstreamAuth:
+        "DeepSeek rechazó la clave de acceso del servidor. Avisa a quien administra la aplicación.",
+      upstreamBalance:
+        "La cuenta de DeepSeek no tiene saldo. Recárgala y vuelve a intentarlo.",
+      overloaded:
+        "DeepSeek está saturado o no responde. Espera un momento y pulsa «Reintentar».",
+      timeout: "DeepSeek tardó demasiado en responder. Pulsa «Reintentar».",
+      invalid: "DeepSeek respondió algo que no se pudo usar. Pulsa «Reintentar».",
+      incomplete: "DeepSeek dejó descripciones sin agrupar. Pulsa «Reintentar».",
+      offline:
+        "No hay conexión con el servidor. Revisa tu internet y pulsa «Reintentar».",
+      badRequest:
+        "No se pudo enviar la solicitud. Recarga la página; si sigue igual, avisa a quien administra la aplicación.",
     },
   },
 

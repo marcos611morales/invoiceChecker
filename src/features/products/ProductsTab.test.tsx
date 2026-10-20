@@ -306,9 +306,10 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
     if (card === null) return;
     expect(within(card).getAllByRole("listitem")).toHaveLength(2);
     expect(within(card).getByText("MM LECHE ENT")).toBeInTheDocument();
-    expect(within(card).getByText("Tienda Uno")).toBeInTheDocument();
+    // The supplier name opens the line caption («Tienda Uno · 2 líneas»).
+    expect(within(card).getByText(/^Tienda Uno/)).toBeInTheDocument();
     expect(within(card).getByText("LECHE ENTERA 1L")).toBeInTheDocument();
-    expect(within(card).getByText("Tienda Dos")).toBeInTheDocument();
+    expect(within(card).getByText(/^Tienda Dos/)).toBeInTheDocument();
   });
 
   it("calls DeepSeek with the documented request and the server-side key", async () => {
