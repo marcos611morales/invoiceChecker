@@ -12,6 +12,8 @@ import type {
   IgnoredKind,
 } from "@/domain/import/types";
 import type { BackupFailure, BackupSummary } from "@/domain/settings/backup";
+import type { AcceptProductError } from "@/domain/settings/products";
+import { LIMITS } from "@/domain/settings/types";
 import type { LlmFailure } from "@/lib/client/llmClient";
 import { es } from "./es";
 
@@ -645,4 +647,52 @@ export function memberCaption(supplierName: string, lines: number): string {
   return lines === 1
     ? `${supplierName} · 1 línea`
     : `${supplierName} · ${String(lines)} líneas`;
+}
+
+/** Longest product name kept in the creation toast, «…» included (UI-SPEC: 40 characters). */
+const PRODUCT_TOAST_MAX = 40;
+
+/** Accessible name of «Aceptar» inside a card, so a list of buttons is unambiguous (UI-SPEC). */
+export function acceptSuggestionAria(name: string): string {
+  return `Aceptar la sugerencia «${name}»`;
+}
+
+/** Toast after «Aceptar»: the name is cut at 40 characters in total, the last one being «…». */
+export function productCreatedToast(name: string): string {
+  return `Producto «${capCodePoints(name, PRODUCT_TOAST_MAX)}» creado`;
+}
+
+/**
+ * Polite announcement after «Aceptar»: «Producto «{nombre}» creado. Quedan {n} sugerencias.»
+ * The singular («Queda 1 sugerencia.») and the empty queue («No quedan sugerencias.») are
+ * the grammatical forms of the same sentence.
+ */
+export function productCreatedAnnouncement(name: string, remaining: number): string {
+  const left =
+    remaining === 0
+      ? "No quedan sugerencias."
+      : remaining === 1
+        ? "Queda 1 sugerencia."
+        : `Quedan ${String(remaining)} sugerencias.`;
+  return `Producto «${name}» creado. ${left}`;
+}
+
+/** Text under a card's buttons when «Aceptar» is refused (UI-SPEC lines 264-268, E4). */
+export function acceptErrorText(reason: AcceptProductError): string {
+  const errors = es.products.queue.errors;
+  switch (reason) {
+    case "empty":
+      return errors.empty;
+    case "duplicate":
+      return errors.duplicate;
+    case "reserved":
+      return errors.reserved;
+    case "too-long":
+      return errors.tooLong;
+    case "limit":
+      return `Alcanzaste el límite de ${LIMITS.products.toLocaleString("en-US")} productos. Borra alguno para aceptar más.`;
+    case "members-taken":
+    case "no-members":
+      return errors.membersTaken;
+  }
 }

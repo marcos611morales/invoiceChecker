@@ -43,7 +43,7 @@ export function validateProductName(
 }
 
 /** `ruleMapKey(rfc, key)` of every member of every product (D-04: those descriptions are no longer free). */
-export function productMemberKeys(settings: SettingsData): Set<string> {
+export function productMemberKeys(settings: Pick<SettingsData, "products">): Set<string> {
   const keys = new Set<string>();
   for (const product of settings.products) {
     for (const member of product.members) keys.add(ruleMapKey(member.rfc, member.key));

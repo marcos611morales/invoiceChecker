@@ -446,6 +446,18 @@ export const es = {
       "Revisa cada grupo. Puedes cambiar el nombre, separar descripciones o unir grupos antes de aceptar.",
     closeAlert: "Cerrar aviso",
     signIn: "Iniciar sesión",
+    /** Product-suggestion cards (UI-SPEC lines 261-273): the accept button and its refusals. */
+    queue: {
+      accept: "Aceptar",
+      errors: {
+        empty: "Escribe un nombre para el producto.",
+        duplicate: "Ya existe un producto con ese nombre. Cambia el nombre o usa «Unir con…».",
+        reserved: "«Sin categoría» es un nombre reservado.",
+        tooLong: "El nombre puede tener hasta 60 caracteres.",
+        membersTaken:
+          "Algunas descripciones de esta sugerencia ya están en otro producto. Revisa «Mis productos».",
+      },
+    },
     dialog: {
       title: "¿Enviar estos datos a DeepSeek?",
       peopleLine:
