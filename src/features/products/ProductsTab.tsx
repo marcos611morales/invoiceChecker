@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { CircleAlert, Layers, X } from "lucide-react";
 import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
 } from "@/domain/llm/candidates";
 import { pendingMemberKeys } from "@/domain/llm/suggestions";
 import { ruleMapKey } from "@/domain/settings/normalize";
+import { productMemberKeys } from "@/domain/settings/products";
 import { useLedger } from "@/features/dashboard/useLedger";
 import { es } from "@/lib/copy/es";
 import {
@@ -23,6 +24,7 @@ import {
   stoppedText,
 } from "@/lib/copy/messages";
 import { useLlmRunStore } from "@/stores/llmRunStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
 import { ReviewQueue } from "./ReviewQueue";
 import { SendDialog } from "./SendDialog";
@@ -44,12 +46,23 @@ export function ProductsTab() {
   const status = useLlmRunStore((s) => s.status);
   const startGroupRun = useLlmRunStore((s) => s.startGroupRun);
   const dismissResult = useLlmRunStore((s) => s.dismissResult);
+  const products = useSettingsStore((s) => s.products);
+  // A description is taken when it waits in a card or already belongs to an accepted product
+  // (D-04, D-13): taken descriptions leave the caption count and are never sent again.
   const free = useMemo(
-    () => freeItems(items, pendingMemberKeys(queue)),
-    [items, queue],
+    () => freeItems(items, new Set([...pendingMemberKeys(queue), ...productMemberKeys({ products })])),
+    [items, queue, products],
   );
   const [run, setRun] = useState<GroupRun | null>(null);
   const [open, setOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const titleHeading = useRef<HTMLHeadingElement>(null);
+  const queueHeading = useRef<HTMLHeadingElement>(null);
+  // After an accept: the queue heading while cards remain, else the tab heading (the queue
+  // section is not rendered when empty, UI-SPEC layout order).
+  const focusHeading = useCallback((queueEmpty: boolean) => {
+    (queueEmpty ? titleHeading.current : queueHeading.current)?.focus();
+  }, []);
 
   const running = status.phase === "running";
   // aria-disabled, never `disabled`: the press is ignored when nothing is free or a run is active.
@@ -64,7 +77,9 @@ export function ProductsTab() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="text-xl leading-[1.2] font-semibold">{es.products.heading}</h2>
+          <h2 ref={titleHeading} tabIndex={-1} className="text-xl leading-[1.2] font-semibold">
+            {es.products.heading}
+          </h2>
           <p className="text-xs text-muted-foreground">{es.products.intro1}</p>
           <p className="text-xs text-muted-foreground">{es.products.intro2}</p>
         </div>
@@ -128,14 +143,26 @@ export function ProductsTab() {
       {queue.length > 0 ? (
         <section className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <h2 className="text-xl leading-[1.2] font-semibold">
+            <h2
+              ref={queueHeading}
+              tabIndex={-1}
+              className="text-xl leading-[1.2] font-semibold"
+            >
               {productQueueHeading(queue.length)}
             </h2>
             <p className="text-xs text-muted-foreground">{es.products.queueIntro}</p>
           </div>
-          <ReviewQueue cards={queue} lines={(key) => linesByKey.get(key) ?? 0} />
+          <ReviewQueue
+            cards={queue}
+            lines={(key) => linesByKey.get(key) ?? 0}
+            onAnnounce={setAnnouncement}
+            focusHeading={focusHeading}
+          />
         </section>
       ) : null}
+      <p aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
       {run === null ? null : (
         <SendDialog
           run={run}
