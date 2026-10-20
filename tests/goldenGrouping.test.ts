@@ -152,7 +152,7 @@ describe("evaluateGolden", () => {
     );
     const report = evaluateGolden(golden, answer);
     expect(report.nameProblems).toHaveLength(1);
-    expect(report.nameProblems[0]).toMatch(/repetid/i);
+    expect(report.nameProblems[0]).toMatch(/repeated/i);
   });
 
   it("reports a name of 61 characters", () => {

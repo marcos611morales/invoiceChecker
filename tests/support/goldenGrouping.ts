@@ -4,7 +4,8 @@
  * run, never by production code.
  */
 import { z } from "zod";
-import type { Coverage } from "@/domain/llm/reconcile";
+import { LLM_LIMITS } from "@/domain/llm/contract";
+import { coverageOf, normalizeProductName, type Coverage } from "@/domain/llm/reconcile";
 
 const idListSchema = z.array(z.string().min(1)).min(2);
 
@@ -52,18 +53,72 @@ export interface GoldenReport {
   nameProblems: string[];
 }
 
+/** The name rule of D-04 and D-12: edge spaces and case do not matter. */
+function nameKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/** «Sin categoría» is a category label, never a product name; accents do not matter. */
+function isSinCategoria(name: string): boolean {
+  return (
+    name
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .trim()
+      .toLowerCase() === "sin categoria"
+  );
+}
+
+function nameProblemsOf(groups: readonly { name: string }[]): string[] {
+  const problems: string[] = [];
+  const firstSeen = new Map<string, string>();
+  for (const { name } of groups) {
+    const normalized = normalizeProductName(name);
+    if (normalized === "") {
+      problems.push("a product has an empty name");
+      continue;
+    }
+    if (name.trim().length > LLM_LIMITS.productName) {
+      problems.push(`«${normalized}…» is longer than ${LLM_LIMITS.productName} characters`);
+    }
+    if (isSinCategoria(normalized)) {
+      problems.push(`«${normalized}» is a category label, not a product name`);
+    }
+    const key = nameKey(normalized);
+    const first = firstSeen.get(key);
+    if (first === undefined) firstSeen.set(key, normalized);
+    else problems.push(`«${normalized}» is repeated (same as «${first}» ignoring case)`);
+  }
+  return problems;
+}
+
 export function evaluateGolden(
   golden: GoldenSet,
   groups: readonly { name: string; ids: readonly string[] }[],
 ): GoldenReport {
-  void golden;
-  void groups;
+  const coverage = coverageOf(
+    golden.items.map((item) => item.id),
+    groups,
+  );
+
+  // The first group that holds each id; a repeated id keeps its first group (coverage reports the repeat).
+  const groupOf = new Map<string, number>();
+  groups.forEach((group, index) => {
+    for (const id of group.ids) {
+      if (!groupOf.has(id)) groupOf.set(id, index);
+    }
+  });
+  const together = (ids: readonly string[]): boolean => {
+    const first = ids[0] === undefined ? undefined : groupOf.get(ids[0]);
+    return first !== undefined && ids.every((id) => groupOf.get(id) === first);
+  };
+
   return {
-    coverage: { missing: [], unknown: [], duplicated: [] },
-    mustGroupMissed: [],
-    shouldGroupHit: 0,
-    shouldGroupTotal: 0,
-    mustNotViolated: [],
-    nameProblems: [],
+    coverage,
+    mustGroupMissed: golden.mustGroup.filter((ids) => !together(ids)),
+    shouldGroupHit: golden.shouldGroup.filter(together).length,
+    shouldGroupTotal: golden.shouldGroup.length,
+    mustNotViolated: golden.mustNotGroup.filter(together),
+    nameProblems: nameProblemsOf(groups),
   };
 }
