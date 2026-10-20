@@ -234,11 +234,11 @@ Plans:
   4. Al aceptar un producto agrupado con categoría, sus conceptos toman esa categoría salvo los que el usuario ajustó a mano; los conceptos sin grupo usan la categoría de su proveedor o quedan en "Sin categoría".
   5. Una llamada a las rutas del LLM sin sesión válida recibe 401, y la API key de DeepSeek no aparece en ningún archivo del bundle del cliente ni en ninguna respuesta al navegador.
 
-**Plans:** 21 plans
+**Plans:** 1/21 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 04-01-PLAN.md — Tracer: pestaña Productos, «Agrupar productos», aviso con la lista literal, ruta /api/llm/group, DeepSeek con fetch + zod y tarjetas de sugerencias
+- [x] 04-01-PLAN.md — Tracer: pestaña Productos, «Agrupar productos», aviso con la lista literal, ruta /api/llm/group, DeepSeek con fetch + zod y tarjetas de sugerencias
 
 **Wave 2** *(blocked on Wave 1 completion; the two plans run in parallel)*
 - [ ] 04-02-PLAN.md — Cierre del tracer: requireSession dentro del handler, módulo server-only de DeepSeek, invariante de cobertura, pruebas de la ruta, README, .env.example y smoke de cinco pestañas
@@ -325,5 +325,5 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
 | 3. Categorías propias y exportación a Excel | 20/20 | Complete    | 2026-10-19 |
-| 4. Agrupación de productos con DeepSeek | 0/TBD | Not started | - |
+| 4. Agrupación de productos con DeepSeek | 1/21 | In Progress | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
