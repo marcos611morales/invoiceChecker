@@ -29,6 +29,26 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // Server boundary (ACC-04): browser-side code can never pull the server modules in.
+  // The domain block above keeps its own list; tests may import the route and the server modules.
+  {
+    files: [
+      "src/features/**/*.{ts,tsx}",
+      "src/components/**/*.{ts,tsx}",
+      "src/stores/**/*.{ts,tsx}",
+      "src/lib/client/**/*.{ts,tsx}",
+      "src/lib/copy/**/*.{ts,tsx}",
+    ],
+    ignores: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: ["@/lib/server/*", "**/lib/server/*", "server-only"],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
