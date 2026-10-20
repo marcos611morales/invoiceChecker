@@ -22,6 +22,11 @@ const fetchMock = vi.fn<(input: string | URL | Request, init?: RequestInit) => P
 
 let token = "";
 
+/** The same kind of answer for every attempt; a Response body can only be read once, hence a factory. */
+function always(make: () => Response): void {
+  fetchMock.mockImplementation(() => Promise.resolve(make()));
+}
+
 function completion(content: unknown, finishReason = "stop"): Response {
   return new Response(
     JSON.stringify({
@@ -307,14 +312,15 @@ describe("POST /api/llm/group: the DeepSeek call (ACC-04, D-29)", () => {
   });
 
   it("answers 502 incomplete_response, retryable, when the answer leaves out an id", async () => {
-    fetchMock.mockResolvedValueOnce(completion({ g: [{ n: "Leche", i: ["i1", "i2"], e: null }] }));
+    always(() => completion({ g: [{ n: "Leche", i: ["i1", "i2"], e: null }] }));
     const result = await answer(await POST(request(JSON.stringify(BODY))));
     expect(result.status).toBe(502);
     expect(result.json).toEqual({ error: "incomplete_response", retryable: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("answers 502 incomplete_response when the answer repeats an id", async () => {
-    fetchMock.mockResolvedValueOnce(
+    always(() =>
       completion({
         g: [
           { n: "Leche", i: ["i1", "i2"], e: null },
@@ -328,9 +334,7 @@ describe("POST /api/llm/group: the DeepSeek call (ACC-04, D-29)", () => {
   });
 
   it("answers 502 incomplete_response when the answer invents an id", async () => {
-    fetchMock.mockResolvedValueOnce(
-      completion({ g: [{ n: "Leche", i: ["i1", "i2", "i3", "i99"], e: null }] }),
-    );
+    always(() => completion({ g: [{ n: "Leche", i: ["i1", "i2", "i3", "i99"], e: null }] }));
     const result = await answer(await POST(request(JSON.stringify(BODY))));
     expect(result.status).toBe(502);
     expect(result.json).toEqual({ error: "incomplete_response", retryable: true });
@@ -354,7 +358,7 @@ describe("POST /api/llm/group: the DeepSeek call (ACC-04, D-29)", () => {
     [500, "upstream_unavailable", 502, true],
     [503, "upstream_unavailable", 502, true],
   ])("maps a DeepSeek %i to our own %s (%i)", async (upstreamStatus, code, status, retryable) => {
-    fetchMock.mockResolvedValueOnce(new Response(`{"echo":"${KEY}"}`, { status: upstreamStatus }));
+    always(() => new Response(`{"echo":"${KEY}"}`, { status: upstreamStatus, headers: { "retry-after": "0" } }));
     const result = await answer(await POST(request(JSON.stringify(BODY))));
     expect(result.status).toBe(status);
     expect(result.json).toEqual({ error: code, retryable });
@@ -362,20 +366,21 @@ describe("POST /api/llm/group: the DeepSeek call (ACC-04, D-29)", () => {
   });
 
   it("answers 502 upstream_unavailable when the connection fails", async () => {
-    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    fetchMock.mockImplementation(() => Promise.reject(new TypeError("fetch failed")));
     const result = await answer(await POST(request(JSON.stringify(BODY))));
     expect(result.status).toBe(502);
     expect(result.json).toEqual({ error: "upstream_unavailable", retryable: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it.each([
-    ["empty content", completion("")],
-    ["whitespace content", completion("   ")],
-    ["content that is not JSON", completion("no es json")],
-    ["a model answer of the wrong shape", completion({ groups: [] })],
-    ["a cut-off answer", completion({ g: [{ n: "Leche", i: ["i1", "i2", "i3"] }] }, "length")],
+    ["empty content", () => completion("")],
+    ["whitespace content", () => completion("   ")],
+    ["content that is not JSON", () => completion("no es json")],
+    ["a model answer of the wrong shape", () => completion({ groups: [] })],
+    ["a cut-off answer", () => completion({ g: [{ n: "Leche", i: ["i1", "i2", "i3"] }] }, "length")],
   ])("answers 502 invalid_response, retryable, to %s", async (_label, response) => {
-    fetchMock.mockResolvedValueOnce(response);
+    always(response);
     const result = await answer(await POST(request(JSON.stringify(BODY))));
     expect(result.status).toBe(502);
     expect(result.json).toEqual({ error: "invalid_response", retryable: true });

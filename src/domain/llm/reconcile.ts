@@ -44,6 +44,39 @@ export function isComplete(coverage: Coverage): boolean {
   );
 }
 
+/** The D-04 comparison of Phase 3, local to this file: edge spaces and case do not matter. */
+function sameNameKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/**
+ * Two groups of one answer whose names are equal ignoring case and edge spaces
+ * are one product (A-5, Pitfall 8): the result keeps the first appearance order,
+ * the first name, every id list in order and the first non-null `existing`.
+ */
+export function mergeSameNamedGroups<
+  T extends { name: string; ids: string[]; existing: string | null },
+>(groups: readonly T[]): T[] {
+  const merged: T[] = [];
+  const byName = new Map<string, number>();
+  for (const group of groups) {
+    const key = sameNameKey(group.name);
+    const at = byName.get(key);
+    const target = at === undefined ? undefined : merged[at];
+    if (at === undefined || target === undefined) {
+      byName.set(key, merged.length);
+      merged.push({ ...group, ids: [...group.ids] });
+      continue;
+    }
+    merged[at] = {
+      ...target,
+      ids: [...target.ids, ...group.ids],
+      existing: target.existing ?? group.existing,
+    };
+  }
+  return merged;
+}
+
 /**
  * A product name from the model: control characters out (each one becomes a
  * space, so «a\nb» stays two words), runs of whitespace collapsed, trimmed and cut
