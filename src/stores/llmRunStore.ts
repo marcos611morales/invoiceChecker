@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { GroupRun } from "@/domain/llm/candidates";
+import { coverageOf, isComplete } from "@/domain/llm/reconcile";
 import { toProductSuggestions } from "@/domain/llm/suggestions";
 import { postGroup, type LlmFailure } from "@/lib/client/llmClient";
 import { useSessionStore } from "./sessionStore";
@@ -65,6 +66,25 @@ export const useLlmRunStore = create<LlmRunState>()((set, get) => ({
               batch: k,
               total,
               error: result.error,
+            },
+          });
+          return;
+        }
+        // The server already refuses an incomplete answer; the browser checks again before it
+        // enqueues anything (D-11, OQ3), so an answer that omits, repeats or invents an id
+        // stops the run, adds no card and leaves its descriptions free.
+        const coverage = coverageOf(
+          batch.body.items.map((item) => item.id),
+          result.data.groups.map((group) => ({ ids: group.ids })),
+        );
+        if (!isComplete(coverage)) {
+          set({
+            status: {
+              phase: "stopped",
+              kind: "group",
+              batch: k,
+              total,
+              error: "incomplete_response",
             },
           });
           return;
