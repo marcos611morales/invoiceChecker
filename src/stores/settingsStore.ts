@@ -21,11 +21,14 @@ import {
   type NameError,
 } from "@/domain/settings/categories";
 import { resolvePersisted } from "@/domain/settings/migrate";
+import { acceptProduct, type AcceptProductError } from "@/domain/settings/products";
 import {
   SETTINGS_VERSION,
   defaultSettings,
   type Category,
   type ConceptRule,
+  type Product,
+  type ProductMember,
   type SettingsData,
   type SupplierAssignment,
 } from "@/domain/settings/types";
@@ -106,6 +109,15 @@ interface SettingsState extends SettingsData {
    * exists, the list is at its limit) changes and writes nothing.
    */
   restoreConceptRule: (rfc: string, key: string, previous: ConceptRule | null) => void;
+  /**
+   * Accepts a suggestion as a product with a fresh `prod_` id and no category (LLM-04, D-06).
+   * Only an ok result is applied, in one `set` of `products`; a refusal (reserved, repeated or
+   * empty name, a member already taken, a limit) changes and writes nothing.
+   */
+  acceptProduct: (input: {
+    name: string;
+    members: readonly ProductMember[];
+  }) => { ok: true; product: Product } | { ok: false; reason: AcceptProductError };
   /**
    * Replaces all six stored fields with an already validated settings value, in one `set`
    * (AJUS-02, D-08), so persist writes once and a reader never sees a half-replaced state.
@@ -254,6 +266,12 @@ export const useSettingsStore = create<SettingsState>()(
         // A refused or empty restore comes back as the same object: nothing to write.
         if (next === current) return;
         set({ conceptRules: next.conceptRules });
+      },
+      acceptProduct: (input) => {
+        const result = acceptProduct(dataOf(get()), input, `prod_${crypto.randomUUID()}`);
+        if (!result.ok) return result;
+        set({ products: result.next.products });
+        return { ok: true, product: result.product };
       },
       replaceAll: (data) => {
         set({
