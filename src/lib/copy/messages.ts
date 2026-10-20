@@ -12,6 +12,7 @@ import type {
   IgnoredKind,
 } from "@/domain/import/types";
 import type { BackupFailure, BackupSummary } from "@/domain/settings/backup";
+import type { LlmFailure } from "@/lib/client/llmClient";
 import { es } from "./es";
 
 /** Spanish reason shown next to a rejected file (D-14, D-15). */
@@ -564,4 +565,84 @@ export function exportedAtText(moment: Date): string {
 /** «Mes de la variación» of the Parámetros sheet: «dic 2025 vs. nov 2025» (last month vs. the one before). */
 export function variationMonthText(last: string, previous: string): string {
   return `${last} vs. ${previous}`;
+}
+
+// Productos tab: free count, send summary, run line and failures (Phase 4, UI-SPEC Copywriting Contract).
+
+/** Caption under «Agrupar productos»: «{n} descripciones sin agrupar», «1 descripción sin agrupar». */
+export function freeDescriptionsCaption(n: number): string {
+  return n === 1 ? "1 descripción sin agrupar" : `${String(n)} descripciones sin agrupar`;
+}
+
+/**
+ * Summary of the send dialog (D-08, locked): the verb stays plural because two kinds of
+ * data always travel; «1 descripción de concepto» and «1 nombre de proveedor» for one.
+ */
+export function groupSendSummary(descriptions: number, suppliers: number): string {
+  const first =
+    descriptions === 1
+      ? "1 descripción de concepto"
+      : `${String(descriptions)} descripciones de conceptos`;
+  const second =
+    suppliers === 1 ? "1 nombre de proveedor" : `${String(suppliers)} nombres de proveedor`;
+  return `Se enviarán a DeepSeek ${first} y ${second}. No se envían RFC, UUID, montos, fechas ni folios.`;
+}
+
+/** Heading of the literal list in the send dialog. */
+export function itemsGroupHeading(n: number): string {
+  return `Descripciones y proveedores (${String(n)})`;
+}
+
+/** First line of the run status: «Agrupando productos · Lote {k} de {M}». */
+export function runLine(kind: "group" | "categorize", k: number, total: number): string {
+  const verb = kind === "group" ? "Agrupando productos" : "Sugiriendo categorías";
+  return `${verb} · Lote ${String(k)} de ${String(total)}`;
+}
+
+/** The message already ends with its own period; the Alert adds the sentence about kept suggestions. */
+export function stoppedText(k: number, total: number, message: string): string {
+  return `Se detuvo el proceso en el lote ${String(k)} de ${String(total)}. ${message} Las sugerencias que ya llegaron se conservaron.`;
+}
+
+/** Our own message for each failure of a batch; an upstream detail never reaches the user. */
+export function failureText(error: LlmFailure): string {
+  const failures = es.products.failures;
+  switch (error) {
+    case "unauthorized":
+      return failures.unauthorized;
+    case "server_not_configured":
+      return failures.serverNotConfigured;
+    case "upstream_auth":
+      return failures.upstreamAuth;
+    case "upstream_balance":
+      return failures.upstreamBalance;
+    case "upstream_rate_limited":
+    case "upstream_unavailable":
+      return failures.overloaded;
+    case "upstream_timeout":
+      return failures.timeout;
+    case "invalid_response":
+    case "aborted":
+      return failures.invalid;
+    case "incomplete_response":
+      return failures.incomplete;
+    case "offline":
+      return failures.offline;
+    case "bad_request":
+    case "payload_too_large":
+    case "upstream_rejected":
+      return failures.badRequest;
+  }
+}
+
+/** Heading of the pending product cards: «Sugerencias de productos · {n}». */
+export function productQueueHeading(n: number): string {
+  return `Sugerencias de productos · ${String(n)}`;
+}
+
+/** Caption of a card member: the supplier and its loaded lines, «1 línea» for one (D-19). */
+export function memberCaption(supplierName: string, lines: number): string {
+  return lines === 1
+    ? `${supplierName} · 1 línea`
+    : `${supplierName} · ${String(lines)} líneas`;
 }

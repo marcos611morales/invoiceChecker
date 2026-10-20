@@ -11,6 +11,7 @@ import { CategoriesTab } from "@/features/categories/CategoriesTab";
 import { DashboardTab } from "@/features/dashboard/DashboardTab";
 import { useLedger } from "@/features/dashboard/useLedger";
 import { ExportButton } from "@/features/export/ExportButton";
+import { ProductsTab } from "@/features/products/ProductsTab";
 import { QualityTab } from "@/features/quality/QualityTab";
 import { ImportReport } from "@/features/report/ImportReport";
 import { EmptyDropzone } from "@/features/upload/EmptyDropzone";
@@ -49,6 +50,7 @@ function isAppTab(value: unknown): value is AppTab {
   return (
     value === "dashboard" ||
     value === "categorias" ||
+    value === "productos" ||
     value === "calidad" ||
     value === "importacion"
   );
@@ -64,6 +66,7 @@ interface TabDefinition {
 const TABS: readonly TabDefinition[] = [
   { value: "dashboard", label: es.tabs.dashboard, Panel: DashboardTab },
   { value: "categorias", label: es.tabs.categories, Panel: CategoriesTab },
+  { value: "productos", label: es.tabs.products, Panel: ProductsTab },
   { value: "calidad", label: es.tabs.quality, Panel: QualityTab },
   { value: "importacion", label: es.tabs.import, Panel: ImportReport },
 ];

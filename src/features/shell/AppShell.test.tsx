@@ -69,16 +69,36 @@ afterEach(() => {
 });
 
 describe("AppShell tabs (D-01, D-04)", () => {
-  it("lists Dashboard, Categorías, Calidad de datos and Importación in that order", () => {
+  it("lists Dashboard, Categorías, Productos, Calidad de datos and Importación in that order", () => {
     seed([inv("OK-1")]);
     render(<AppShell />);
     const tabs = screen.getAllByRole("tab");
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       "Dashboard",
       "Categorías",
+      "Productos",
       "Calidad de datos",
       "Importación",
     ]);
+  });
+
+  it("opens the Productos panel when its tab is clicked", () => {
+    seed([inv("OK-1")]);
+    render(<AppShell />);
+    expect(screen.queryByRole("heading", { name: "Productos" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Productos" }));
+    expect(useSessionStore.getState().activeTab).toBe("productos");
+    expect(screen.getByRole("heading", { name: "Productos" })).toBeInTheDocument();
+  });
+
+  it("states in the footer that descriptions and supplier names go to DeepSeek only on request (OQ1)", () => {
+    seed([inv("OK-1")]);
+    render(<AppShell />);
+    expect(
+      screen.getByText(
+        "Tus facturas se procesan en este navegador. Solo si lo pides, se envían a DeepSeek descripciones de conceptos y nombres de proveedor (nunca RFC, UUID ni montos).",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows no tabs on the empty screen", () => {
