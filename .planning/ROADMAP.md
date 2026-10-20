@@ -234,15 +234,15 @@ Plans:
   4. Al aceptar un producto agrupado con categoría, sus conceptos toman esa categoría salvo los que el usuario ajustó a mano; los conceptos sin grupo usan la categoría de su proveedor o quedan en "Sin categoría".
   5. Una llamada a las rutas del LLM sin sesión válida recibe 401, y la API key de DeepSeek no aparece en ningún archivo del bundle del cliente ni en ninguna respuesta al navegador.
 
-**Plans:** 1/21 plans executed
+**Plans:** 3/21 plans executed
 
 Plans:
 **Wave 1**
 - [x] 04-01-PLAN.md — Tracer: pestaña Productos, «Agrupar productos», aviso con la lista literal, ruta /api/llm/group, DeepSeek con fetch + zod y tarjetas de sugerencias
 
 **Wave 2** *(blocked on Wave 1 completion; the two plans run in parallel)*
-- [ ] 04-02-PLAN.md — Cierre del tracer: requireSession dentro del handler, módulo server-only de DeepSeek, invariante de cobertura, pruebas de la ruta, README, .env.example y smoke de cinco pestañas
-- [ ] 04-03-PLAN.md — Ajustes versión 3 con productos y marcas «No agrupar» (D-13) y migración total desde la versión 2
+- [x] 04-02-PLAN.md — Cierre del tracer: requireSession dentro del handler, módulo server-only de DeepSeek, invariante de cobertura, pruebas de la ruta, README, .env.example y smoke de cinco pestañas
+- [x] 04-03-PLAN.md — Ajustes versión 3 con productos y marcas «No agrupar» (D-13) y migración total desde la versión 2
 
 **Wave 3** *(blocked on Wave 2 completion; the two plans run in parallel)*
 - [ ] 04-04-PLAN.md — Servidor: un reintento con plazo, taxonomía de errores, línea de log sin contenido, pruebas de no-fuga de la key, frontera de imports, escaneo del bundle y smoke de la ruta
@@ -325,5 +325,5 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
 | 3. Categorías propias y exportación a Excel | 20/20 | Complete    | 2026-10-19 |
-| 4. Agrupación de productos con DeepSeek | 1/21 | In Progress | - |
+| 4. Agrupación de productos con DeepSeek | 3/21 | In Progress | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
