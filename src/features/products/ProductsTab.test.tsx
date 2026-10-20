@@ -21,6 +21,20 @@ import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
 import { ProductsTab } from "./ProductsTab";
 
+const { TEST_SESSION } = vi.hoisted(() => ({ TEST_SESSION: "test-session-token" }));
+
+// jose rejects the keys it builds under jsdom (a Uint8Array from another realm), so only the
+// token check is replaced: a request is signed in exactly when it carries the cookie below.
+// route.test.ts proves the real session check; here the handler's decision on the cookie is
+// what matters, so a request without the cookie still gets the proxy's 401 from requireSession.
+vi.mock("@/lib/server/session", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/server/session")>();
+  return {
+    ...actual,
+    verifySessionToken: (token: string | undefined) => Promise.resolve(token === TEST_SESSION),
+  };
+});
+
 const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
 const KEY = `sk-test-${crypto.randomUUID()}`;
 
@@ -112,6 +126,8 @@ interface UpstreamCall {
 }
 
 const upstreamCalls: UpstreamCall[] = [];
+/** The session cookie the browser sends; null simulates a browser that lost its session. */
+let sessionToken: string | null = null;
 const routeBodies: GroupRequest[] = [];
 const routeResponseTexts: string[] = [];
 let upstream: (body: GroupRequest) => Response | Promise<Response>;
@@ -161,9 +177,11 @@ const fetchMock = vi.fn(
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (url === "/api/llm/group") {
       routeBodies.push(groupRequestSchema.parse(JSON.parse(bodyText(init))));
+      const headers = new Headers(init?.headers);
+      if (sessionToken !== null) headers.set("cookie", `session=${sessionToken}`);
       const request = new NextRequest("http://localhost/api/llm/group", {
         method: init?.method,
-        headers: init?.headers,
+        headers,
         body: init?.body,
         signal: init?.signal ?? undefined,
       });
@@ -209,17 +227,19 @@ async function confirm(): Promise<void> {
   });
 }
 
-/** Groups two descriptions of different suppliers into «Leche entera»; the rest is omitted. */
+/**
+ * Groups two descriptions of different suppliers into «Leche entera» and leaves every other
+ * description in a group of its own, named like it: the route refuses an answer that does not
+ * cover each sent id exactly once (D-11).
+ */
 function milkAnswer(body: GroupRequest): Response {
-  return completion({
-    g: [
-      {
-        n: "Leche entera",
-        i: [idOf(body, "MM LECHE ENT"), idOf(body, "LECHE ENTERA 1L")],
-        e: null,
-      },
-    ],
-  });
+  const milk = body.items
+    .filter((item) => item.description === "MM LECHE ENT" || item.description === "LECHE ENTERA 1L")
+    .map((item) => item.id);
+  const rest = body.items
+    .filter((item) => !milk.includes(item.id))
+    .map((item) => ({ n: item.description, i: [item.id], e: null }));
+  return completion({ g: [{ n: "Leche entera", i: milk, e: null }, ...rest] });
 }
 
 beforeEach(() => {
@@ -229,6 +249,7 @@ beforeEach(() => {
   routeBodies.length = 0;
   routeResponseTexts.length = 0;
   upstream = milkAnswer;
+  sessionToken = TEST_SESSION;
   fetchMock.mockClear();
   vi.stubGlobal("fetch", fetchMock);
   seed(sample());
@@ -367,18 +388,52 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
     }
   });
 
-  it("sends only the still-free items on a second press, and leaves the pending cards as they were", async () => {
+  it("leaves nothing free after a complete answer", async () => {
     render(<ProductsTab />);
     await openDialog();
     await confirm();
-    await screen.findByRole("heading", { name: "Leche entera" });
-    const first = useSuggestionsStore.getState().products;
-
-    upstream = (body) =>
-      completion({ g: [{ n: "Azúcar blanca", i: [idOf(body, "Azúcar")], e: null }] });
+    await screen.findByRole("heading", { name: "Leche entera", level: 3 });
     await waitFor(() => {
       expect(useLlmRunStore.getState().status.phase).toBe("idle");
     });
+    expect(useSuggestionsStore.getState().products).toHaveLength(4);
+    expect(screen.getByText("No hay descripciones nuevas para agrupar")).toBeInTheDocument();
+  });
+
+  it("sends only the still-free items on a second press, and leaves the pending cards as they were", async () => {
+    act(() => {
+      useSuggestionsStore.getState().enqueueProducts([
+        {
+          id: "sug_pending",
+          name: "Leche entera",
+          target: null,
+          members: [
+            {
+              rfc: UNO.rfc,
+              key: "mm leche ent",
+              description: "MM LECHE ENT",
+              supplierName: UNO.nombre,
+            },
+            {
+              rfc: DOS.rfc,
+              key: "leche entera 1l",
+              description: "LECHE ENTERA 1L",
+              supplierName: DOS.nombre,
+            },
+          ],
+        },
+      ]);
+    });
+    const first = useSuggestionsStore.getState().products;
+    upstream = (body) =>
+      completion({
+        g: [
+          { n: "Azúcar blanca", i: [idOf(body, "Azúcar")], e: null },
+          { n: "Café", i: [idOf(body, "Café Molido 1kg")], e: null },
+          { n: "Pago", i: [idOf(body, "Pago")], e: null },
+        ],
+      });
+    render(<ProductsTab />);
     await openDialog();
     expect(dialogRows().map((row) => row.description).sort()).toEqual(
       ["Azúcar", "Café Molido 1kg", "Pago"].sort(),
@@ -387,34 +442,8 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
     await screen.findByRole("heading", { name: "Azúcar blanca" });
     expect(lastBody().items).toHaveLength(3);
     const all = useSuggestionsStore.getState().products;
-    expect(all).toHaveLength(2);
+    expect(all).toHaveLength(4);
     expect(all[0]).toBe(first[0]);
-  });
-
-  it("enqueues only the known first-seen members when the answer invents an id or repeats one, and the omitted description is listed again", async () => {
-    upstream = (body) =>
-      completion({
-        g: [
-          { n: "Leche", i: [idOf(body, "MM LECHE ENT"), "i99"], e: null },
-          { n: "Otra", i: [idOf(body, "MM LECHE ENT"), idOf(body, "Café Molido 1kg")], e: null },
-        ],
-      });
-    render(<ProductsTab />);
-    await openDialog();
-    await confirm();
-    await screen.findByRole("heading", { name: "Leche" });
-    const cards = useSuggestionsStore.getState().products;
-    expect(cards.map((card) => card.members.map((member) => member.description))).toEqual([
-      ["MM LECHE ENT"],
-      ["Café Molido 1kg"],
-    ]);
-    await waitFor(() => {
-      expect(useLlmRunStore.getState().status.phase).toBe("idle");
-    });
-    await openDialog();
-    expect(dialogRows().map((row) => row.description).sort()).toEqual(
-      ["Azúcar", "LECHE ENTERA 1L", "Pago"].sort(),
-    );
   });
 
   it("keeps the run when the tab is unmounted while the batch is in flight", async () => {
@@ -434,7 +463,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
     view.unmount();
     release();
     await waitFor(() => {
-      expect(useSuggestionsStore.getState().products).toHaveLength(1);
+      expect(useSuggestionsStore.getState().products).toHaveLength(4);
     });
     render(<ProductsTab />);
     expect(screen.getByRole("heading", { name: "Leche entera", level: 3 })).toBeInTheDocument();
@@ -581,15 +610,18 @@ describe("Agrupar productos: the queue (D-19)", () => {
     await confirm();
     await screen.findByRole("heading", { name: "Leche entera", level: 3 });
     expect(
-      screen.getByRole("heading", { name: "Sugerencias de productos · 1", level: 2 }),
+      screen.getByRole("heading", { name: "Sugerencias de productos · 4", level: 2 }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
         "Revisa cada grupo. Puedes cambiar el nombre, separar descripciones o unir grupos antes de aceptar.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("Tienda Uno · 2 líneas")).toBeInTheDocument();
-    expect(screen.getByText("Tienda Dos · 1 línea")).toBeInTheDocument();
+    const card = screen.getByRole("heading", { name: "Leche entera", level: 3 }).closest("li");
+    expect(card).not.toBeNull();
+    if (card === null) return;
+    expect(within(card).getByText("Tienda Uno · 2 líneas")).toBeInTheDocument();
+    expect(within(card).getByText("Tienda Dos · 1 línea")).toBeInTheDocument();
   });
 
   it("marks a member that has no loaded lines", () => {
@@ -654,5 +686,100 @@ describe("Agrupar productos: a stopped run (UI-SPEC run failures)", () => {
       "href",
       "/login",
     );
+  });
+});
+
+const INCOMPLETE_ALERT =
+  "Se detuvo el proceso en el lote 1 de 1. DeepSeek dejó descripciones sin agrupar. Pulsa «Reintentar». Las sugerencias que ya llegaron se conservaron.";
+
+describe("Agrupar productos: an answer that does not cover what was sent (D-11, OQ3)", () => {
+  it.each([
+    [
+      "leaves out a description",
+      (body: GroupRequest) =>
+        completion({
+          g: [{ n: "Leche entera", i: [idOf(body, "MM LECHE ENT"), idOf(body, "LECHE ENTERA 1L")], e: null }],
+        }),
+    ],
+    [
+      "repeats a description",
+      (body: GroupRequest) =>
+        completion({
+          g: [
+            { n: "Leche", i: body.items.map((item) => item.id), e: null },
+            { n: "Otra", i: [idOf(body, "MM LECHE ENT")], e: null },
+          ],
+        }),
+    ],
+    [
+      "invents an id",
+      (body: GroupRequest) =>
+        completion({ g: [{ n: "Leche", i: [...body.items.map((item) => item.id), "i99"], e: null }] }),
+    ],
+  ])("stops the run and adds no card when the answer %s, and the descriptions stay free", async (_label, answer) => {
+    upstream = answer;
+    render(<ProductsTab />);
+    await openDialog();
+    await confirm();
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText(INCOMPLETE_ALERT)).toBeInTheDocument();
+    expect(useSuggestionsStore.getState().products).toEqual([]);
+    expect(screen.queryByRole("heading", { level: 3 })).toBeNull();
+    expect(routeResponseTexts).toHaveLength(1);
+    expect(JSON.parse(routeResponseTexts[0] ?? "null")).toEqual({
+      error: "incomplete_response",
+      retryable: true,
+    });
+    fireEvent.click(within(alert).getByRole("button", { name: "Cerrar aviso" }));
+    expect(screen.getByText("5 descripciones sin agrupar")).toBeInTheDocument();
+  });
+
+  it("checks the coverage again in the browser: a 200 that omits an id enqueues nothing", async () => {
+    fetchMock.mockImplementationOnce((_input, init) => {
+      const sent = groupRequestSchema.parse(JSON.parse(bodyText(init)));
+      const first = sent.items[0];
+      return Promise.resolve(
+        NextResponse.json({
+          groups: [{ name: "Leche", ids: first === undefined ? [] : [first.id], existing: null }],
+          meta: {
+            attempts: 1,
+            durationMs: 1,
+            finishReason: "stop",
+            promptTokens: null,
+            completionTokens: null,
+            reasoningTokens: null,
+          },
+        }),
+      );
+    });
+    render(<ProductsTab />);
+    await openDialog();
+    await confirm();
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText(INCOMPLETE_ALERT)).toBeInTheDocument();
+    expect(useSuggestionsStore.getState().products).toEqual([]);
+    expect(upstreamCalls).toHaveLength(0);
+  });
+});
+
+describe("Agrupar productos: the session during a run (ACC-03)", () => {
+  it("ends in the stopped Alert with the session message and the «Iniciar sesión» link when the request carries no session, and DeepSeek is never called", async () => {
+    sessionToken = null;
+    render(<ProductsTab />);
+    await openDialog();
+    await confirm();
+    const alert = await screen.findByRole("alert");
+    expect(
+      within(alert).getByText(
+        "Se detuvo el proceso en el lote 1 de 1. Tu sesión terminó. Vuelve a iniciar sesión para continuar. Las sugerencias que ya llegaron se conservaron.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(alert).getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute(
+      "href",
+      "/login",
+    );
+    expect(upstreamCalls).toHaveLength(0);
+    expect(useSuggestionsStore.getState().products).toEqual([]);
+    expect(JSON.parse(routeResponseTexts[0] ?? "null")).toEqual({ error: "unauthorized" });
   });
 });
