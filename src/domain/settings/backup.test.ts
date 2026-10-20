@@ -368,4 +368,36 @@ describe("golden settings file of version 1 (published contract, D-07)", () => {
     ]);
     expect(result.settings.conceptRules.map((rule) => rule.categoryId)).toEqual(["seed:otros", null]);
   });
+
+  it("loads with no products and no «No agrupar» marks (D-13)", () => {
+    const text = readFileSync(
+      resolve(process.cwd(), "tests/fixtures/settings/ajustes-archivo-1.json"),
+      "utf8",
+    );
+    const result = parseBackupText(text);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings.products).toEqual([]);
+    expect(result.settings.ungroupedConcepts).toEqual([]);
+  });
+
+  it("still writes file version 1 with the four Phase 3 fields when the settings hold products", () => {
+    const text = buildBackupText({
+      ...sample(),
+      products: [
+        {
+          id: "prod_1",
+          name: "Leche entera",
+          categoryId: CAFE,
+          members: [{ rfc: "EKU9003173C9", key: "leche", description: "Leche", supplierName: "Uno" }],
+        },
+      ],
+      ungroupedConcepts: [
+        { rfc: "EKU9003173C9", key: "flete", description: "Flete", supplierName: "Uno" },
+      ],
+    });
+    expect(text).not.toContain("prod_1");
+    expect(text).not.toContain("flete");
+    expect(JSON.parse(text)).toEqual(JSON.parse(buildBackupText(sample())));
+  });
 });
