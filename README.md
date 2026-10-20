@@ -1,6 +1,6 @@
 # InvoiceChecker
 
-Análisis de gastos del Coworking Café. Es una página web (Next.js, desplegada en Vercel) para analizar las facturas de gastos (CFDI 4.0 XML) que los proveedores le emiten al coworking café. La persona usuaria arrastra los archivos al navegador, los datos se procesan en el navegador y nunca se guardan en una base de datos. La usan el dueño, sus socios y su contador con una contraseña compartida.
+Análisis de gastos del Coworking Café. Es una página web (Next.js, desplegada en Vercel) para analizar las facturas de gastos (CFDI 4.0 XML) que los proveedores le emiten al coworking café. La persona usuaria arrastra los archivos al navegador; las facturas se procesan en el navegador y nunca se guardan en una base de datos. Solo si la persona lo pide, se envían a DeepSeek descripciones de conceptos y nombres de proveedor (nunca RFC, UUID ni montos). La usan el dueño, sus socios y su contador con una contraseña compartida.
 
 ## Ejecución local
 
@@ -25,7 +25,7 @@ pnpm verify         # lint + typecheck + pruebas + build
 pnpm build && pnpm smoke:auth   # prueba de la contraseña contra un servidor de producción
 ```
 
-`.env.example` documenta cada variable. Nunca uses el prefijo público de Next.js con `APP_PASSWORD` ni con `SESSION_SECRET`.
+`.env.example` documenta cada variable. Nunca uses el prefijo público de Next.js con `APP_PASSWORD`, `SESSION_SECRET` ni `DEEPSEEK_API_KEY`.
 
 ## Despliegue en Vercel
 
@@ -37,6 +37,8 @@ El proyecto de Vercel lo crea quien administra la cuenta (D-26) y se usa el domi
 4. **Variables de entorno** (Project > Settings > Environment Variables), para Production y Preview:
    - `APP_PASSWORD`: contraseña compartida larga y aleatoria (12 caracteres o más).
    - `SESSION_SECRET`: salida de `openssl rand -base64 48`.
+   - `DEEPSEEK_API_KEY`: clave de acceso a DeepSeek que usa el servidor para agrupar productos. Solo vive en el servidor: no la pegues en el código ni uses un prefijo público.
+   - `DEEPSEEK_MODEL` (opcional): modelo de DeepSeek que se usa; si falta, se usa `deepseek-flash`.
    - `ENABLE_EXPERIMENTAL_COREPACK` = `1`: pnpm 11 no está en la lista oficial de Vercel; con Corepack activado, Vercel instala con la versión fijada en `packageManager`.
 
    Cambiar `APP_PASSWORD` o `SESSION_SECRET` cierra la sesión de todas las personas.
