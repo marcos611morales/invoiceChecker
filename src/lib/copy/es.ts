@@ -430,6 +430,22 @@ export const es = {
     roundingLine: "Diferencia de redondeo",
   },
 
+  /** Productos tab: grouping with DeepSeek (Phase 4, UI-SPEC Copywriting Contract). */
+  products: {
+    heading: "Productos",
+    intro1:
+      "Pide a DeepSeek que junte las descripciones que son el mismo producto en distintas tiendas y que sugiera categorías. Tú revisas cada sugerencia: nada cambia en el Dashboard hasta que la aceptas.",
+    intro2:
+      "Lo que aceptas se guarda en este navegador y va en tu archivo de ajustes. Las sugerencias pendientes también se guardan aquí, pero no van en el archivo.",
+    groupButton: "Agrupar productos",
+    dialog: {
+      title: "¿Enviar estos datos a DeepSeek?",
+      disclosure: "Ver exactamente qué se envía",
+      dismiss: "No enviar",
+      confirm: "Enviar a DeepSeek",
+    },
+  },
+
   errors: {
     importFailed:
       "No se pudieron procesar los archivos. Recarga la página y vuelve a intentarlo.",
