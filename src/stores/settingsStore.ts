@@ -34,8 +34,11 @@ import { useStorageStatusStore } from "./storageStatusStore";
 /**
  * The only persisted store of the app (D-06). Invoices, exclusions, filters and
  * the active tab live in sessionStore and are never written anywhere (D-30,
- * CARGA-06). Contract (Phase 3): key `invoicechecker:settings`,
- * `{ state: { ivaMode, categories, supplierCategories, conceptRules }, version: 2 }`.
+ * CARGA-06). Contract (Phase 4): key `invoicechecker:settings`,
+ * `{ state: { ivaMode, categories, supplierCategories, conceptRules, products,
+ * ungroupedConcepts }, version: 3 }`.
+ * The Phase 3 contract (version 2, the first four fields) is migrated on load keeping all of
+ * it, with no products and no «No agrupar» marks (D-13).
  * The Phase 2 contract `{ state: { ivaMode }, version: 1 }` is migrated on load:
  * the user keeps the IVA mode and receives the nine suggested categories (D-25).
  * Nothing about invoices is ever stored: no amounts, UUIDs, folios, dates or receptor.
@@ -104,16 +107,23 @@ interface SettingsState extends SettingsData {
    */
   restoreConceptRule: (rfc: string, key: string, previous: ConceptRule | null) => void;
   /**
-   * Replaces all four stored fields with an already validated settings value, in one `set`
+   * Replaces all six stored fields with an already validated settings value, in one `set`
    * (AJUS-02, D-08), so persist writes once and a reader never sees a half-replaced state.
    */
   replaceAll: (data: SettingsData) => void;
 }
 
-/** The four stored fields of the current state, as the domain reducers take them. */
+/** The six stored fields of the current state, as the domain reducers take them. */
 function dataOf(state: SettingsData): SettingsData {
-  const { ivaMode, categories, supplierCategories, conceptRules } = state;
-  return { ivaMode, categories, supplierCategories, conceptRules };
+  const {
+    ivaMode,
+    categories,
+    supplierCategories,
+    conceptRules,
+    products,
+    ungroupedConcepts,
+  } = state;
+  return { ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts };
 }
 
 /**
@@ -177,13 +187,7 @@ export const useSettingsStore = create<SettingsState>()(
       ...defaultSettings(),
       setIvaMode: (ivaMode) => set({ ivaMode }),
       setSupplierCategory: (rfc, name, categoryId) => {
-        const { ivaMode, categories, supplierCategories, conceptRules } = get();
-        const result = setSupplierCategory(
-          { ivaMode, categories, supplierCategories, conceptRules },
-          rfc,
-          name,
-          categoryId,
-        );
+        const result = setSupplierCategory(dataOf(get()), rfc, name, categoryId);
         if (result.ok) set({ supplierCategories: result.next.supplierCategories });
         return result;
       },
@@ -257,6 +261,8 @@ export const useSettingsStore = create<SettingsState>()(
           categories: data.categories,
           supplierCategories: data.supplierCategories,
           conceptRules: data.conceptRules,
+          products: data.products,
+          ungroupedConcepts: data.ungroupedConcepts,
         });
       },
     }),
@@ -271,6 +277,8 @@ export const useSettingsStore = create<SettingsState>()(
         categories: state.categories,
         supplierCategories: state.supplierCategories,
         conceptRules: state.conceptRules,
+        products: state.products,
+        ungroupedConcepts: state.ungroupedConcepts,
       }),
       // Both delegate to the total resolvePersisted: an exception here would be
       // swallowed by zustand and silently reset the store (Pitfall 5).

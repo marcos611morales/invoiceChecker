@@ -65,7 +65,8 @@ export function BackupControls({ onError }: { onError: (error: BackupError | nul
   const [open, setOpen] = useState(false);
 
   function download(): void {
-    const { ivaMode, categories, supplierCategories, conceptRules } = useSettingsStore.getState();
+    const { ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts } =
+      useSettingsStore.getState();
     // The only use of the browser's local date (UI-SPEC): the file name carries today's date.
     const today = new Date();
     const name = backupFileName({
@@ -73,7 +74,15 @@ export function BackupControls({ onError }: { onError: (error: BackupError | nul
       month: today.getMonth() + 1,
       day: today.getDate(),
     });
-    const text = buildBackupText({ ivaMode, categories, supplierCategories, conceptRules });
+    // The file is still file version 1: buildBackupText writes only the four Phase 3 fields.
+    const text = buildBackupText({
+      ivaMode,
+      categories,
+      supplierCategories,
+      conceptRules,
+      products,
+      ungroupedConcepts,
+    });
     downloadBlob(new Blob([text], { type: "application/json" }), name);
     toast(settingsDownloadedToast(name));
   }

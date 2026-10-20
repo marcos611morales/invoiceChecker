@@ -15,10 +15,14 @@
  *
  * The file holds the four settings fields and nothing about invoices: no amounts, UUIDs,
  * folios, dates or receptor (T-03-18).
+ *
+ * Phase 4 (stored settings version 3) keeps this file at version 1 until file version 2 is added:
+ * the writer still emits only the four Phase 3 fields (products and «No agrupar» marks are not
+ * written yet) and a version-1 file loads with no products and no marks.
  */
 import { z } from "zod";
 import { settingsIntegrityIssues } from "./schema";
-import { LIMITS, type SettingsData } from "./types";
+import { LIMITS, type SettingsData, type SettingsDataV2 } from "./types";
 
 export const BACKUP_APP = "invoicechecker-settings";
 /** Highest file version this build can read and the one it writes. */
@@ -38,7 +42,10 @@ export function checkBackupSize(bytes: number): BackupFailure | null {
   return bytes > LIMITS.backupBytes ? "too-large" : null;
 }
 
-/** The file as written by this build: only the fields of the contract, two-space indented. */
+/**
+ * The file as written by this build: only the fields of the contract (file version 1, the four
+ * Phase 3 fields), two-space indented. Any other field of `settings` is left out on purpose.
+ */
 export function buildBackupText(settings: SettingsData): string {
   const file = {
     app: BACKUP_APP,
@@ -113,8 +120,11 @@ const backupFile1Schema = z.object({
 
 export type BackupFile1 = z.infer<typeof backupFile1Schema>;
 
-/** Converter from the version-1 file to the app's settings. Later versions add their own. */
-export function fromBackupFile1(file: BackupFile1): SettingsData {
+/**
+ * Converter from the version-1 file to the Phase 3 settings shape (the file never carried
+ * products). Later versions add their own.
+ */
+export function fromBackupFile1(file: BackupFile1): SettingsDataV2 {
   const { ivaMode, categories, supplierCategories, conceptRules } = file.settings;
   return {
     ivaMode,
@@ -154,7 +164,8 @@ export function parseBackupText(
   if (header.data.version > BACKUP_FILE_VERSION) return { ok: false, reason: "newer" };
   const file = backupFile1Schema.safeParse(raw);
   if (!file.success) return { ok: false, reason: "damaged" };
-  const settings = fromBackupFile1(file.data);
+  // A version-1 file has no products and no «No agrupar» marks (D-13).
+  const settings: SettingsData = { ...fromBackupFile1(file.data), products: [], ungroupedConcepts: [] };
   return {
     ok: true,
     settings,

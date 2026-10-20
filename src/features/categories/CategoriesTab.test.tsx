@@ -246,7 +246,7 @@ describe("Categorías tab: Categoría por proveedor (CAT-02, D-01, D-03, D-04)",
     expect(gasto()).toBe(centsToMoney(expected));
   });
 
-  it("stores version 2 with the defaults plus that one assignment and restores it after a reload", async () => {
+  it("stores version 3 with the defaults plus that one assignment and restores it after a reload", async () => {
     load(sample());
     await renderShell();
     openTab("Categorías");
@@ -255,7 +255,7 @@ describe("Categorías tab: Categoría por proveedor (CAT-02, D-01, D-03, D-04)",
       ...defaultSettings(),
       supplierCategories: [{ rfc: A.rfc, name: A.nombre, categoryId: LIMPIEZA }],
     };
-    expect(await readStoredSettings()).toEqual({ state: expected, version: 2 });
+    expect(await readStoredSettings()).toEqual({ state: expected, version: 3 });
 
     // Reload: memory back to the defaults, the stored value written again, then rehydrated.
     act(() => {
@@ -281,7 +281,7 @@ describe("Categorías tab: Categoría por proveedor (CAT-02, D-01, D-03, D-04)",
     choose(A.nombre, "Sin categoría");
     expect(supplierSelect(A.nombre)).toHaveTextContent("Sin categoría");
     expect(useSettingsStore.getState().supplierCategories).toEqual([]);
-    expect(await readStoredSettings()).toEqual({ state: defaultSettings(), version: 2 });
+    expect(await readStoredSettings()).toEqual({ state: defaultSettings(), version: 3 });
     openTab("Dashboard");
     expect(categoryRows()).toHaveLength(1);
     expect(within(at(categoryRows(), 0)).getByText("$290.01")).toBeInTheDocument();

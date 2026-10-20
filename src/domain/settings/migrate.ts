@@ -5,12 +5,12 @@
  * returned as it is, including one with zero categories: the suggestions are
  * never re-seeded over it (Pitfall 7).
  */
-import { legacySettingsSchema, settingsDataSchema } from "./schema";
+import { legacySettingsSchema, settingsDataSchema, settingsDataSchemaV2 } from "./schema";
 import { defaultSettings, type SettingsData } from "./types";
 
 /**
- * absent: nothing stored; ok: a valid stored value; migrated: the Phase 2
- * contract was upgraded; unreadable: a stored value that could not be used.
+ * absent: nothing stored; ok: a valid stored value; migrated: an older contract
+ * (version 1 or 2) was upgraded; unreadable: a stored value that could not be used.
  */
 export type PersistStatus = "absent" | "ok" | "migrated" | "unreadable";
 
@@ -24,6 +24,13 @@ export function resolvePersisted(
     const legacy = legacySettingsSchema.safeParse(raw);
     if (!legacy.success) return { data: defaultSettings(), status: "unreadable" };
     return { data: { ...defaultSettings(), ivaMode: legacy.data.ivaMode }, status: "migrated" };
+  }
+  if (version === 2) {
+    // Phase 3 contract (D-13): keep every category, assignment, rule and the IVA mode; the
+    // products and the «No agrupar» marks start empty. safeParse only, so it stays total (Pitfall 5).
+    const previous = settingsDataSchemaV2.safeParse(raw);
+    if (!previous.success) return { data: defaultSettings(), status: "unreadable" };
+    return { data: { ...previous.data, products: [], ungroupedConcepts: [] }, status: "migrated" };
   }
   const parsed = settingsDataSchema.safeParse(raw);
   if (!parsed.success) return { data: defaultSettings(), status: "unreadable" };

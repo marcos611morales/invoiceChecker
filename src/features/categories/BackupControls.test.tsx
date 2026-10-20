@@ -53,13 +53,16 @@ function incoming(overrides: Partial<SettingsData> = {}): SettingsData {
       { rfc: "XAXX010101000", name: "Público", categoryId: "cat_b" },
     ],
     conceptRules: [{ rfc: "EKU9003173C9", key: "renta", description: "Renta", categoryId: null }],
+    products: [],
+    ungroupedConcepts: [],
     ...overrides,
   };
 }
 
 function snapshot(): SettingsData {
-  const { ivaMode, categories, supplierCategories, conceptRules } = useSettingsStore.getState();
-  return { ivaMode, categories, supplierCategories, conceptRules };
+  const { ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts } =
+    useSettingsStore.getState();
+  return { ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts };
 }
 
 function fileInput(): HTMLInputElement {
@@ -108,6 +111,41 @@ describe("BackupControls: download (D-07)", () => {
     expect(blob.type).toBe("application/json");
     expect(await blob.text()).toBe(buildBackupText(incoming()));
     expect(toastMock).toHaveBeenCalledWith(`Ajustes descargados: ${String(name)}`);
+  });
+
+  it("keeps the file at version 1 with the four Phase 3 fields when the store holds products", async () => {
+    useSettingsStore.getState().replaceAll(
+      incoming({
+        categories: [{ id: "cat_a", name: "Eventos" }],
+        supplierCategories: [],
+        conceptRules: [],
+        products: [
+          {
+            id: "prod_1",
+            name: "Leche entera",
+            categoryId: "cat_a",
+            members: [{ rfc: "EKU9003173C9", key: "leche", description: "Leche", supplierName: "Uno" }],
+          },
+        ],
+        ungroupedConcepts: [
+          { rfc: "EKU9003173C9", key: "flete", description: "Flete", supplierName: "Uno" },
+        ],
+      }),
+    );
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Descargar ajustes" }));
+    const blob = downloadMock.mock.calls[0]?.[0];
+    if (!(blob instanceof Blob)) throw new Error("the download must carry a Blob");
+    const text = await blob.text();
+    expect(text).not.toContain("prod_1");
+    expect(text).not.toContain("flete");
+    const parsed: unknown = JSON.parse(text);
+    expect(parsed).toMatchObject({ app: BACKUP_APP, version: 1 });
+    expect(Object.keys(typeof parsed === "object" && parsed !== null ? parsed : {}).sort()).toEqual([
+      "app",
+      "settings",
+      "version",
+    ]);
   });
 
   it("uses the local date of today in the file name", () => {
@@ -164,6 +202,31 @@ describe("BackupControls: upload of a valid file (D-08)", () => {
     await waitFor(() => {
       expect(screen.queryByRole("alertdialog")).toBeNull();
     });
+  });
+
+  it("loads a version-1 file with no products and no marks (D-13)", async () => {
+    useSettingsStore.getState().replaceAll(
+      incoming({
+        products: [
+          {
+            id: "prod_1",
+            name: "Leche entera",
+            categoryId: "cat_a",
+            members: [{ rfc: "EKU9003173C9", key: "leche", description: "Leche", supplierName: "Uno" }],
+          },
+        ],
+        ungroupedConcepts: [
+          { rfc: "EKU9003173C9", key: "flete", description: "Flete", supplierName: "Uno" },
+        ],
+      }),
+    );
+    render(<Harness />);
+    await choose(jsonFile(buildBackupText(incoming())));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reemplazar mis ajustes" }));
+    expect(snapshot()).toEqual(incoming());
+    expect(useSettingsStore.getState().products).toEqual([]);
+    expect(useSettingsStore.getState().ungroupedConcepts).toEqual([]);
   });
 
   it("changes nothing on «Conservar los míos» and Esc", async () => {
