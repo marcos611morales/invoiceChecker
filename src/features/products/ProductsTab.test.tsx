@@ -9,7 +9,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { POST } from "@/app/api/llm/group/route";
 import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
@@ -468,5 +468,190 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
       .object({ groups: z.array(z.unknown()), meta: z.object({ attempts: z.literal(1) }) })
       .safeParse(JSON.parse(routeResponseTexts[0] ?? "null"));
     expect(parsed.success).toBe(true);
+  });
+});
+
+const SUMMARY_PLURAL =
+  "Se enviarán a DeepSeek 5 descripciones de conceptos y 2 nombres de proveedor. No se envían RFC, UUID, montos, fechas ni folios.";
+const PEOPLE_LINE =
+  "Algunos nombres de proveedor pueden ser nombres de personas. DeepSeek es un servicio externo a esta aplicación.";
+
+function groupButton(): HTMLElement {
+  return screen.getByRole("button", { name: "Agrupar productos" });
+}
+
+/** Replaces the loaded invoices (a clear bumps the generation, so nothing stale writes). */
+function reseed(invoices: readonly ParsedInvoice[]): void {
+  act(() => {
+    useSessionStore.getState().clearAll();
+  });
+  seed(invoices);
+}
+
+describe("Agrupar productos: the free count (D-03, D-04, D-05, OQ2)", () => {
+  it("reads «5 descripciones sin agrupar» under the button, counting the tipo P concept and the repeated line once", () => {
+    render(<ProductsTab />);
+    expect(screen.getByText("5 descripciones sin agrupar")).toBeInTheDocument();
+    expect(groupButton()).toHaveAccessibleDescription("5 descripciones sin agrupar");
+  });
+
+  it("uses the singular for one free description", () => {
+    reseed([invoice(0, UNO, ["Azúcar"])]);
+    render(<ProductsTab />);
+    expect(screen.getByText("1 descripción sin agrupar")).toBeInTheDocument();
+  });
+
+  it("counts the descriptions regardless of the Dashboard filters and exclusions", () => {
+    act(() => {
+      useSessionStore.getState().excludeInvoice(INVOICE_UUIDS[2] ?? "");
+      useSessionStore.getState().setSuppliers(new Set([UNO.rfc]));
+    });
+    render(<ProductsTab />);
+    expect(screen.getByText("5 descripciones sin agrupar")).toBeInTheDocument();
+  });
+
+  it("reads «No hay descripciones nuevas para agrupar», is aria-disabled and opens nothing when nothing is free", () => {
+    reseed([]);
+    render(<ProductsTab />);
+    expect(screen.getByText("No hay descripciones nuevas para agrupar")).toBeInTheDocument();
+    expect(groupButton()).toHaveAttribute("aria-disabled", "true");
+    expect(groupButton()).not.toBeDisabled();
+    fireEvent.click(groupButton());
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reads «Hay un proceso en curso», announces the batch and starts nothing on a second press while a run is active", async () => {
+    let release: () => void = () => undefined;
+    upstream = (body) =>
+      new Promise<Response>((resolve) => {
+        release = () => {
+          resolve(milkAnswer(body));
+        };
+      });
+    render(<ProductsTab />);
+    await openDialog();
+    await confirm();
+    await waitFor(() => {
+      expect(screen.getByText("Hay un proceso en curso")).toBeInTheDocument();
+    });
+    const line = screen.getByText("Agrupando productos · Lote 1 de 1");
+    expect(line.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
+    expect(groupButton()).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(groupButton());
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(routeBodies).toHaveLength(1);
+    release();
+    await screen.findByRole("heading", { name: "Leche entera" });
+    await waitFor(() => {
+      expect(screen.queryByText("Hay un proceso en curso")).toBeNull();
+    });
+  });
+});
+
+describe("Agrupar productos: the send summary (D-08, OQ1)", () => {
+  it("states the counts in plural, the people line and the group heading", async () => {
+    render(<ProductsTab />);
+    await openDialog();
+    expect(within(dialog()).getByText(SUMMARY_PLURAL)).toBeInTheDocument();
+    expect(within(dialog()).getByText(PEOPLE_LINE)).toBeInTheDocument();
+    dialogRows();
+    expect(within(dialog()).getByText("Descripciones y proveedores (5)")).toBeInTheDocument();
+  });
+
+  it("uses the singular for one description and one supplier", async () => {
+    reseed([invoice(0, UNO, ["Azúcar"])]);
+    render(<ProductsTab />);
+    await openDialog();
+    expect(
+      within(dialog()).getByText(
+        "Se enviarán a DeepSeek 1 descripción de concepto y 1 nombre de proveedor. No se envían RFC, UUID, montos, fechas ni folios.",
+      ),
+    ).toBeInTheDocument();
+    dialogRows();
+    expect(within(dialog()).getByText("Descripciones y proveedores (1)")).toBeInTheDocument();
+  });
+});
+
+describe("Agrupar productos: the queue (D-19)", () => {
+  it("shows the heading, the intro and the line count of every member", async () => {
+    render(<ProductsTab />);
+    await openDialog();
+    await confirm();
+    await screen.findByRole("heading", { name: "Leche entera", level: 3 });
+    expect(
+      screen.getByRole("heading", { name: "Sugerencias de productos · 1", level: 2 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Revisa cada grupo. Puedes cambiar el nombre, separar descripciones o unir grupos antes de aceptar.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Tienda Uno · 2 líneas")).toBeInTheDocument();
+    expect(screen.getByText("Tienda Dos · 1 línea")).toBeInTheDocument();
+  });
+
+  it("marks a member that has no loaded lines", () => {
+    act(() => {
+      useSuggestionsStore.getState().enqueueProducts([
+        {
+          id: "sug_seeded",
+          name: "Aceite",
+          target: null,
+          members: [
+            {
+              rfc: "ZZZ090909ZZZ",
+              key: "aceite 1l",
+              description: "ACEITE 1L",
+              supplierName: "Tienda Tres",
+            },
+          ],
+        },
+      ]);
+    });
+    render(<ProductsTab />);
+    const card = screen.getByRole("heading", { name: "Aceite", level: 3 }).closest("li");
+    expect(card).not.toBeNull();
+    if (card === null) return;
+    expect(within(card).getByText("Sin líneas cargadas")).toBeInTheDocument();
+    expect(within(card).getByText("Tienda Tres")).toBeInTheDocument();
+  });
+});
+
+describe("Agrupar productos: a stopped run (UI-SPEC run failures)", () => {
+  it("shows our own message for a DeepSeek 401 and goes back to the caption when the notice is closed", async () => {
+    upstream = () => new Response("{}", { status: 401 });
+    render(<ProductsTab />);
+    await openDialog();
+    await confirm();
+    const alert = await screen.findByRole("alert");
+    expect(
+      within(alert).getByText(
+        "Se detuvo el proceso en el lote 1 de 1. DeepSeek rechazó la clave de acceso del servidor. Avisa a quien administra la aplicación. Las sugerencias que ya llegaron se conservaron.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(alert).queryByRole("link", { name: "Iniciar sesión" })).toBeNull();
+    fireEvent.click(within(alert).getByRole("button", { name: "Cerrar aviso" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("5 descripciones sin agrupar")).toBeInTheDocument();
+  });
+
+  it("adds the «Iniciar sesión» link when the session ended (a 401 shaped like the proxy's)", async () => {
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve(NextResponse.json({ error: "unauthorized" }, { status: 401 })),
+    );
+    render(<ProductsTab />);
+    await openDialog();
+    await confirm();
+    const alert = await screen.findByRole("alert");
+    expect(
+      within(alert).getByText(
+        "Se detuvo el proceso en el lote 1 de 1. Tu sesión terminó. Vuelve a iniciar sesión para continuar. Las sugerencias que ya llegaron se conservaron.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(alert).getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute(
+      "href",
+      "/login",
+    );
   });
 });
