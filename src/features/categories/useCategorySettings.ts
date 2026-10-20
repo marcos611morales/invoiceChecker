@@ -16,7 +16,7 @@ export function makeNameOf(categories: readonly Category[]): (key: string) => st
 }
 
 /**
- * The settings, the resolver and the category-name lookup, memoized on the four
+ * The settings, the resolver and the category-name lookup, memoized on the six
  * stored fields with separate primitive selectors. The Dashboard and the
  * Categorías tab both call it, so they read the same data and rebuild the maps
  * only when a stored field changes.
@@ -30,9 +30,18 @@ export function useCategorySettings(): {
   const categories = useSettingsStore((s) => s.categories);
   const supplierCategories = useSettingsStore((s) => s.supplierCategories);
   const conceptRules = useSettingsStore((s) => s.conceptRules);
+  const products = useSettingsStore((s) => s.products);
+  const ungroupedConcepts = useSettingsStore((s) => s.ungroupedConcepts);
   const settings = useMemo<SettingsData>(
-    () => ({ ivaMode, categories, supplierCategories, conceptRules }),
-    [ivaMode, categories, supplierCategories, conceptRules],
+    () => ({
+      ivaMode,
+      categories,
+      supplierCategories,
+      conceptRules,
+      products,
+      ungroupedConcepts,
+    }),
+    [ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts],
   );
   const resolver = useMemo(() => makeResolver(settings), [settings]);
   const nameOf = useMemo(() => makeNameOf(categories), [categories]);

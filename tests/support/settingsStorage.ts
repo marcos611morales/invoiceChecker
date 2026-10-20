@@ -1,5 +1,10 @@
 import type { IvaMode } from "@/domain/accounting/aggregate";
-import { defaultSettings, type SettingsData } from "@/domain/settings/types";
+import {
+  SETTINGS_VERSION,
+  defaultSettings,
+  type SettingsData,
+  type SettingsDataV2,
+} from "@/domain/settings/types";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useStorageStatusStore } from "@/stores/storageStatusStore";
 
@@ -7,7 +12,8 @@ import { useStorageStatusStore } from "@/stores/storageStatusStore";
  * Test access to the persisted settings through the store's own storage adapter,
  * so tests never touch the browser storage object directly. Reload simulation:
  * `storeIvaMode("sin")` (the Phase 2 contract, version 1, so it exercises the
- * migration) or `storeSettings(data)` (version 2), then rehydrate the store.
+ * migration), `storeSettingsV2(data)` (version 2, the Phase 3 value) or `storeSettings(data)`
+ * (the current version 3), then rehydrate the store.
  */
 function adapter() {
   const options = useSettingsStore.persist.getOptions();
@@ -22,8 +28,14 @@ export function storeIvaMode(ivaMode: IvaMode): void {
   void storage.setItem(name, { state: { ivaMode }, version: 1 });
 }
 
-/** Writes a version-2 value as a browser that already used Phase 3 would hold it. */
+/** Writes a current-version value (SETTINGS_VERSION, 3) as a browser that used Phase 4 holds it. */
 export function storeSettings(data: SettingsData): void {
+  const { storage, name } = adapter();
+  void storage.setItem(name, { state: data, version: SETTINGS_VERSION });
+}
+
+/** Writes a version-2 value as a browser that only used Phase 3 would hold it (migration tests). */
+export function storeSettingsV2(data: SettingsDataV2): void {
   const { storage, name } = adapter();
   void storage.setItem(name, { state: data, version: 2 });
 }

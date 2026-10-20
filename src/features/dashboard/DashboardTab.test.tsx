@@ -230,7 +230,7 @@ describe("Dashboard tab: Gasto total follows the IVA mode (REGLA-03, DASH-10)", 
     fireEvent.click(ivaButton("Sin IVA"));
     expect(await readStoredSettings()).toEqual({
       state: { ...defaultSettings(), ivaMode: "sin" },
-      version: 2,
+      version: 3,
     });
   });
 });
@@ -522,7 +522,7 @@ describe("Dashboard tab: filters (FILT-02, FILT-04, FILT-05, D-03, D-07)", () =>
       useSessionStore.getState().setSuppliers(new Set([ABARROTES.rfc]));
     });
     const stored = await readStoredSettings();
-    expect(stored).toEqual({ state: { ...defaultSettings(), ivaMode: "sin" }, version: 2 });
+    expect(stored).toEqual({ state: { ...defaultSettings(), ivaMode: "sin" }, version: 3 });
     expect(JSON.stringify(stored)).not.toContain(ABARROTES.rfc);
   });
 });
@@ -1445,7 +1445,7 @@ describe("Dashboard tab: Gasto por categoría (DASH-03, DASH-05, AJUS-01, D-12, 
     expectIdentity(toCents("100.01") - toCents("10.00") + toCents("50.00"));
     expect(await readStoredSettings()).toEqual({
       state: { ...defaultSettings(), ivaMode: "sin" },
-      version: 2,
+      version: 3,
     });
   });
 
