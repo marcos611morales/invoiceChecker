@@ -29,6 +29,8 @@ function sample(): SettingsData {
       { rfc: "EKU9003173C9", key: "leche", description: "Leche", categoryId: CUSTOM },
       { rfc: "XAXX010101000", key: "renta", description: "Renta", categoryId: null },
     ],
+    products: [],
+    ungroupedConcepts: [],
   };
 }
 
@@ -95,6 +97,8 @@ describe("buildBackupText and parseBackupText round trip", () => {
       categories: [],
       supplierCategories: [],
       conceptRules: [],
+      products: [],
+      ungroupedConcepts: [],
     };
     const result = parseBackupText(buildBackupText(empty));
     expect(result.ok).toBe(true);
