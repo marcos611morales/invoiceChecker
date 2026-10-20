@@ -22,7 +22,7 @@ Después:
 ```bash
 pnpm dev            # servidor de desarrollo en http://localhost:3000
 pnpm verify         # lint + typecheck + pruebas + build
-pnpm build && pnpm smoke:auth   # prueba de la contraseña contra un servidor de producción
+pnpm build && pnpm smoke:auth   # prueba de la contraseña y de la ruta de agrupar productos contra un servidor de producción
 ```
 
 `.env.example` documenta cada variable. Nunca uses el prefijo público de Next.js con `APP_PASSWORD`, `SESSION_SECRET` ni `DEEPSEEK_API_KEY`.
@@ -47,9 +47,11 @@ El proyecto de Vercel lo crea quien administra la cuenta (D-26) y se usa el domi
 7. **Antes de desplegar**, ejecuta localmente:
 
    ```bash
-   node scripts/check-bundle-secrets.mjs   # compila con valores centinela y busca secretos en .next/static
+   node scripts/check-bundle-secrets.mjs   # compila con valores centinela y busca secretos en .next/static y en las páginas .html y .rsc prerrenderizadas
    pnpm audit --prod --audit-level high    # sin avisos altos o críticos en dependencias de producción
    ```
+
+   El análisis del build cubre también la clave de DeepSeek (`DEEPSEEK_API_KEY`): ni su valor ni los nombres `DEEPSEEK_API_KEY` y `DEEPSEEK_MODEL` pueden aparecer en lo que llega al navegador. Además, `pnpm build && pnpm smoke:auth` prueba la ruta `/api/llm/group` contra un servidor de producción: sin sesión responde 401, un cuerpo mal formado responde 400 y, con la clave vacía, responde 500 `server_not_configured`; nunca llama a DeepSeek de verdad.
 
 8. **Confirma en la URL real** (ventana privada): cualquier ruta, por ejemplo `/` o `/cualquier-cosa`, lleva a `/login`; la contraseña correcta entra; recargar y volver a visitar más tarde sigue dentro; "Cerrar sesión" regresa a `/login`. La fase solo se cierra cuando esto queda confirmado en la URL real (D-28).
 

@@ -12,6 +12,7 @@ import {
 import {
   coverageOf,
   isComplete,
+  mergeSameNamedGroups,
   normalizeProductName,
 } from "@/domain/llm/reconcile";
 
@@ -23,9 +24,20 @@ import {
 
 export const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
 export const DEFAULT_MODEL = "deepseek-flash";
-/** One attempt, shorter than maxDuration so our own JSON error arrives before Vercel's. */
+
+/** The whole call stays below maxDuration (180 s) so our own JSON error arrives before Vercel's cut. */
+const DEADLINE_MS = 170000;
+/** One attempt, further capped by the time left minus SAFETY_MS. */
 const ATTEMPT_TIMEOUT_MS = 80000;
-const MAX_TOKENS = 8192;
+/** D-27 with RESEARCH OQ4: one retry, so two attempts at most. */
+const MAX_ATTEMPTS = 2;
+/** No retry starts with less than this left. */
+const MIN_RETRY_BUDGET_MS = 20000;
+/** Kept free at the end of the deadline for building our own answer. */
+const SAFETY_MS = 5000;
+const GROUP_MAX_TOKENS = 8192;
+const RATE_LIMIT_WAIT_MIN_MS = 1000;
+const RATE_LIMIT_WAIT_JITTER_MS = 1000;
 
 export interface DeepseekEnv {
   apiKey: string;
@@ -35,6 +47,34 @@ export interface DeepseekEnv {
 export type DeepseekResult<T> =
   | { ok: true; data: T; meta: LlmMeta }
   | { ok: false; error: LlmErrorCode; meta: LlmMeta };
+
+/** Time as a seam, so tests drive the deadline without real waiting. */
+export interface LlmClock {
+  now(): number;
+  sleep(ms: number, signal: AbortSignal): Promise<void>;
+  timeout(ms: number): AbortSignal;
+}
+
+export const REAL_CLOCK: LlmClock = {
+  now: () => Date.now(),
+  sleep: (ms, signal) =>
+    new Promise<void>((resolve, reject) => {
+      if (signal.aborted) {
+        reject(signal.reason);
+        return;
+      }
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      };
+      const timer = setTimeout(() => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      }, ms);
+      signal.addEventListener("abort", onAbort, { once: true });
+    }),
+  timeout: (ms) => AbortSignal.timeout(ms),
+};
 
 const deepseekEnvSchema = z.object({
   DEEPSEEK_API_KEY: z.string().min(1),
@@ -104,37 +144,58 @@ function userMessage(request: GroupRequest): string {
   return JSON.stringify({ suppliers, items, existing: request.existing });
 }
 
+type Groups = GroupResponse["groups"];
+
+/** Counts of one attempt; the last attempt is the one reported. */
+interface Usage {
+  finishReason: string | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  reasoningTokens: number | null;
+}
+
+type AttemptOutcome =
+  | { ok: true; groups: Groups }
+  | {
+      ok: false;
+      error: LlmErrorCode;
+      /** False for refusals a second call cannot fix and for the caller's own abort. */
+      retry: boolean;
+      /** Seconds of a numeric Retry-After header, in ms; never forwarded. */
+      retryAfterMs: number | null;
+    };
+
+function refuse(error: LlmErrorCode, retry: boolean, retryAfterMs: number | null = null): AttemptOutcome {
+  return { ok: false, error, retry, retryAfterMs };
+}
+
+/** A numeric Retry-After in seconds as milliseconds; a date or anything else is ignored. */
+function retryAfterOf(headers: Headers): number | null {
+  const raw = headers.get("retry-after")?.trim() ?? "";
+  if (!/^\d{1,6}$/.test(raw)) return null;
+  return Number(raw) * 1000;
+}
+
 /**
- * One attempt at grouping. Never reads, returns or logs the upstream response
- * text, its headers or the key (Pitfall 3): only our own codes and counts leave.
+ * One call and the checks of its answer. Never reads, returns or logs the
+ * upstream response text or headers beyond the numeric Retry-After, nor the key
+ * (Pitfall 3): only our own codes and counts leave.
  */
-export async function groupWithDeepSeek(
+async function attemptOnce(
   request: GroupRequest,
   env: DeepseekEnv,
   signal: AbortSignal,
-): Promise<DeepseekResult<GroupResponse["groups"]>> {
-  const startedAt = Date.now();
-  let finishReason: string | null = null;
-  let promptTokens: number | null = null;
-  let completionTokens: number | null = null;
-  let reasoningTokens: number | null = null;
-  const meta = (): LlmMeta => ({
-    attempts: 1,
-    durationMs: Date.now() - startedAt,
-    finishReason,
-    promptTokens,
-    completionTokens,
-    reasoningTokens,
-  });
-  const fail = (error: LlmErrorCode): DeepseekResult<never> => ({
-    ok: false,
-    error,
-    meta: meta(),
-  });
+  timeout: AbortSignal,
+  usage: Usage,
+): Promise<AttemptOutcome> {
+  usage.finishReason = null;
+  usage.promptTokens = null;
+  usage.completionTokens = null;
+  usage.reasoningTokens = null;
 
-  const timeout = AbortSignal.timeout(ATTEMPT_TIMEOUT_MS);
   let status: number;
   let body: unknown;
+  let retryAfterMs: number | null = null;
   try {
     const response = await fetch(DEEPSEEK_URL, {
       method: "POST",
@@ -151,7 +212,7 @@ export async function groupWithDeepSeek(
         response_format: { type: "json_object" },
         thinking: { type: "disabled" },
         temperature: 0,
-        max_tokens: MAX_TOKENS,
+        max_tokens: GROUP_MAX_TOKENS,
         stream: false,
       }),
       signal: AbortSignal.any([signal, timeout]),
@@ -160,71 +221,155 @@ export async function groupWithDeepSeek(
     if (response.ok) {
       body = await response.json();
     } else {
+      if (status === 429) retryAfterMs = retryAfterOf(response.headers);
       await response.body?.cancel().catch(() => undefined);
     }
   } catch (error) {
-    if (timeout.aborted) return fail("upstream_timeout");
+    // The browser gave up: nobody is waiting for a second attempt.
+    if (signal.aborted) return refuse("upstream_timeout", false);
+    if (timeout.aborted) return refuse("upstream_timeout", true);
     // A body that is not JSON arrives as a SyntaxError from json(), not as a network failure.
-    if (error instanceof SyntaxError) return fail("invalid_response");
-    return fail("upstream_unavailable");
+    if (error instanceof SyntaxError) return refuse("invalid_response", true);
+    return refuse("upstream_unavailable", true);
   }
 
-  if (status === 401) return fail("upstream_auth");
-  if (status === 402) return fail("upstream_balance");
-  if (status === 429) return fail("upstream_rate_limited");
-  if (status === 400 || status === 422) return fail("upstream_rejected");
-  if (status < 200 || status >= 300) return fail("upstream_unavailable");
+  if (status === 401) return refuse("upstream_auth", false);
+  if (status === 402) return refuse("upstream_balance", false);
+  if (status === 400 || status === 422) return refuse("upstream_rejected", false);
+  if (status === 429) return refuse("upstream_rate_limited", true, retryAfterMs);
+  if (status >= 500) return refuse("upstream_unavailable", true);
+  // Any other non-2xx answer is not something a second call fixes.
+  if (status < 200 || status >= 300) return refuse("upstream_unavailable", false);
 
   const completion = completionSchema.safeParse(body);
-  if (!completion.success) return fail("invalid_response");
+  if (!completion.success) return refuse("invalid_response", true);
   const choice = completion.data.choices[0];
-  const usage = completion.data.usage;
-  finishReason = choice?.finish_reason ?? null;
-  promptTokens = usage?.prompt_tokens ?? null;
-  completionTokens = usage?.completion_tokens ?? null;
-  reasoningTokens = usage?.completion_tokens_details?.reasoning_tokens ?? null;
+  const counts = completion.data.usage;
+  usage.finishReason = choice?.finish_reason ?? null;
+  usage.promptTokens = counts?.prompt_tokens ?? null;
+  usage.completionTokens = counts?.completion_tokens ?? null;
+  usage.reasoningTokens = counts?.completion_tokens_details?.reasoning_tokens ?? null;
 
   const content = choice?.message.content;
   if (content === undefined || content === null || content.trim() === "") {
-    return fail("invalid_response");
+    return refuse("invalid_response", true);
   }
-  if (finishReason !== "stop") return fail("invalid_response");
+  if (usage.finishReason !== "stop") return refuse("invalid_response", true);
 
   let output: unknown;
   try {
     output = JSON.parse(content);
   } catch {
-    return fail("invalid_response");
+    return refuse("invalid_response", true);
   }
   const model = groupModelOutputSchema.safeParse(output);
-  if (!model.success) return fail("invalid_response");
-
-  // D-11: every sent id exactly once and nothing else. Anything else enqueues nothing;
-  // the descriptions stay free and the browser re-checks before it enqueues (OQ3).
-  const sentIds = request.items.map((item) => item.id);
-  const coverage = coverageOf(
-    sentIds,
-    model.data.g.map((group) => ({ ids: group.i })),
-  );
-  if (!isComplete(coverage)) return fail("incomplete_response");
+  if (!model.success) return refuse("invalid_response", true);
 
   const descriptions = new Map(request.items.map((item) => [item.id, item.description]));
   const sentContext = new Set(request.existing.map((product) => product.id));
-  const groups: GroupResponse["groups"] = [];
+  const mapped: Groups = [];
+  let unnamed = false;
   for (const group of model.data.g) {
     const firstId = group.i[0];
     const fallback = firstId === undefined ? undefined : descriptions.get(firstId);
     const name =
       normalizeProductName(group.n) ||
       (fallback === undefined ? "" : cutText(fallback, LLM_LIMITS.productName));
-    // Unreachable after the coverage check (every first id was sent); kept so a name is never empty.
-    if (name === "") continue;
+    // Only an invented first id gets here; the coverage check below turns it into incomplete_response.
+    if (name === "") {
+      unnamed = true;
+      continue;
+    }
     const existing = group.e ?? null;
-    groups.push({
+    mapped.push({
       name,
       ids: group.i,
       existing: existing !== null && sentContext.has(existing) ? existing : null,
     });
   }
-  return { ok: true, data: groups, meta: meta() };
+  const groups = mergeSameNamedGroups(mapped);
+
+  // D-11: every sent id exactly once and nothing else. Anything else enqueues nothing;
+  // the descriptions stay free and the browser re-checks before it enqueues (OQ3).
+  const coverage = coverageOf(
+    request.items.map((item) => item.id),
+    groups,
+  );
+  if (unnamed || !isComplete(coverage)) return refuse("incomplete_response", true);
+  return { ok: true, groups };
+}
+
+/** 1 to 2 seconds, or the numeric Retry-After when the wait still leaves a usable retry. */
+function rateLimitWait(
+  retryAfterMs: number | null,
+  elapsedMs: number,
+): number {
+  if (retryAfterMs !== null && elapsedMs + retryAfterMs <= DEADLINE_MS - MIN_RETRY_BUDGET_MS) {
+    return retryAfterMs;
+  }
+  return RATE_LIMIT_WAIT_MIN_MS + Math.floor(Math.random() * (RATE_LIMIT_WAIT_JITTER_MS + 1));
+}
+
+/**
+ * Groups the descriptions with DeepSeek: at most MAX_ATTEMPTS calls inside the
+ * DEADLINE_MS budget (D-27, RESEARCH OQ3/OQ4), our own error code when it fails,
+ * and exactly one content-free log line per call (Pitfall 1).
+ */
+export async function groupWithDeepSeek(
+  request: GroupRequest,
+  env: DeepseekEnv,
+  signal: AbortSignal,
+  clock: LlmClock = REAL_CLOCK,
+): Promise<DeepseekResult<Groups>> {
+  const startedAt = clock.now();
+  const usage: Usage = {
+    finishReason: null,
+    promptTokens: null,
+    completionTokens: null,
+    reasoningTokens: null,
+  };
+  let attempts = 0;
+  let last: AttemptOutcome = refuse("upstream_unavailable", false);
+
+  while (attempts < MAX_ATTEMPTS) {
+    const remaining = DEADLINE_MS - (clock.now() - startedAt);
+    if (attempts > 0 && remaining < MIN_RETRY_BUDGET_MS) break;
+    attempts += 1;
+    const attemptMs = Math.min(ATTEMPT_TIMEOUT_MS, remaining - SAFETY_MS);
+    last = await attemptOnce(request, env, signal, clock.timeout(attemptMs), usage);
+    if (last.ok || !last.retry || signal.aborted || attempts >= MAX_ATTEMPTS) break;
+    if (last.error === "upstream_rate_limited") {
+      const wait = rateLimitWait(last.retryAfterMs, clock.now() - startedAt);
+      try {
+        await clock.sleep(wait, signal);
+      } catch {
+        last = refuse("upstream_timeout", false);
+        break;
+      }
+    }
+  }
+
+  const meta: LlmMeta = {
+    attempts,
+    durationMs: clock.now() - startedAt,
+    finishReason: usage.finishReason,
+    promptTokens: usage.promptTokens,
+    completionTokens: usage.completionTokens,
+    reasoningTokens: usage.reasoningTokens,
+  };
+  // The only log of the module: codes and counts, never the key, text or names.
+  console.info(
+    `[llm] ${JSON.stringify({
+      route: "group",
+      outcome: last.ok ? "ok" : last.error,
+      attempts: meta.attempts,
+      durationMs: meta.durationMs,
+      finishReason: meta.finishReason,
+      promptTokens: meta.promptTokens,
+      completionTokens: meta.completionTokens,
+      reasoningTokens: meta.reasoningTokens,
+    })}`,
+  );
+  if (last.ok) return { ok: true, data: last.groups, meta };
+  return { ok: false, error: last.error, meta };
 }

@@ -22,6 +22,11 @@ const fetchMock = vi.fn<(input: string | URL | Request, init?: RequestInit) => P
 
 let token = "";
 
+/** The same kind of answer for every attempt; a Response body can only be read once, hence a factory. */
+function always(make: () => Response): void {
+  fetchMock.mockImplementation(() => Promise.resolve(make()));
+}
+
 function completion(content: unknown, finishReason = "stop"): Response {
   return new Response(
     JSON.stringify({
@@ -307,14 +312,15 @@ describe("POST /api/llm/group: the DeepSeek call (ACC-04, D-29)", () => {
   });
 
   it("answers 502 incomplete_response, retryable, when the answer leaves out an id", async () => {
-    fetchMock.mockResolvedValueOnce(completion({ g: [{ n: "Leche", i: ["i1", "i2"], e: null }] }));
+    always(() => completion({ g: [{ n: "Leche", i: ["i1", "i2"], e: null }] }));
     const result = await answer(await POST(request(JSON.stringify(BODY))));
     expect(result.status).toBe(502);
     expect(result.json).toEqual({ error: "incomplete_response", retryable: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("answers 502 incomplete_response when the answer repeats an id", async () => {
-    fetchMock.mockResolvedValueOnce(
+    always(() =>
       completion({
         g: [
           { n: "Leche", i: ["i1", "i2"], e: null },
@@ -328,9 +334,7 @@ describe("POST /api/llm/group: the DeepSeek call (ACC-04, D-29)", () => {
   });
 
   it("answers 502 incomplete_response when the answer invents an id", async () => {
-    fetchMock.mockResolvedValueOnce(
-      completion({ g: [{ n: "Leche", i: ["i1", "i2", "i3", "i99"], e: null }] }),
-    );
+    always(() => completion({ g: [{ n: "Leche", i: ["i1", "i2", "i3", "i99"], e: null }] }));
     const result = await answer(await POST(request(JSON.stringify(BODY))));
     expect(result.status).toBe(502);
     expect(result.json).toEqual({ error: "incomplete_response", retryable: true });
@@ -354,7 +358,7 @@ describe("POST /api/llm/group: the DeepSeek call (ACC-04, D-29)", () => {
     [500, "upstream_unavailable", 502, true],
     [503, "upstream_unavailable", 502, true],
   ])("maps a DeepSeek %i to our own %s (%i)", async (upstreamStatus, code, status, retryable) => {
-    fetchMock.mockResolvedValueOnce(new Response(`{"echo":"${KEY}"}`, { status: upstreamStatus }));
+    always(() => new Response(`{"echo":"${KEY}"}`, { status: upstreamStatus, headers: { "retry-after": "0" } }));
     const result = await answer(await POST(request(JSON.stringify(BODY))));
     expect(result.status).toBe(status);
     expect(result.json).toEqual({ error: code, retryable });
@@ -362,20 +366,21 @@ describe("POST /api/llm/group: the DeepSeek call (ACC-04, D-29)", () => {
   });
 
   it("answers 502 upstream_unavailable when the connection fails", async () => {
-    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    fetchMock.mockImplementation(() => Promise.reject(new TypeError("fetch failed")));
     const result = await answer(await POST(request(JSON.stringify(BODY))));
     expect(result.status).toBe(502);
     expect(result.json).toEqual({ error: "upstream_unavailable", retryable: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it.each([
-    ["empty content", completion("")],
-    ["whitespace content", completion("   ")],
-    ["content that is not JSON", completion("no es json")],
-    ["a model answer of the wrong shape", completion({ groups: [] })],
-    ["a cut-off answer", completion({ g: [{ n: "Leche", i: ["i1", "i2", "i3"] }] }, "length")],
+    ["empty content", () => completion("")],
+    ["whitespace content", () => completion("   ")],
+    ["content that is not JSON", () => completion("no es json")],
+    ["a model answer of the wrong shape", () => completion({ groups: [] })],
+    ["a cut-off answer", () => completion({ g: [{ n: "Leche", i: ["i1", "i2", "i3"] }] }, "length")],
   ])("answers 502 invalid_response, retryable, to %s", async (_label, response) => {
-    fetchMock.mockResolvedValueOnce(response);
+    always(response);
     const result = await answer(await POST(request(JSON.stringify(BODY))));
     expect(result.status).toBe(502);
     expect(result.json).toEqual({ error: "invalid_response", retryable: true });
@@ -385,5 +390,174 @@ describe("POST /api/llm/group: the DeepSeek call (ACC-04, D-29)", () => {
     fetchMock.mockResolvedValueOnce(oneGroup("Leche entera"));
     const ok = await answer(await POST(request(JSON.stringify(BODY))));
     expect(ok.text).not.toContain(KEY);
+  });
+});
+
+/** An upstream body that tries to leak: the key, the word Bearer and a marker of its own. */
+const UPSTREAM_MARKER = "UPSTREAM-BODY-MARKER";
+function leakyBody(): string {
+  return JSON.stringify({ error: { message: `${UPSTREAM_MARKER} Bearer ${KEY}` } });
+}
+function leaky(code: number): () => Response {
+  return () =>
+    new Response(leakyBody(), {
+      status: code,
+      headers: { "retry-after": "0", "x-echo": `Bearer ${KEY}` },
+    });
+}
+
+/** A fetch that never answers on its own: it rejects when its signal aborts. */
+function hangUntilAborted(onStart: () => void): (input: string | URL | Request, init?: RequestInit) => Promise<Response> {
+  return (_url, init) =>
+    new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (!signal) throw new Error("expected a signal");
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      onStart();
+    });
+}
+
+interface Scenario {
+  label: string;
+  setup: () => void;
+  status: number;
+  body: { error: string; retryable: boolean } | "groups";
+}
+
+const SCENARIOS: Scenario[] = [
+  { label: "a good answer", setup: () => always(() => oneGroup("Leche entera")), status: 200, body: "groups" },
+  { label: "a 401 that echoes the key", setup: () => always(leaky(401)), status: 502, body: { error: "upstream_auth", retryable: false } },
+  { label: "a 402", setup: () => always(leaky(402)), status: 502, body: { error: "upstream_balance", retryable: false } },
+  { label: "a 422", setup: () => always(leaky(422)), status: 502, body: { error: "upstream_rejected", retryable: false } },
+  { label: "a 400", setup: () => always(leaky(400)), status: 502, body: { error: "upstream_rejected", retryable: false } },
+  { label: "a 429 twice", setup: () => always(leaky(429)), status: 503, body: { error: "upstream_rate_limited", retryable: true } },
+  { label: "a 500 twice", setup: () => always(leaky(500)), status: 502, body: { error: "upstream_unavailable", retryable: true } },
+  {
+    label: "a network error that names the key, twice",
+    setup: () => fetchMock.mockImplementation(() => Promise.reject(new TypeError(`fetch failed Bearer ${KEY}`))),
+    status: 502,
+    body: { error: "upstream_unavailable", retryable: true },
+  },
+  { label: "empty content twice", setup: () => always(() => completion("")), status: 502, body: { error: "invalid_response", retryable: true } },
+  { label: "garbage twice", setup: () => always(() => completion(`no es json ${KEY}`)), status: 502, body: { error: "invalid_response", retryable: true } },
+  {
+    label: "finish_reason length twice",
+    setup: () => always(() => completion({ g: [{ n: "Leche", i: ["i1", "i2", "i3"] }] }, "length")),
+    status: 502,
+    body: { error: "invalid_response", retryable: true },
+  },
+  {
+    label: "a missing id twice",
+    setup: () => always(() => completion({ g: [{ n: "Leche", i: ["i1", "i2"], e: null }] })),
+    status: 502,
+    body: { error: "incomplete_response", retryable: true },
+  },
+];
+
+describe("POST /api/llm/group: nothing of the key or of the invoices leaves (ACC-04, T-04-08, T-04-12)", () => {
+  let spies: ReturnType<typeof spyOnConsole>;
+
+  function spyOnConsole() {
+    return {
+      info: vi.spyOn(console, "info").mockImplementation(() => undefined),
+      log: vi.spyOn(console, "log").mockImplementation(() => undefined),
+      warn: vi.spyOn(console, "warn").mockImplementation(() => undefined),
+      error: vi.spyOn(console, "error").mockImplementation(() => undefined),
+    };
+  }
+
+  /** Every argument of every console call as one string. */
+  function consoleText(): string {
+    return Object.values(spies)
+      .flatMap((spy) => spy.mock.calls)
+      .map((call) => JSON.stringify(call))
+      .join("\n");
+  }
+
+  function expectNoLeak(response: { text: string }, headers: Headers): void {
+    const forbidden = [KEY, UPSTREAM_MARKER, "Bearer"];
+    for (const needle of forbidden) {
+      expect(response.text).not.toContain(needle);
+      for (const value of headers.values()) expect(value).not.toContain(needle);
+    }
+    const logged = consoleText();
+    expect(logged).not.toContain(KEY);
+    expect(logged).not.toContain(UPSTREAM_MARKER);
+    for (const item of BODY.items) {
+      expect(logged).not.toContain(item.description);
+      expect(logged).not.toContain(item.supplier);
+    }
+  }
+
+  beforeEach(() => {
+    spies = spyOnConsole();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each(SCENARIOS)("$label: only our own answer, no key, no upstream text, no invoice text in the logs", async (scenario) => {
+    scenario.setup();
+    const response = await POST(request(JSON.stringify(BODY)));
+    const result = await answer(response.clone());
+    expect(result.status).toBe(scenario.status);
+    if (scenario.body === "groups") {
+      expect(result.json).toMatchObject({ groups: [{ name: "Leche entera" }], meta: { attempts: 1 } });
+    } else {
+      expect(result.json).toEqual(scenario.body);
+    }
+    expectNoLeak(result, response.headers);
+    expect(spies.info).toHaveBeenCalledTimes(1);
+    expect(spies.log).not.toHaveBeenCalled();
+    expect(spies.warn).not.toHaveBeenCalled();
+    expect(spies.error).not.toHaveBeenCalled();
+  });
+
+  it("an attempt timeout twice: 504 upstream_timeout, retryable, nothing leaked", async () => {
+    const expiries: AbortController[] = [];
+    vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+      const controller = new AbortController();
+      expiries.push(controller);
+      return controller.signal;
+    });
+    fetchMock.mockImplementation(
+      hangUntilAborted(() => {
+        expiries[expiries.length - 1]?.abort(new DOMException("timed out", "TimeoutError"));
+      }),
+    );
+    const response = await POST(request(JSON.stringify(BODY)));
+    const result = await answer(response.clone());
+    expect(result.status).toBe(504);
+    expect(result.json).toEqual({ error: "upstream_timeout", retryable: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expectNoLeak(result, response.headers);
+  });
+
+  it("the browser aborting the request: 504 upstream_timeout after one call, nothing leaked", async () => {
+    const browser = new AbortController();
+    fetchMock.mockImplementation(hangUntilAborted(() => browser.abort()));
+    const aborted = new NextRequest("http://localhost/api/llm/group", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: `session=${token}` },
+      body: JSON.stringify(BODY),
+      signal: browser.signal,
+    });
+    const response = await POST(aborted);
+    const result = await answer(response.clone());
+    expect(result.status).toBe(504);
+    expect(result.json).toEqual({ error: "upstream_timeout", retryable: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expectNoLeak(result, response.headers);
+  });
+
+  it("a tampered cookie never reaches fetch and logs nothing", async () => {
+    const tampered = `${token.slice(0, -3)}${token.endsWith("AAA") ? "BBB" : "AAA"}`;
+    const response = await POST(request(JSON.stringify(BODY), { cookie: tampered }));
+    const result = await answer(response.clone());
+    expect(result.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(spies.info).not.toHaveBeenCalled();
+    expectNoLeak(result, response.headers);
   });
 });

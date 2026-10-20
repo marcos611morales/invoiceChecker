@@ -53,6 +53,14 @@ const get = (path, cookie) =>
     headers: cookie ? { cookie: `session=${cookie}` } : {},
   });
 
+const llmGroup = (token, body, contentType = "application/json") =>
+  fetch(`${BASE}/api/llm/group`, {
+    method: "POST",
+    redirect: "manual",
+    headers: { "content-type": contentType, cookie: `session=${token}` },
+    body,
+  });
+
 const login = (password, contentType = "application/json") =>
   fetch(`${BASE}/api/auth/login`, {
     method: "POST",
@@ -68,7 +76,9 @@ function sessionValue(res) {
 }
 
 try {
-  const goodEnv = { APP_PASSWORD: PASSWORD, SESSION_SECRET: SECRET };
+  // DEEPSEEK_API_KEY is empty (not unset) so a developer's .env.local cannot fill in a
+  // real key: no real DeepSeek call is ever made by this script.
+  const goodEnv = { APP_PASSWORD: PASSWORD, SESSION_SECRET: SECRET, DEEPSEEK_API_KEY: "" };
   await startServer(goodEnv);
 
   let res = await get("/");
@@ -134,6 +144,44 @@ try {
     `status ${res.status}`,
   );
 
+  // ACC-03: the grouping route refuses malformed and unconfigured calls without reaching DeepSeek.
+  const validItems = [{ id: "i1", description: "x", supplier: "y" }];
+  res = await llmGroup(token, JSON.stringify({ items: validItems, existing: [] }), "text/plain");
+  const bodyPlain = await res.json().catch(() => null);
+  check(
+    "LLM route: text/plain is 400 bad_request",
+    res.status === 400 && bodyPlain && bodyPlain.error === "bad_request",
+    `status ${res.status}`,
+  );
+
+  res = await llmGroup(
+    token,
+    JSON.stringify({ items: [{ ...validItems[0], rfc: "XAXX010101000" }], existing: [] }),
+  );
+  const bodyRfc = await res.json().catch(() => null);
+  check(
+    "LLM route: an extra rfc field is 400 bad_request",
+    res.status === 400 && bodyRfc && bodyRfc.error === "bad_request",
+    `status ${res.status}`,
+  );
+
+  res = await llmGroup(token, JSON.stringify({ items: validItems, existing: [] }));
+  const textNoKey = await res.text();
+  let bodyNoKey = null;
+  try {
+    bodyNoKey = JSON.parse(textNoKey);
+  } catch {
+    // reported by the check below
+  }
+  check(
+    "LLM route: an empty key is 500 server_not_configured and the answer never names DeepSeek",
+    res.status === 500 &&
+      bodyNoKey &&
+      bodyNoKey.error === "server_not_configured" &&
+      !textNoKey.includes("DEEPSEEK"),
+    `status ${res.status}`,
+  );
+
   // Open Question 2: an authenticated visit to /login must stay reachable (no bounce).
   res = await get("/login", token);
   check("authenticated /login stays 200", res.status === 200, `status ${res.status}`);
@@ -160,12 +208,12 @@ try {
   );
 
   // D-02: a cookie signed under another password must be rejected after rotation.
-  await startServer({ APP_PASSWORD: `${PASSWORD}-rotated`, SESSION_SECRET: SECRET });
+  await startServer({ APP_PASSWORD: `${PASSWORD}-rotated`, SESSION_SECRET: SECRET, DEEPSEEK_API_KEY: "" });
   res = await get("/", token);
   check("old cookie rejected after APP_PASSWORD rotation", res.status === 307, `status ${res.status}`);
 
   // Fail closed: empty (not unset) so a local .env.local cannot fill them in.
-  await startServer({ APP_PASSWORD: "", SESSION_SECRET: "" });
+  await startServer({ APP_PASSWORD: "", SESSION_SECRET: "", DEEPSEEK_API_KEY: "" });
   res = await login(PASSWORD);
   const bodyCfg = await res.json().catch(() => null);
   check(
