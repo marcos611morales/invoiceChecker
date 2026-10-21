@@ -6,6 +6,7 @@ import {
   dropMember,
   enqueueProductSuggestions,
   memberKey,
+  mergeSuggestions,
   pendingQueueSchema,
   removeSuggestion,
   renameSuggestion,
@@ -13,14 +14,18 @@ import {
   resolveProductAnswer,
   restoreMember,
   restoreSuggestion,
+  splitSuggestion,
   toProductSuggestions,
+  turnIntoAddCard,
+  undoQueueChange,
   type CategorySuggestion,
   type PendingQueue,
   type ProductSuggestion,
   type RunContext,
   type SuggestionMember,
 } from "./suggestions";
-import type { ContextTarget } from "./candidates";
+import { cutText, type ContextTarget } from "./candidates";
+import { LLM_LIMITS } from "./contract";
 
 function member(rfc: string, key: string): SuggestionMember {
   return { rfc, key, description: `Descripción ${key}`, supplierName: `Tienda ${rfc}` };
@@ -910,3 +915,307 @@ describe("appendSuggestionMembers (D-33)", () => {
 function manyMembers(count: number): SuggestionMember[] {
   return Array.from({ length: count }, (_, index) => member("ZZZ990909ZZZ", `producto ${String(index)}`));
 }
+
+describe("mergeSuggestions, turnIntoAddCard, splitSuggestion and undoQueueChange (D-19)", () => {
+  type Change = NonNullable<ReturnType<typeof mergeSuggestions>>;
+  const LECHE_TRES_KEY = memberKey(LECHE_TRES);
+
+  /** «A» (two members), «B» (one) and «C» (one), the shape of the join example. */
+  function joinQueue(): PendingQueue {
+    return {
+      products: [
+        card("sug_a", "Leche entera", [LECHE_UNO, LECHE_DOS]),
+        card("sug_b", "Café molido", [CAFE]),
+        card("sug_c", "Azúcar", [AZUCAR]),
+      ],
+      categories: categoryRows(2),
+    };
+  }
+
+  function merged(queue: PendingQueue, fromId: string, intoId: string): Change {
+    const result = mergeSuggestions(queue, fromId, intoId);
+    if (result === null) throw new Error("expected a merge");
+    return result;
+  }
+
+  describe("mergeSuggestions", () => {
+    it("appends the members of A to B in order, removes A, and keeps B's id, name and target", () => {
+      const base = joinQueue();
+      const { next, undo } = merged(base, "sug_a", "sug_b");
+      expect(next.products.map((entry) => entry.id)).toEqual(["sug_b", "sug_c"]);
+      expect(next.products[0]).toEqual({
+        id: "sug_b",
+        name: "Café molido",
+        target: null,
+        members: [CAFE, LECHE_UNO, LECHE_DOS],
+      });
+      expect(next.categories).toBe(base.categories);
+      expect(undo.createdId).toBeNull();
+    });
+
+    it("keeps the «Agregar a» target of the card that receives the members", () => {
+      const base: PendingQueue = {
+        products: [
+          card("sug_a", "Leche entera", [LECHE_UNO]),
+          { id: "sug_b", name: "Café", target: "prod_1", members: [CAFE] },
+        ],
+        categories: [],
+      };
+      const { next } = merged(base, "sug_a", "sug_b");
+      expect(next.products).toEqual([
+        { id: "sug_b", name: "Café", target: "prod_1", members: [CAFE, LECHE_UNO] },
+      ]);
+    });
+
+    it("undo gives back the original queue, whichever card comes first", () => {
+      const base = joinQueue();
+      const forward = merged(base, "sug_a", "sug_b");
+      expect(undoQueueChange(forward.next, forward.undo)).toEqual(base);
+      const backward = merged(base, "sug_c", "sug_a");
+      expect(backward.next.products.map((entry) => entry.id)).toEqual(["sug_a", "sug_b"]);
+      expect(undoQueueChange(backward.next, backward.undo)).toEqual(base);
+    });
+
+    it("returns null for the same card or for an unknown card", () => {
+      const base = joinQueue();
+      expect(mergeSuggestions(base, "sug_a", "sug_a")).toBeNull();
+      expect(mergeSuggestions(base, "sug_x", "sug_b")).toBeNull();
+      expect(mergeSuggestions(base, "sug_a", "sug_x")).toBeNull();
+    });
+  });
+
+  describe("turnIntoAddCard", () => {
+    it("sets the target and keeps the id, the name and the members", () => {
+      const base = joinQueue();
+      const result = turnIntoAddCard(base, "sug_b", "prod_1");
+      if (result === null) throw new Error("expected a change");
+      expect(result.next.products[1]).toEqual({
+        id: "sug_b",
+        name: "Café molido",
+        target: "prod_1",
+        members: [CAFE],
+      });
+      expect(result.next.products[0]).toEqual(base.products[0]);
+      expect(result.undo.createdId).toBeNull();
+    });
+
+    it("undo clears the target again", () => {
+      const base = joinQueue();
+      const result = turnIntoAddCard(base, "sug_b", "prod_1");
+      if (result === null) throw new Error("expected a change");
+      expect(undoQueueChange(result.next, result.undo)).toEqual(base);
+    });
+
+    it("returns null for an unknown card, or when the card already points at that product", () => {
+      const base = joinQueue();
+      expect(turnIntoAddCard(base, "sug_x", "prod_1")).toBeNull();
+      const once = turnIntoAddCard(base, "sug_b", "prod_1");
+      if (once === null) throw new Error("expected a change");
+      expect(turnIntoAddCard(once.next, "sug_b", "prod_1")).toBeNull();
+    });
+  });
+
+  describe("splitSuggestion", () => {
+    function splitQueue(): PendingQueue {
+      return {
+        products: [
+          card("sug_c", "Leche entera", [LECHE_UNO, LECHE_DOS, LECHE_TRES]),
+          card("sug_d", "Azúcar", [AZUCAR]),
+        ],
+        categories: categoryRows(1),
+      };
+    }
+
+    it("keeps the unchecked members in the card and puts the checked ones in a new card right below", () => {
+      const base = splitQueue();
+      const result = splitSuggestion(
+        base,
+        "sug_c",
+        [memberKey(LECHE_DOS), LECHE_TRES_KEY],
+        "sug_new",
+      );
+      if (result === null) throw new Error("expected a split");
+      expect(result.next.products).toEqual([
+        { id: "sug_c", name: "Leche entera", target: null, members: [LECHE_UNO] },
+        {
+          id: "sug_new",
+          name: LECHE_DOS.description,
+          target: null,
+          members: [LECHE_DOS, LECHE_TRES],
+        },
+        base.products[1],
+      ]);
+      expect(result.undo.createdId).toBe("sug_new");
+      expect(result.next.categories).toBe(base.categories);
+    });
+
+    it("keeps the order of the card, not the order of the keys, and names the card after its first checked member", () => {
+      const result = splitSuggestion(
+        splitQueue(),
+        "sug_c",
+        [LECHE_TRES_KEY, memberKey(LECHE_DOS)],
+        "sug_new",
+      );
+      if (result === null) throw new Error("expected a split");
+      expect(result.next.products[1]?.members).toEqual([LECHE_DOS, LECHE_TRES]);
+      expect(result.next.products[1]?.name).toBe(LECHE_DOS.description);
+    });
+
+    it("cuts the name of the new card to 60 characters", () => {
+      const long: SuggestionMember = {
+        rfc: "AAA010101AAA",
+        key: "descripcion larga",
+        description: "d".repeat(90),
+        supplierName: "Tienda Uno",
+      };
+      const base: PendingQueue = {
+        products: [card("sug_c", "Varios", [LECHE_UNO, long])],
+        categories: [],
+      };
+      const result = splitSuggestion(base, "sug_c", [memberKey(long)], "sug_new");
+      if (result === null) throw new Error("expected a split");
+      const name = result.next.products[1]?.name ?? "";
+      expect(name).toBe(cutText(long.description, LLM_LIMITS.productName));
+      expect(name.length).toBeLessThanOrEqual(60);
+    });
+
+    it("undo restores the card with all its members and removes the new card", () => {
+      const base = splitQueue();
+      const result = splitSuggestion(base, "sug_c", [memberKey(LECHE_DOS)], "sug_new");
+      if (result === null) throw new Error("expected a split");
+      expect(undoQueueChange(result.next, result.undo)).toEqual(base);
+    });
+
+    it("splits an «Agregar a» card into a new product card and leaves the target on the original", () => {
+      const base: PendingQueue = {
+        products: [{ id: "sug_c", name: "Leche", target: "prod_1", members: [LECHE_UNO, LECHE_DOS] }],
+        categories: [],
+      };
+      const result = splitSuggestion(base, "sug_c", [memberKey(LECHE_DOS)], "sug_new");
+      if (result === null) throw new Error("expected a split");
+      expect(result.next.products[0]?.target).toBe("prod_1");
+      expect(result.next.products[1]?.target).toBeNull();
+      expect(undoQueueChange(result.next, result.undo)).toEqual(base);
+    });
+
+    it("returns null with no key in the card, with every member checked, or for an unknown card", () => {
+      const base = splitQueue();
+      const all = base.products[0]?.members.map(memberKey) ?? [];
+      expect(splitSuggestion(base, "sug_c", [], "sug_new")).toBeNull();
+      expect(splitSuggestion(base, "sug_c", [memberKey(AZUCAR)], "sug_new")).toBeNull();
+      expect(splitSuggestion(base, "sug_c", all, "sug_new")).toBeNull();
+      expect(splitSuggestion(base, "sug_x", [memberKey(LECHE_DOS)], "sug_new")).toBeNull();
+    });
+
+    it("ignores keys the card does not have as long as some but not all of its members are named", () => {
+      const result = splitSuggestion(
+        splitQueue(),
+        "sug_c",
+        [memberKey(LECHE_DOS), memberKey(AZUCAR)],
+        "sug_new",
+      );
+      expect(result?.next.products[1]?.members).toEqual([LECHE_DOS]);
+    });
+
+    it("refuses a new id that is already in the queue", () => {
+      expect(splitSuggestion(splitQueue(), "sug_c", [memberKey(LECHE_DOS)], "sug_d")).toBeNull();
+    });
+
+    it("refuses to pass the card cap (an input already at the cap)", () => {
+      const atCap: PendingQueue = {
+        products: [
+          card("sug_c", "Leche entera", [LECHE_UNO, LECHE_DOS]),
+          ...oneMemberCards(PENDING_LIMITS.productCards - 1),
+        ],
+        categories: [],
+      };
+      expect(splitSuggestion(atCap, "sug_c", [memberKey(LECHE_DOS)], "sug_new")).toBeNull();
+    });
+  });
+
+  describe("undoQueueChange", () => {
+    it("leaves out a member that is pending in another card now", () => {
+      const base: PendingQueue = {
+        products: [card("sug_c", "Leche entera", [LECHE_UNO, LECHE_DOS, LECHE_TRES])],
+        categories: [],
+      };
+      const result = splitSuggestion(base, "sug_c", [memberKey(LECHE_DOS)], "sug_new");
+      if (result === null) throw new Error("expected a split");
+      // The user moved the new card's member into another card meanwhile.
+      const meanwhile: PendingQueue = {
+        products: [
+          ...result.next.products.filter((entry) => entry.id === "sug_c"),
+          card("sug_x", "Otra", [LECHE_DOS]),
+        ],
+        categories: [],
+      };
+      const undone = undoQueueChange(meanwhile, result.undo);
+      expect(undone.products.map((entry) => entry.id)).toEqual(["sug_c", "sug_x"]);
+      expect(undone.products[0]?.members).toEqual([LECHE_UNO, LECHE_TRES]);
+      expect(pendingQueueSchema.safeParse(undone).success).toBe(true);
+    });
+
+    it("keeps a member that a later batch added to a card of the change", () => {
+      const base = joinQueue();
+      const { next, undo } = merged(base, "sug_a", "sug_b");
+      const late = member("DDD040404DDD", "te verde 20 sobres");
+      const meanwhile = appendSuggestionMembers(next, "sug_b", [late]);
+      const undone = undoQueueChange(meanwhile, undo);
+      expect(undone.products.map((entry) => entry.id)).toEqual(["sug_a", "sug_b", "sug_c"]);
+      expect(undone.products[0]?.members).toEqual([LECHE_UNO, LECHE_DOS]);
+      expect(undone.products[1]?.members).toEqual([CAFE, late]);
+      expect(pendingQueueSchema.safeParse(undone).success).toBe(true);
+
+      // The created card of a split took the late member: it goes back to the restored card.
+      const split = splitSuggestion(base, "sug_a", [memberKey(LECHE_DOS)], "sug_new");
+      if (split === null) throw new Error("expected a split");
+      const afterSplit = appendSuggestionMembers(split.next, "sug_new", [late]);
+      const back = undoQueueChange(afterSplit, split.undo);
+      expect(back.products.map((entry) => entry.id)).toEqual(["sug_a", "sug_b", "sug_c"]);
+      expect(back.products[0]?.members).toEqual([LECHE_UNO, LECHE_DOS, late]);
+    });
+
+    it("does nothing when no card of the change is left in the queue (it was accepted or rejected)", () => {
+      const base = joinQueue();
+      const { next, undo } = merged(base, "sug_a", "sug_b");
+      const gone: PendingQueue = {
+        ...next,
+        products: next.products.filter((entry) => entry.id !== "sug_b"),
+      };
+      expect(undoQueueChange(gone, undo)).toBe(gone);
+    });
+
+    it("is idempotent: a second undo changes nothing", () => {
+      const base = joinQueue();
+      const { next, undo } = merged(base, "sug_a", "sug_b");
+      const once = undoQueueChange(next, undo);
+      expect(undoQueueChange(once, undo)).toEqual(base);
+    });
+  });
+
+  it("never mutates a frozen queue, and every result is a valid queue", () => {
+    const frozen = deepFreezeQueue(joinQueue());
+    const results: PendingQueue[] = [];
+    expect(() => {
+      const join = mergeSuggestions(frozen, "sug_a", "sug_b");
+      if (join !== null) results.push(join.next, undoQueueChange(join.next, join.undo));
+      const turn = turnIntoAddCard(frozen, "sug_a", "prod_1");
+      if (turn !== null) results.push(turn.next, undoQueueChange(turn.next, turn.undo));
+      const split = splitSuggestion(frozen, "sug_a", [memberKey(LECHE_DOS)], "sug_new");
+      if (split !== null) results.push(split.next, undoQueueChange(split.next, split.undo));
+    }).not.toThrow();
+    expect(results).toHaveLength(6);
+    for (const result of results) {
+      expect(pendingQueueSchema.safeParse(result).success).toBe(true);
+    }
+  });
+
+  it("gives an undo value that shares nothing with the queue", () => {
+    const base = joinQueue();
+    const { undo } = merged(base, "sug_a", "sug_b");
+    const saved = undo.cards.find((entry) => entry.card.id === "sug_a");
+    expect(saved?.card).toEqual(base.products[0]);
+    expect(saved?.card).not.toBe(base.products[0]);
+    expect(saved?.card.members).not.toBe(base.products[0]?.members);
+  });
+});

@@ -567,6 +567,64 @@ describe("review actions of the queue store (D-12, D-19, D-22)", () => {
   });
 });
 
+describe("join, turn into «Agregar a» and split in the queue store (D-19)", () => {
+  it("mergeSuggestions stores the joined card, and undoQueueChange gives back the stored queue", async () => {
+    useSuggestionsStore.getState().enqueueProducts(queue().products);
+    const before = storedEnvelope();
+    const undo = useSuggestionsStore.getState().mergeSuggestions("sug_a", "sug_b");
+    if (undo === null) throw new Error("expected a merge");
+    expect(snapshot().products).toEqual([
+      card("sug_b", "Café molido", [CAFE, LECHE_UNO, LECHE_DOS]),
+    ]);
+    await reload();
+    expect(snapshot().products.map((entry) => entry.id)).toEqual(["sug_b"]);
+    useSuggestionsStore.getState().undoQueueChange(undo);
+    expect(storedEnvelope()).toEqual(before);
+    expect(queueStatus()).toEqual({ readFailed: false, writeFailed: false });
+  });
+
+  it("turnIntoAddCard stores the target, and undoQueueChange clears it", () => {
+    useSuggestionsStore.getState().enqueueProducts(queue().products);
+    const before = storedEnvelope();
+    const undo = useSuggestionsStore.getState().turnIntoAddCard("sug_b", "prod_1");
+    if (undo === null) throw new Error("expected a change");
+    expect(snapshot().products[1]?.target).toBe("prod_1");
+    useSuggestionsStore.getState().undoQueueChange(undo);
+    expect(storedEnvelope()).toEqual(before);
+  });
+
+  it("splitSuggestion makes a card with a «sug_» id right below, reports it in the undo, and the undo removes it", async () => {
+    useSuggestionsStore.getState().enqueueProducts(queue().products);
+    const before = storedEnvelope();
+    const undo = useSuggestionsStore.getState().splitSuggestion("sug_a", [memberKey(LECHE_DOS)]);
+    if (undo === null) throw new Error("expected a split");
+    expect(undo.createdId).toMatch(/^sug_.+/);
+    const ids = snapshot().products.map((entry) => entry.id);
+    expect(ids).toEqual(["sug_a", undo.createdId, "sug_b"]);
+    await reload();
+    expect(snapshot().products.map((entry) => entry.id)).toEqual(ids);
+    useSuggestionsStore.getState().undoQueueChange(undo);
+    expect(storedEnvelope()).toEqual(before);
+  });
+
+  it("returns null and writes nothing when a change is refused", () => {
+    useSuggestionsStore.getState().enqueueProducts(queue().products);
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const store = useSuggestionsStore.getState();
+    expect(store.mergeSuggestions("sug_a", "sug_a")).toBeNull();
+    expect(store.turnIntoAddCard("sug_x", "prod_1")).toBeNull();
+    expect(store.splitSuggestion("sug_a", [])).toBeNull();
+    expect(store.splitSuggestion("sug_a", [memberKey(LECHE_UNO), memberKey(LECHE_DOS)])).toBeNull();
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("leaves the category rows alone", () => {
+    useSuggestionsStore.setState({ products: queue().products, categories: queue().categories });
+    useSuggestionsStore.getState().mergeSuggestions("sug_a", "sug_b");
+    expect(snapshot().categories).toEqual(queue().categories);
+  });
+});
+
 describe("readStoredQueue test helper", () => {
   it("returns the envelope the store wrote, or null", async () => {
     expect(await readStoredQueue()).toBeNull();

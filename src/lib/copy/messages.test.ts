@@ -106,12 +106,17 @@ import {
   ungroupedToast,
   ungroupedTrigger,
   unmarkAria,
+  splitAria,
+  splitToast,
   addMembersErrorText,
   addToCategoryCaption,
   addToTitle,
   chooseMemberAria,
   contextGroupHeading,
   contextNamesLine,
+  memberCountCaption,
+  mergeAria,
+  mergedToast,
   membersAddedAnnouncement,
   membersAddedToast,
 } from "./messages";
@@ -1022,6 +1027,22 @@ describe("Context names and «Agregar a» copy (Plan 04-14, UI-SPEC 198-203, 262
   it("names the member in the checkbox label, cutting the description at 60", () => {
     expect(chooseMemberAria("Leche")).toBe("Elegir «Leche»");
     expect(chooseMemberAria("d".repeat(70))).toBe(`Elegir «${"d".repeat(59)}…»`);
+  });
+
+  it("counts the descriptions of a card, with the singular", () => {
+    expect(memberCountCaption(3)).toBe("3 descripciones");
+    expect(memberCountCaption(1)).toBe("1 descripción");
+  });
+
+  it("names the card in «Unir con…» and «Separar en producto nuevo»", () => {
+    expect(mergeAria("Leche entera")).toBe("Unir la sugerencia «Leche entera» con…");
+    expect(splitAria("Leche entera")).toBe("Separar en producto nuevo desde «Leche entera»");
+  });
+
+  it("says «Sugerencias unidas» and «Se separó «{nombre}» en un producto nuevo» with the name cut at 40", () => {
+    expect(mergedToast()).toBe("Sugerencias unidas");
+    expect(splitToast("Leche")).toBe("Se separó «Leche» en un producto nuevo");
+    expect(splitToast("n".repeat(41))).toBe(`Se separó «${"n".repeat(39)}…» en un producto nuevo`);
   });
 
   it("explains each refusal of an «Agregar a» card", () => {
