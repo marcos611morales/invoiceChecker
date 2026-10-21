@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { BACKUP_APP, buildBackupText } from "@/domain/settings/backup";
+import { BACKUP_APP, buildBackupText, parseBackupText } from "@/domain/settings/backup";
 import { SIN_CATEGORIA, type SettingsData } from "@/domain/settings/types";
 import type { SheetModel, XCell } from "@/features/export/cellModel";
 import { AppShell } from "@/features/shell/AppShell";
@@ -113,7 +113,7 @@ describe("BackupControls: download (D-07)", () => {
     expect(toastMock).toHaveBeenCalledWith(`Ajustes descargados: ${String(name)}`);
   });
 
-  it("keeps the file at version 1 with the four Phase 3 fields when the store holds products", async () => {
+  it("writes file version 2 with the six fields, products and marks included, when the store holds products (D-13)", async () => {
     useSettingsStore.getState().replaceAll(
       incoming({
         categories: [{ id: "cat_a", name: "Eventos" }],
@@ -137,15 +137,19 @@ describe("BackupControls: download (D-07)", () => {
     const blob = downloadMock.mock.calls[0]?.[0];
     if (!(blob instanceof Blob)) throw new Error("the download must carry a Blob");
     const text = await blob.text();
-    expect(text).not.toContain("prod_1");
-    expect(text).not.toContain("flete");
+    expect(text).toContain("prod_1");
+    expect(text).toContain("flete");
     const parsed: unknown = JSON.parse(text);
-    expect(parsed).toMatchObject({ app: BACKUP_APP, version: 1 });
+    expect(parsed).toMatchObject({ app: BACKUP_APP, version: 2 });
     expect(Object.keys(typeof parsed === "object" && parsed !== null ? parsed : {}).sort()).toEqual([
       "app",
       "settings",
       "version",
     ]);
+    const result = parseBackupText(text);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings).toEqual(snapshot());
   });
 
   it("uses the local date of today in the file name", () => {
@@ -174,7 +178,9 @@ describe("BackupControls: upload of a valid file (D-08)", () => {
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText("¿Reemplazar tus ajustes?")).toBeInTheDocument();
     expect(
-      within(dialog).getByText(/^El archivo «x\.json» contiene 3 categorías, 2 proveedores, 1 concepto ajustado\. /),
+      within(dialog).getByText(
+        /^El archivo «x\.json» contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 0 productos \(0 descripciones\)\. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados, los productos agrupados y el modo de IVA actuales\./,
+      ),
     ).toBeInTheDocument();
     await waitFor(() => {
       expect(within(dialog).getByRole("button", { name: "Conservar los míos" })).toHaveFocus();
@@ -221,12 +227,59 @@ describe("BackupControls: upload of a valid file (D-08)", () => {
       }),
     );
     render(<Harness />);
-    await choose(jsonFile(buildBackupText(incoming())));
+    const { ivaMode, categories, supplierCategories, conceptRules } = incoming();
+    const versionOne = JSON.stringify({
+      app: BACKUP_APP,
+      version: 1,
+      settings: { ivaMode, categories, supplierCategories, conceptRules },
+    });
+    await choose(jsonFile(versionOne, "viejo.json"));
     const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).getByText(/contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 0 productos \(0 descripciones\)\./),
+    ).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Reemplazar mis ajustes" }));
     expect(snapshot()).toEqual(incoming());
     expect(useSettingsStore.getState().products).toEqual([]);
     expect(useSettingsStore.getState().ungroupedConcepts).toEqual([]);
+  });
+
+  it("loads a version-2 file with its products and marks and counts them in the dialog (D-13)", async () => {
+    const withProducts = incoming({
+      products: [
+        {
+          id: "prod_1",
+          name: "Leche entera",
+          categoryId: "cat_a",
+          members: [
+            { rfc: "EKU9003173C9", key: "leche entera 1 l", description: "Leche entera 1 L", supplierName: "Proveedor uno" },
+            { rfc: "XAXX010101000", key: "leche ent 12 pz", description: "Leche ENT 12 pz", supplierName: "Público" },
+          ],
+        },
+        {
+          id: "prod_2",
+          name: "Vasos",
+          categoryId: null,
+          members: [
+            { rfc: "EKU9003173C9", key: "vaso 12 oz", description: "Vaso 12 oz", supplierName: "Proveedor uno" },
+          ],
+        },
+      ],
+      ungroupedConcepts: [
+        { rfc: "XAXX010101000", key: "renta de salon", description: "Renta de salón", supplierName: "Público" },
+      ],
+    });
+    render(<Harness />);
+    await choose(jsonFile(buildBackupText(withProducts), "nuevo.json"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).getByText(/contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 2 productos \(3 descripciones\)\./),
+    ).toBeInTheDocument();
+    expect(snapshot().products).toEqual([]);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reemplazar mis ajustes" }));
+    expect(snapshot()).toEqual(withProducts);
+    expect(useSettingsStore.getState().products).toHaveLength(2);
+    expect(useSettingsStore.getState().ungroupedConcepts).toHaveLength(1);
   });
 
   it("changes nothing on «Conservar los míos» and Esc", async () => {
@@ -282,7 +335,9 @@ describe("BackupControls: upload of a valid file (D-08)", () => {
     });
     await choose(jsonFile(buildBackupText(one)));
     expect(
-      await screen.findByText(/contiene 1 categoría, 0 proveedores, 1 concepto ajustado\./),
+      await screen.findByText(
+        /contiene 1 categoría, 0 proveedores, 1 concepto ajustado, 0 productos \(0 descripciones\)\./,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -323,9 +378,9 @@ describe("BackupControls: invalid files (D-08, D-30)", () => {
     await expectRefused(jsonFile("hola", "nota.json"), "no es un archivo de ajustes de InvoiceChecker");
   });
 
-  it("refuses a version-2 file as coming from a newer app", async () => {
+  it("refuses a version-3 file as coming from a newer app", async () => {
     await expectRefused(
-      jsonFile(JSON.stringify({ app: BACKUP_APP, version: 2, settings: {} }), "futuro.json"),
+      jsonFile(JSON.stringify({ app: BACKUP_APP, version: 3, settings: {} }), "futuro.json"),
       "es de una versión más nueva de la app",
     );
   });
@@ -335,12 +390,25 @@ describe("BackupControls: invalid files (D-08, D-30)", () => {
     await expectRefused(jsonFile(text.slice(0, 60), "roto.json"), "está dañado o incompleto");
   });
 
-  it("refuses a file above 1 MB without reading it", async () => {
+  it("refuses a file above 4 MB (4,194,305 bytes) without reading it (D-31)", async () => {
     const file = jsonFile("{}", "grande.json");
-    Object.defineProperty(file, "size", { value: 1048577 });
+    Object.defineProperty(file, "size", { value: 4194305 });
     const textSpy = vi.spyOn(file, "text");
-    await expectRefused(file, "es demasiado grande (máx. 1 MB)");
+    await expectRefused(file, "es demasiado grande (máx. 4 MB)");
     expect(textSpy).not.toHaveBeenCalled();
+  });
+
+  it("reads a file of exactly 4 MB and a file above 1 MB (D-31)", async () => {
+    for (const size of [1048577, 4194304]) {
+      const file = jsonFile(buildBackupText(incoming()), "limite.json");
+      Object.defineProperty(file, "size", { value: size });
+      const textSpy = vi.spyOn(file, "text");
+      render(<Harness />);
+      await choose(file);
+      expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+      expect(textSpy).toHaveBeenCalledTimes(1);
+      cleanup();
+    }
   });
 
   it("closes the Alert with «Cerrar aviso» and clears it on a later valid upload", async () => {

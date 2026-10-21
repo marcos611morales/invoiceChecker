@@ -74,7 +74,7 @@ export function BackupControls({ onError }: { onError: (error: BackupError | nul
       month: today.getMonth() + 1,
       day: today.getDate(),
     });
-    // The file is still file version 1: buildBackupText writes only the four Phase 3 fields.
+    // File version 2: buildBackupText writes the six settings fields, products and marks included (D-13).
     const text = buildBackupText({
       ivaMode,
       categories,
