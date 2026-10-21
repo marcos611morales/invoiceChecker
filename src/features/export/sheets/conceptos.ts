@@ -52,6 +52,8 @@ function originText(source: CategorySource): string {
   switch (source) {
     case "regla":
       return es.export.origin.regla;
+    case "producto":
+      return es.export.origin.producto;
     case "proveedor":
       return es.export.origin.proveedor;
     case "ninguna":

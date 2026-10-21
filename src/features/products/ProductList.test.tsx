@@ -654,7 +654,8 @@ describe("Quitar a member (D-15, OQ5)", () => {
 
 async function openMove(description: string): Promise<void> {
   fireEvent.click(screen.getByRole("button", { name: `Mover «${description}» a otro producto` }));
-  await screen.findByRole("combobox");
+  // The category Selects of the rows are comboboxes too; the picker's is the search field.
+  await screen.findByRole("combobox", { name: "Buscar producto" });
 }
 
 describe("Mover a otro producto (D-15, OQ5)", () => {
@@ -748,7 +749,7 @@ describe("Categoría del producto (E6 populated and partial, D-14, D-16)", () =>
     expect(names.indexOf("Categoría")).toBe(names.indexOf("Producto") + 1);
     for (const name of ["Leche entera", "Café molido", "Azúcar"]) {
       expect(categorySelect(name)).toHaveTextContent("Sin categoría");
-      expect(categorySelect(name).className).toContain("text-muted-foreground");
+      expect(categorySelect(name).classList.contains("text-muted-foreground")).toBe(true);
     }
   });
 
@@ -764,7 +765,8 @@ describe("Categoría del producto (E6 populated and partial, D-14, D-16)", () =>
     setProducts([{ ...productWith("prod_cafe", "Café molido", [CAFE]), categoryId: INSUMOS }]);
     render(<ProductList />);
     expect(categorySelect("Café molido")).toHaveTextContent("Insumos de cafetería");
-    expect(categorySelect("Café molido").className).not.toContain("text-muted-foreground");
+    // classList, because the shared trigger also carries data-placeholder:text-muted-foreground.
+    expect(categorySelect("Café molido").classList.contains("text-muted-foreground")).toBe(false);
   });
 
   it("reads «Sin categoría» for a stored category that no longer exists", () => {

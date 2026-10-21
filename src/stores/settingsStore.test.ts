@@ -1048,4 +1048,32 @@ describe("settingsStore product actions (D-14, D-15)", () => {
     expect(snapshot()).toEqual(expected);
     expect(useStorageStatusStore.getState().readFailed).toBe(false);
   });
+
+  it("sets and clears the category of a product in one write that touches only the products", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const before = snapshot();
+    expect(useSettingsStore.getState().setProductCategory("prod_a", "seed:servicios")).toEqual({ ok: true });
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().products.map((product) => product.categoryId)).toEqual(["seed:servicios", null]);
+    expect(snapshot().categories).toBe(before.categories);
+    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 3 });
+
+    setItem.mockClear();
+    expect(useSettingsStore.getState().setProductCategory("prod_a", null)).toEqual({ ok: true });
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().products.map((product) => product.categoryId)).toEqual([null, null]);
+  });
+
+  it("writes nothing for an unknown category, an unknown product or an unchanged category", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().setProductCategory("prod_a", "cat_missing")).toEqual({
+      ok: false,
+      reason: "unknown-category",
+    });
+    expect(useSettingsStore.getState().setProductCategory("prod_x", "seed:servicios")).toEqual({ ok: true });
+    expect(useSettingsStore.getState().setProductCategory("prod_a", null)).toEqual({ ok: true });
+    expect(setItem).not.toHaveBeenCalled();
+  });
 });

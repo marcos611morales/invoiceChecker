@@ -399,6 +399,11 @@ export function supplierCategoryAria(name: string): string {
   return `Categoría por defecto de ${name}`;
 }
 
+/** Accessible name of the Categoría Select of one «Mis productos» row (UI-SPEC E6). */
+export function productCategoryAria(name: string): string {
+  return `Categoría del producto ${name}`;
+}
+
 /** Longest description kept in the accessible name of a concept selector (UI-SPEC E7 long-text). */
 const CONCEPT_ARIA_MAX = 60;
 

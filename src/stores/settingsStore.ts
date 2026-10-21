@@ -28,6 +28,7 @@ import {
   removeProductMember,
   renameProduct,
   restoreProduct,
+  setProductCategory,
   undoMemberChange,
   type AcceptProductError,
   type MemberUndo,
@@ -135,6 +136,15 @@ interface SettingsState extends SettingsData {
    * reserved, repeated, too long) changes and writes nothing, and so does an unchanged name.
    */
   renameProduct: (id: string, name: string) => { ok: true } | { ok: false; reason: ProductNameError };
+  /**
+   * Gives a product a category (an id) or none (null) (CAT-04, D-16). Only an ok result that
+   * changes something is applied, in one `set` of `products`; an unknown category id, an unknown
+   * product or an unchanged category writes nothing.
+   */
+  setProductCategory: (
+    id: string,
+    categoryId: string | null,
+  ) => { ok: true } | { ok: false; reason: "unknown-category" };
   /**
    * Deletes a product; its descriptions are free again (D-14, D-15). Returns the snapshot
    * `restoreProduct` needs, or null when the id is unknown (nothing is written then).
@@ -316,6 +326,14 @@ export const useSettingsStore = create<SettingsState>()(
         const result = renameProduct(current, id, name);
         if (!result.ok) return result;
         // An unknown id or an unchanged name comes back as the same object: nothing to write.
+        if (result.next !== current) set({ products: result.next.products });
+        return { ok: true };
+      },
+      setProductCategory: (id, categoryId) => {
+        const current = dataOf(get());
+        const result = setProductCategory(current, id, categoryId);
+        if (!result.ok) return result;
+        // An unknown product or an unchanged category comes back as the same object: nothing to write.
         if (result.next !== current) set({ products: result.next.products });
         return { ok: true };
       },
