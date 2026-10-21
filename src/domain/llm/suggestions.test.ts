@@ -11,11 +11,13 @@ import {
   resolvePendingQueue,
   restoreMember,
   restoreSuggestion,
+  toProductSuggestions,
   type CategorySuggestion,
   type PendingQueue,
   type ProductSuggestion,
   type SuggestionMember,
 } from "./suggestions";
+import type { ContextTarget } from "./candidates";
 
 function member(rfc: string, key: string): SuggestionMember {
   return { rfc, key, description: `Descripción ${key}`, supplierName: `Tienda ${rfc}` };
@@ -607,5 +609,88 @@ describe("review reducers never mutate their input", () => {
     for (const result of results) {
       expect(pendingQueueSchema.safeParse(result).success).toBe(true);
     }
+  });
+});
+
+describe("toProductSuggestions: «Agregar a» cards (D-21)", () => {
+  const MILK_A = member("AAA010101AAA", "leche a");
+  const MILK_B = member("BBB020202BBB", "leche b");
+  const MILK_C = member("CCC030303CCC", "leche c");
+  const OIL = member("AAA010101AAA", "aceite");
+  const idMap = new Map<string, SuggestionMember>([
+    ["i1", MILK_A],
+    ["i2", MILK_B],
+    ["i3", MILK_C],
+    ["i4", OIL],
+  ]);
+  const targets = new Map<string, ContextTarget>([
+    ["p1", { kind: "product", productId: "prod_leche" }],
+    ["p2", { kind: "product", productId: "prod_aceite" }],
+  ]);
+  function ids(): () => string {
+    let next = 0;
+    return () => {
+      next += 1;
+      return `sug_${String(next)}`;
+    };
+  }
+
+  it("turns a group that points at an accepted product into a card with that product as target", () => {
+    const cards = toProductSuggestions(
+      [{ name: "Leche", ids: ["i1", "i2"], existing: "p1" }],
+      idMap,
+      targets,
+      ids(),
+    );
+    expect(cards).toEqual([
+      { id: "sug_1", name: "Leche", target: "prod_leche", members: [MILK_A, MILK_B] },
+    ]);
+  });
+
+  it("leaves a plain group as a new product and ignores a context id that was never sent", () => {
+    const cards = toProductSuggestions(
+      [
+        { name: "Aceite", ids: ["i4"], existing: null },
+        { name: "Leche", ids: ["i1"], existing: "p9" },
+      ],
+      idMap,
+      targets,
+      ids(),
+    );
+    expect(cards.map((entry) => entry.target)).toEqual([null, null]);
+  });
+
+  it("merges two groups of one answer that point at the same product into one card, in answer order", () => {
+    const cards = toProductSuggestions(
+      [
+        { name: "Leche entera", ids: ["i2"], existing: "p1" },
+        { name: "Aceite", ids: ["i4"], existing: null },
+        { name: "Leche deslactosada", ids: ["i3", "i1"], existing: "p1" },
+      ],
+      idMap,
+      targets,
+      ids(),
+    );
+    expect(cards).toEqual([
+      { id: "sug_1", name: "Leche entera", target: "prod_leche", members: [MILK_B, MILK_C, MILK_A] },
+      { id: "sug_2", name: "Aceite", target: null, members: [OIL] },
+    ]);
+  });
+
+  it("keeps groups that point at different products apart and does not repeat a member", () => {
+    const cards = toProductSuggestions(
+      [
+        { name: "Leche", ids: ["i1", "i2"], existing: "p1" },
+        { name: "Aceite", ids: ["i4"], existing: "p2" },
+        { name: "Leche otra vez", ids: ["i2", "i3"], existing: "p1" },
+      ],
+      idMap,
+      targets,
+      ids(),
+    );
+    expect(cards.map((entry) => [entry.target, entry.members])).toEqual([
+      ["prod_leche", [MILK_A, MILK_B, MILK_C]],
+      ["prod_aceite", [OIL]],
+    ]);
   });
 });

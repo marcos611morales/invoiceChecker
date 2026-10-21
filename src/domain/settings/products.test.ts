@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ruleMapKey } from "./normalize";
 import {
   acceptProduct,
+  addMembersToProduct,
   deleteProduct,
   markUngrouped,
   moveProductMember,
@@ -766,5 +767,103 @@ describe("«No agrupar» marks (D-13, D-22)", () => {
       unmarkUngrouped(frozen, ruleMapKey(DOS, "sal"));
       ungroupedKeys(frozen);
     }).not.toThrow();
+  });
+});
+
+describe("addMembersToProduct (D-21)", () => {
+  const SAL_FINA = member(UNO, "sal fina", "Sal fina", "Tienda Uno");
+  const LECHE_2 = member(DOS, "leche entera 1l", "LECHE ENTERA 1L", "Tienda Dos");
+  const LECHE_3 = member("CCC030303CCC", "leche ent", "LECHE ENT", "Tienda Tres");
+  const base = (): SettingsData =>
+    withProducts([product("prod_leche", "Leche", LECHE), product("prod_sal", "Sal", [SAL_FINA])]);
+
+  it("adds the new members at the end and keeps the category and the other members", () => {
+    const seeded = defaultSettings();
+    const category = seeded.categories[0];
+    if (category === undefined) throw new Error("fixture: the defaults have categories");
+    const settings: SettingsData = {
+      ...base(),
+      categories: seeded.categories,
+      products: base().products.map((entry) =>
+        entry.id === "prod_leche" ? { ...entry, categoryId: category.id } : entry,
+      ),
+    };
+    const result = addMembersToProduct(settings, "prod_leche", [LECHE_2, LECHE_3]);
+    if (!result.ok) throw new Error("expected an ok result");
+    expect(result.added).toBe(2);
+    const updated = result.next.products.find((entry) => entry.id === "prod_leche");
+    expect(updated?.categoryId).toBe(category.id);
+    expect(updated?.members).toEqual([...LECHE, LECHE_2, LECHE_3]);
+    expect(result.next.products.find((entry) => entry.id === "prod_sal")).toEqual(
+      settings.products.find((entry) => entry.id === "prod_sal"),
+    );
+    expect(result.next.products.map((entry) => entry.id)).toEqual(["prod_leche", "prod_sal"]);
+    expect(settingsDataSchema.safeParse(result.next).success).toBe(true);
+  });
+
+  it("keeps a member repeated in the input once", () => {
+    const result = addMembersToProduct(base(), "prod_leche", [LECHE_2, LECHE_2]);
+    if (!result.ok) throw new Error("expected an ok result");
+    expect(result.added).toBe(1);
+    expect(result.next.products[0]?.members).toHaveLength(LECHE.length + 1);
+  });
+
+  it("is «gone» for a product that does not exist", () => {
+    expect(addMembersToProduct(base(), "prod_nada", [LECHE_2])).toEqual({
+      ok: false,
+      reason: "gone",
+    });
+  });
+
+  it("is «no-members» for an empty list", () => {
+    expect(addMembersToProduct(base(), "prod_leche", [])).toEqual({
+      ok: false,
+      reason: "no-members",
+    });
+  });
+
+  it("is «members-taken» when a member already belongs to another product, or to this one", () => {
+    expect(addMembersToProduct(base(), "prod_leche", [LECHE_2, SAL_FINA])).toEqual({
+      ok: false,
+      reason: "members-taken",
+    });
+    expect(addMembersToProduct(base(), "prod_leche", [...LECHE])).toEqual({
+      ok: false,
+      reason: "members-taken",
+    });
+  });
+
+  it("is «members-taken» for a description marked «No agrupar»", () => {
+    const marked = withProducts([product("prod_leche", "Leche", LECHE)], [LECHE_2]);
+    expect(addMembersToProduct(marked, "prod_leche", [LECHE_2])).toEqual({
+      ok: false,
+      reason: "members-taken",
+    });
+  });
+
+  it("is «limit» past 5,000 members in all and accepts the 5,000th", () => {
+    const filler = Array.from({ length: LIMITS.productMembers - 2 }, (_unused, index) =>
+      member(DOS, `m${String(index)}`),
+    );
+    const settings = withProducts([
+      product("prod_leche", "Leche", LECHE),
+      product("prod_otro", "Otro", filler),
+    ]);
+    expect(addMembersToProduct(settings, "prod_leche", [LECHE_2, LECHE_3])).toEqual({
+      ok: false,
+      reason: "limit",
+    });
+    const last = addMembersToProduct(settings, "prod_leche", [LECHE_2]);
+    if (!last.ok) throw new Error("expected an ok result");
+    expect(last.next.products.reduce((sum, entry) => sum + entry.members.length, 0)).toBe(
+      LIMITS.productMembers,
+    );
+    expect(settingsDataSchema.safeParse(last.next).success).toBe(true);
+  });
+
+  it("does not mutate frozen settings", () => {
+    const frozen = deepFreeze(base());
+    expect(() => addMembersToProduct(frozen, "prod_leche", [LECHE_2])).not.toThrow();
+    expect(frozen.products[0]?.members).toEqual(LECHE);
   });
 });

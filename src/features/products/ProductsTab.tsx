@@ -82,10 +82,17 @@ export function ProductsTab() {
   // aria-disabled, never `disabled`: the press is ignored when nothing is free or a run is active.
   const blocked = free.length === 0 || running;
   // The entry button and «Reintentar» do the same thing: build the run from what is still free
-  // and open the send dialog first, so nothing is sent without the user's confirmation.
+  // and open the send dialog first, so nothing is sent without the user's confirmation. The
+  // names of the accepted products go as context on every request (D-04, D-33); the names of the
+  // cards still pending from earlier runs never do, so `queue` is not passed.
   const openGroupDialog = () => {
     if (blocked) return;
-    setRun(buildGroupRun(free, []));
+    setRun(
+      buildGroupRun(
+        free,
+        products.map((product) => ({ productId: product.id, name: product.name })),
+      ),
+    );
     setOpen(true);
   };
   const caption = running

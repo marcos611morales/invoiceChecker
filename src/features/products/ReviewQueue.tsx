@@ -5,6 +5,7 @@ import { Ban } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   memberKey,
@@ -14,13 +15,20 @@ import {
 import {
   validateProductName,
   type AcceptProductError,
+  type AddMembersError,
   type ProductNameError,
 } from "@/domain/settings/products";
 import { es } from "@/lib/copy/es";
 import {
   acceptErrorText,
   acceptSuggestionAria,
+  addMembersErrorText,
+  addToCategoryCaption,
+  addToTitle,
+  chooseMemberAria,
   memberCaption,
+  membersAddedAnnouncement,
+  membersAddedToast,
   productCreatedAnnouncement,
   productCreatedToast,
   rejectSuggestionAria,
@@ -56,6 +64,11 @@ function isNameError(reason: AcceptProductError): reason is ProductNameError {
  * the parent, because this component is unmounted when the queue empties: `onAnnounce`
  * receives the polite message and `focusHeading(queueEmpty)` is called before the card is
  * removed, while every element that can receive focus still exists.
+ *
+ * A card with a `target` is an «Agregar a «X»» card (D-21): the title names the accepted product
+ * instead of an editable name, only the new members are listed, each with a checkbox that
+ * starts checked, and «Aceptar» adds the checked ones to that product without touching its
+ * other members or its category. The unchecked ones stay in the card.
  */
 export function ReviewQueue({
   cards,
@@ -73,6 +86,46 @@ export function ReviewQueue({
   // What the user is typing, until Enter or blur stores it in the queue.
   const [drafts, setDrafts] = useState<ReadonlyMap<string, string>>(new Map());
   const nameInputs = useRef(new Map<string, HTMLInputElement>());
+  // The title of an «Agregar a» card is its focus target, as the name Input is for the others.
+  const titles = useRef(new Map<string, HTMLElement>());
+  // «Agregar a» cards: the members the user unchecked (all start checked, so a member that
+  // arrives later is checked too) and the refusal shown under the buttons.
+  const [unchecked, setUnchecked] = useState<ReadonlyMap<string, ReadonlySet<string>>>(new Map());
+  const [addErrors, setAddErrors] = useState<ReadonlyMap<string, AddMembersError>>(new Map());
+  const products = useSettingsStore((s) => s.products);
+  const categories = useSettingsStore((s) => s.categories);
+
+  const setAddError = (id: string, reason: AddMembersError) => {
+    setAddErrors((current) =>
+      current.get(id) === reason ? current : new Map(current).set(id, reason),
+    );
+  };
+  // A product that is gone stays gone: toggling a checkbox cannot fix that, only «Rechazar» does.
+  const clearAddError = (id: string) => {
+    setAddErrors((current) => {
+      const existing = current.get(id);
+      if (existing === undefined || existing === "gone") return current;
+      const rest = new Map(current);
+      rest.delete(id);
+      return rest;
+    });
+  };
+  const isChecked = (cardId: string, key: string): boolean =>
+    !(unchecked.get(cardId)?.has(key) ?? false);
+  const toggleMember = (cardId: string, key: string, checked: boolean) => {
+    setUnchecked((current) => {
+      const next = new Set(current.get(cardId) ?? []);
+      if (checked) next.delete(key);
+      else next.add(key);
+      return new Map(current).set(cardId, next);
+    });
+    clearAddError(cardId);
+  };
+  // What the card is called to the user: the stored name of its target product, or its own name.
+  const shownName = (card: ProductSuggestion): string => {
+    if (card.target === null) return card.name;
+    return products.find((product) => product.id === card.target)?.name ?? card.name;
+  };
 
   const setError = (id: string, reason: AcceptProductError) => {
     setErrors((current) => (current.get(id) === reason ? current : new Map(current).set(id, reason)));
@@ -114,20 +167,62 @@ export function ReviewQueue({
   const leave = (id: string) => {
     const index = cards.findIndex((candidate) => candidate.id === id);
     const next = cards[index + 1];
-    const nextInput = next === undefined ? undefined : nameInputs.current.get(next.id);
-    if (nextInput !== undefined) nextInput.focus();
+    const nextFocus =
+      next === undefined
+        ? undefined
+        : (nameInputs.current.get(next.id) ?? titles.current.get(next.id));
+    if (nextFocus !== undefined) nextFocus.focus();
     else focusHeading(cards.length <= 1);
   };
 
   const forget = (id: string) => {
     clearError(id, false);
     clearDraft(id);
+    setAddErrors((current) => {
+      if (!current.has(id)) return current;
+      const rest = new Map(current);
+      rest.delete(id);
+      return rest;
+    });
+  };
+
+  // «Aceptar» on an «Agregar a» card (D-21): the checked members join the product and leave the
+  // card; the unchecked ones stay. A refusal keeps the card whole and explains itself.
+  const acceptAddTo = (id: string) => {
+    const card = useSuggestionsStore.getState().products.find((candidate) => candidate.id === id);
+    if (card === undefined || card.target === null) return;
+    const chosen = card.members.filter((member) => isChecked(card.id, memberKey(member)));
+    const result = useSettingsStore.getState().addMembersToProduct(card.target, chosen);
+    if (!result.ok) {
+      setAddError(card.id, result.reason);
+      return;
+    }
+    clearAddError(card.id);
+    const whole = chosen.length === card.members.length;
+    if (whole) leave(card.id);
+    for (const member of chosen) {
+      useSuggestionsStore.getState().dropMember(card.id, memberKey(member));
+    }
+    if (whole) forget(card.id);
+    const name = shownName(card);
+    toast(membersAddedToast(result.added, name));
+    onAnnounce(
+      membersAddedAnnouncement(
+        result.added,
+        name,
+        useSuggestionsStore.getState().products.length,
+      ),
+    );
   };
 
   const accept = (id: string) => {
     commitName(id);
     const card = useSuggestionsStore.getState().products.find((candidate) => candidate.id === id);
     if (card === undefined) return;
+    if (card.target !== null) {
+      acceptAddTo(id);
+      return;
+    }
     const result = useSettingsStore
       .getState()
       .acceptProduct({ name: card.name, members: card.members });
@@ -154,7 +249,7 @@ export function ReviewQueue({
     const removed = useSuggestionsStore.getState().rejectSuggestion(id);
     if (removed === null) return;
     forget(id);
-    toast(rejectedToast(removed.card.name), {
+    toast(rejectedToast(shownName(removed.card)), {
       duration: TOAST_DURATION_MS,
       action: {
         label: es.products.queue.undo,
@@ -179,12 +274,13 @@ export function ReviewQueue({
     if (!marked.ok) {
       if (marked.reason === "limit") toast(es.products.queue.ungroupLimit);
       // The description already belongs to an accepted product: it cannot be marked.
-      else setError(card.id, "members-taken");
+      else if (card.target === null) setError(card.id, "members-taken");
+      else setAddError(card.id, "members-taken");
       return;
     }
     const only = card.members.length === 1;
     if (only) leave(card.id);
-    else nameInputs.current.get(card.id)?.focus();
+    else (nameInputs.current.get(card.id) ?? titles.current.get(card.id))?.focus();
     const dropped = useSuggestionsStore.getState().dropMember(card.id, key);
     if (dropped === null) {
       useSettingsStore.getState().unmarkUngrouped(key);
@@ -212,35 +308,72 @@ export function ReviewQueue({
   return (
     <ul className="flex max-w-[880px] flex-col gap-4">
       {cards.map((card) => {
-        const error = errors.get(card.id);
+        const addTo = card.target !== null;
+        const target = addTo ? products.find((product) => product.id === card.target) : undefined;
+        const error = addTo ? undefined : errors.get(card.id);
         const nameError = error !== undefined && isNameError(error);
+        const addError = addTo ? addErrors.get(card.id) : undefined;
         const errorId = `${baseId}-error-${card.id}`;
+        const shown = shownName(card);
+        // Under the buttons: the refusal of «Aceptar», for either kind of card. A name error
+        // belongs under the Input instead.
+        const footerError =
+          addError !== undefined
+            ? addMembersErrorText(addError)
+            : error !== undefined && !nameError
+              ? acceptErrorText(error)
+              : undefined;
+        const categoryName =
+          target === undefined || target.categoryId === null
+            ? null
+            : (categories.find((category) => category.id === target.categoryId)?.name ?? null);
         return (
           <li key={card.id} className="rounded-lg border bg-background p-4">
-            <Input
-              ref={(element) => {
-                if (element === null) nameInputs.current.delete(card.id);
-                else nameInputs.current.set(card.id, element);
-              }}
-              value={drafts.get(card.id) ?? card.name}
-              maxLength={60}
-              aria-label={es.products.queue.nameAria}
-              aria-invalid={nameError ? true : undefined}
-              aria-describedby={nameError ? errorId : undefined}
-              onChange={(event) => {
-                const value = event.target.value;
-                setDrafts((current) => new Map(current).set(card.id, value));
-                // Typing clears the error about the name; the others stay until they are fixed.
-                clearError(card.id, true);
-              }}
-              onKeyDown={(event) => {
-                onNameKeyDown(card.id, event);
-              }}
-              onBlur={() => {
-                commitName(card.id);
-              }}
-              className="h-9 text-sm font-semibold max-sm:h-11"
-            />
+            {addTo ? (
+              <div className="flex flex-col gap-0.5">
+                <h3
+                  ref={(element) => {
+                    if (element === null) titles.current.delete(card.id);
+                    else titles.current.set(card.id, element);
+                  }}
+                  tabIndex={-1}
+                  className="text-sm font-semibold break-words"
+                >
+                  {addToTitle(shown)}
+                </h3>
+                {target === undefined ? null : (
+                  <p className="text-xs text-muted-foreground">
+                    {addToCategoryCaption(categoryName)}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">{es.products.queue.addToNote}</p>
+              </div>
+            ) : (
+              <Input
+                ref={(element) => {
+                  if (element === null) nameInputs.current.delete(card.id);
+                  else nameInputs.current.set(card.id, element);
+                }}
+                value={drafts.get(card.id) ?? card.name}
+                maxLength={60}
+                aria-label={es.products.queue.nameAria}
+                aria-invalid={nameError ? true : undefined}
+                aria-describedby={nameError ? errorId : undefined}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setDrafts((current) => new Map(current).set(card.id, value));
+                  // Typing clears the error about the name; the others stay until they are fixed.
+                  clearError(card.id, true);
+                }}
+                onKeyDown={(event) => {
+                  onNameKeyDown(card.id, event);
+                }}
+                onBlur={() => {
+                  commitName(card.id);
+                }}
+                className="h-9 text-sm font-semibold max-sm:h-11"
+              />
+            )}
             {nameError ? (
               <p id={errorId} className="mt-1 text-xs break-words text-foreground">
                 {acceptErrorText(error)}
@@ -253,6 +386,15 @@ export function ReviewQueue({
                 const descriptionId = `${baseId}-member-${card.id}-${String(memberIndex)}`;
                 return (
                   <li key={key} className="flex min-h-11 items-center gap-2 py-1">
+                    {addTo ? (
+                      <Checkbox
+                        checked={isChecked(card.id, key)}
+                        aria-label={chooseMemberAria(member.description)}
+                        onCheckedChange={(checked) => {
+                          toggleMember(card.id, key, checked);
+                        }}
+                      />
+                    ) : null}
                     <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
                       <span id={descriptionId} className="text-sm break-words">
                         {member.description}
@@ -288,8 +430,8 @@ export function ReviewQueue({
                 type="button"
                 variant="outline"
                 size="lg"
-                aria-label={acceptSuggestionAria(card.name)}
-                aria-describedby={error === undefined ? undefined : errorId}
+                aria-label={acceptSuggestionAria(shown)}
+                aria-describedby={nameError || footerError !== undefined ? errorId : undefined}
                 className="max-sm:h-11"
                 onClick={() => {
                   accept(card.id);
@@ -301,7 +443,7 @@ export function ReviewQueue({
                 type="button"
                 variant="ghost"
                 size="lg"
-                aria-label={rejectSuggestionAria(card.name)}
+                aria-label={rejectSuggestionAria(shown)}
                 className="max-sm:h-11"
                 onClick={() => {
                   reject(card.id);
@@ -310,9 +452,9 @@ export function ReviewQueue({
                 {es.products.queue.reject}
               </Button>
             </div>
-            {error === undefined || nameError ? null : (
+            {footerError === undefined ? null : (
               <p id={errorId} className="mt-2 text-xs break-words text-foreground">
-                {acceptErrorText(error)}
+                {footerError}
               </p>
             )}
           </li>

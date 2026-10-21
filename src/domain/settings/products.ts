@@ -503,3 +503,52 @@ export function setProductCategory(
     ),
   };
 }
+
+// --- Adding to an accepted product (Plan 04-14, D-21) ---
+
+export type AddMembersError = "gone" | "members-taken" | "limit" | "no-members";
+
+/**
+ * Adds new members at the end of an accepted product (D-21), the «Agregar a» card. The product
+ * keeps its id, its name, its category and the members it had. Checks, in this order: the product
+ * exists ("gone"), there is at least one member ("no-members"), none is already a member of any
+ * product (this one included) or marked «No agrupar» ("members-taken", D-10), and the total stays
+ * within 5,000 members ("limit"). A member repeated in the input is kept once, and `added` counts
+ * the ones kept. A refusal returns no settings at all.
+ */
+export function addMembersToProduct(
+  settings: SettingsData,
+  productId: string,
+  members: readonly ProductMember[],
+):
+  | { ok: true; next: SettingsData; added: number }
+  | { ok: false; reason: AddMembersError } {
+  const target = settings.products.find((product) => product.id === productId);
+  if (target === undefined) return { ok: false, reason: "gone" };
+
+  const seen = new Set<string>();
+  const fresh: ProductMember[] = [];
+  for (const member of members) {
+    const key = ruleMapKey(member.rfc, member.key);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    fresh.push(copyMember(member));
+  }
+  if (fresh.length === 0) return { ok: false, reason: "no-members" };
+  if (fresh.some((member) => isTaken(settings, member))) {
+    return { ok: false, reason: "members-taken" };
+  }
+  if (storedMemberCount(settings) + fresh.length > LIMITS.productMembers) {
+    return { ok: false, reason: "limit" };
+  }
+  return {
+    ok: true,
+    next: withProducts(
+      settings,
+      settings.products.map((product) =>
+        product.id === productId ? { ...product, members: [...product.members, ...fresh] } : product,
+      ),
+    ),
+    added: fresh.length,
+  };
+}

@@ -12,7 +12,7 @@ import type {
   IgnoredKind,
 } from "@/domain/import/types";
 import type { BackupFailure, BackupSummary } from "@/domain/settings/backup";
-import type { AcceptProductError } from "@/domain/settings/products";
+import type { AcceptProductError, AddMembersError } from "@/domain/settings/products";
 import { LIMITS } from "@/domain/settings/types";
 import type { LlmFailure } from "@/lib/client/llmClient";
 import { es } from "./es";
@@ -652,6 +652,21 @@ export function batchesLine(total: number): string {
   return `Se enviarán en ${String(total)} lotes.`;
 }
 
+/**
+ * Extra line of the send dialog when the names of accepted products go as context (D-04, D-33):
+ * «Como contexto también se enviarán {n} nombres de productos que ya aceptaste.», «1 nombre de
+ * producto» for one.
+ */
+export function contextNamesLine(n: number): string {
+  const names = n === 1 ? "1 nombre de producto" : `${String(n)} nombres de productos`;
+  return `Como contexto también se enviarán ${names} que ya aceptaste.`;
+}
+
+/** Heading of the context list in the send dialog (UI-SPEC disclosure groups). */
+export function contextGroupHeading(n: number): string {
+  return `Productos existentes, solo como contexto (${String(n)})`;
+}
+
 /** Caption of the run card before any suggestion arrived. */
 export function runCaptionWaiting(): string {
   return es.products.run.captionWaiting;
@@ -887,6 +902,59 @@ export function ungroupedTrigger(n: number): string {
 /** `aria-label` of «Quitar marca»: the description is cut at 60 characters, «…» included. */
 export function unmarkAria(description: string): string {
   return `Quitar la marca «No agrupar» de «${capCodePoints(description, MEMBER_ARIA_MAX)}»`;
+}
+
+/** Title of an «Agregar a» card (D-21): the stored name of the product, never cut. */
+export function addToTitle(name: string): string {
+  return `Agregar a «${name}»`;
+}
+
+/** Caption under the «Agregar a» title: «Categoría: {categoría}», or «Sin categoría» (D-21). */
+export function addToCategoryCaption(categoryName: string | null): string {
+  return categoryName === null ? es.categories.none : `Categoría: ${categoryName}`;
+}
+
+/** The queue count that ends the polite announcements: plural, «Queda 1 sugerencia.» or none left. */
+function queueLeftText(remaining: number): string {
+  if (remaining === 0) return "No quedan sugerencias.";
+  return remaining === 1 ? "Queda 1 sugerencia." : `Quedan ${String(remaining)} sugerencias.`;
+}
+
+function addedDescriptions(count: number): string {
+  return count === 1 ? "Se agregó 1 descripción" : `Se agregaron ${String(count)} descripciones`;
+}
+
+/** Toast after «Aceptar» on an «Agregar a» card; the product name is cut at 40 characters. */
+export function membersAddedToast(count: number, productName: string): string {
+  return `${addedDescriptions(count)} a «${capCodePoints(productName, PRODUCT_TOAST_MAX)}»`;
+}
+
+/** Polite announcement after the same action, with the queue count that is left. */
+export function membersAddedAnnouncement(
+  count: number,
+  productName: string,
+  remaining: number,
+): string {
+  return `${addedDescriptions(count)} a «${productName}». ${queueLeftText(remaining)}`;
+}
+
+/** `aria-label` of the checkbox of a member of an «Agregar a» card; the description is cut at 60. */
+export function chooseMemberAria(description: string): string {
+  return `Elegir «${capCodePoints(description, MEMBER_ARIA_MAX)}»`;
+}
+
+/** Text under the buttons of an «Agregar a» card when «Aceptar» is refused (D-21). */
+export function addMembersErrorText(reason: AddMembersError): string {
+  switch (reason) {
+    case "gone":
+      return es.products.queue.addToErrors.gone;
+    case "members-taken":
+      return es.products.queue.errors.membersTaken;
+    case "limit":
+      return es.products.queue.addToErrors.limit;
+    case "no-members":
+      return es.products.queue.addToErrors.noneChosen;
+  }
 }
 
 /** Text under a card's buttons when «Aceptar» is refused (UI-SPEC lines 264-268, E4). */

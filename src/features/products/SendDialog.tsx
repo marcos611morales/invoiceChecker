@@ -21,15 +21,38 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { GroupRun } from "@/domain/llm/candidates";
 import { es } from "@/lib/copy/es";
-import { batchesLine, groupSendSummary, itemsGroupHeading } from "@/lib/copy/messages";
+import {
+  batchesLine,
+  contextGroupHeading,
+  contextNamesLine,
+  groupSendSummary,
+  itemsGroupHeading,
+} from "@/lib/copy/messages";
 import { RUN_STOP_SELECTOR } from "./focusTargets";
 
 /**
+ * The names of the accepted products that travel as context, once each, in the order they are
+ * sent. They are read from the same `body.existing` objects the client serializes (LLM-06).
+ */
+function contextNamesOf(run: GroupRun): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const batch of run.batches) {
+    for (const product of batch.body.existing) {
+      if (seen.has(product.name)) continue;
+      seen.add(product.name);
+      names.push(product.name);
+    }
+  }
+  return names;
+}
+
+/**
  * Privacy dialog shown before every send (D-08, LLM-06). The rows are rendered from
- * `batch.body.items`, the very objects the browser client serializes, never from a
- * separately built list (RESEARCH Pattern 4): what the user reads is what travels.
- * Descriptions and supplier names are vendor text and only ever rendered as React
- * text. «No enviar» has the initial focus, so Enter never sends by accident.
+ * `batch.body.items` and `batch.body.existing`, the very objects the browser client
+ * serializes, never from a separately built list (RESEARCH Pattern 4): what the user reads is
+ * what travels. Descriptions, supplier names and product names are vendor or user text and only
+ * ever rendered as React text. «No enviar» has the initial focus, so Enter never sends by accident.
  */
 export function SendDialog({
   run,
@@ -47,6 +70,7 @@ export function SendDialog({
   // run card's stop button instead of the entry button (UI-SPEC send flow, step 3).
   const confirmed = useRef(false);
   const sent = run.batches.reduce((sum, batch) => sum + batch.body.items.length, 0);
+  const context = contextNamesOf(run);
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent
@@ -64,6 +88,9 @@ export function SendDialog({
             {es.products.dialog.title}
           </AlertDialogTitle>
           <AlertDialogDescription>{groupSendSummary(sent, run.suppliers)}</AlertDialogDescription>
+          {context.length > 0 ? (
+            <p className="text-sm text-muted-foreground">{contextNamesLine(context.length)}</p>
+          ) : null}
           {run.batches.length > 1 ? (
             <p className="text-sm text-muted-foreground">{batchesLine(run.batches.length)}</p>
           ) : null}
@@ -96,6 +123,20 @@ export function SendDialog({
                           </li>
                         )),
                       )}
+                    </ul>
+                  </section>
+                ) : null}
+                {context.length > 0 ? (
+                  <section className="flex flex-col">
+                    <h3 className="px-3 pt-2 text-sm font-semibold">
+                      {contextGroupHeading(context.length)}
+                    </h3>
+                    <ul className="flex flex-col">
+                      {context.map((name) => (
+                        <li key={name} className="border-b px-3 py-2 last:border-b-0">
+                          <span className="text-sm break-words">{name}</span>
+                        </li>
+                      ))}
                     </ul>
                   </section>
                 ) : null}
