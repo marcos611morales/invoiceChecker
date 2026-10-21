@@ -45,13 +45,14 @@ function entry(
   });
 }
 
-function item(index: number): LlmItem {
+function item(index: number, overrides: Partial<LlmItem> = {}): LlmItem {
   return {
     rfc: UNO.rfc,
     key: `descripcion ${String(index)}`,
     description: `Descripción ${String(index)}`,
     supplierName: UNO.nombre,
     lines: 1,
+    ...overrides,
   };
 }
 
@@ -140,6 +141,59 @@ describe("buildGroupRun (D-28, LLM-03)", () => {
     expect(run.batches).toHaveLength(batches);
     expect(run.batches.map((batch) => batch.body.items.length)).toEqual(sizes);
     expect(run.items).toBe(count);
+  });
+
+  it("splits 251 items into batches of 126 and 125", () => {
+    const run = buildGroupRun(items(251), [], 250);
+    expect(run.batches.map((batch) => batch.body.items.length)).toEqual([126, 125]);
+  });
+
+  it("spreads one big supplier evenly: 500 items with 220 of one supplier give two batches of 250 with 110 each (D-28 split rule)", () => {
+    const big = Array.from({ length: 220 }, (_unused, index) =>
+      item(index, { rfc: "BIG010101BIG", supplierName: "Tienda Grande" }),
+    );
+    const rest = Array.from({ length: 280 }, (_unused, index) =>
+      item(index, { rfc: `R${String(index % 14).padStart(2, "0")}0101RRR`, supplierName: `Tienda ${String(index % 14).padStart(2, "0")}` }),
+    );
+    // Sorted by supplier name the big supplier sits in the middle: a consecutive split would put
+    // almost all of it in one batch.
+    const run = buildGroupRun([...big, ...rest], [], 250);
+    expect(run.batches).toHaveLength(2);
+    expect(run.batches.map((batch) => batch.body.items.length)).toEqual([250, 250]);
+    expect(
+      run.batches.map(
+        (batch) => batch.body.items.filter((bodyItem) => bodyItem.supplier === "Tienda Grande").length,
+      ),
+    ).toEqual([110, 110]);
+  });
+
+  it("spreads every supplier round-robin: item j of the sorted list goes to batch j mod M, each batch keeps the sorted order", () => {
+    const sorted = collectItems([
+      entry(UNO, ["a", "b", "c", "d", "e", "f"]),
+      entry(DOS, ["g", "h", "i", "j"]),
+    ]);
+    expect(sorted).toHaveLength(10);
+    const run = buildGroupRun(sorted, [], 4);
+    expect(run.batches).toHaveLength(3);
+    run.batches.forEach((batch, batchIndex) => {
+      const expected = sorted
+        .filter((_unused, j) => j % 3 === batchIndex)
+        .map((entryItem) => entryItem.description);
+      expect(batch.body.items.map((bodyItem) => bodyItem.description)).toEqual(expected);
+      // The ids follow the batch order and map back to the same member.
+      expect(batch.body.items.map((bodyItem) => batch.idMap.get(bodyItem.id)?.description)).toEqual(
+        expected,
+      );
+    });
+  });
+
+  it("sorts the free items by supplier then description before it spreads them", () => {
+    const shuffled = [item(3, { supplierName: "B" }), item(1, { supplierName: "A" }), item(2, { supplierName: "B" })];
+    const run = buildGroupRun(shuffled, [], 2);
+    expect(run.batches.map((batch) => batch.body.items.map((bodyItem) => bodyItem.description))).toEqual([
+      ["Descripción 1", "Descripción 3"],
+      ["Descripción 2"],
+    ]);
   });
 
   it("numbers the ids i1.. in each batch and every body passes the request schema", () => {
