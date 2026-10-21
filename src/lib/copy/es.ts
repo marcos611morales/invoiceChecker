@@ -494,6 +494,14 @@ export const es = {
       /** Tooltip and `aria-label` of the member button that excludes a description for good (D-19). */
       ungroup: "No agrupar esta descripción",
       undo: "Deshacer",
+      /** Footer buttons that join a card with another one or with a product, and split checked members (UI-SPEC lines 261, 414). */
+      merge: "Unir con…",
+      split: "Separar en producto nuevo",
+      /** Groups of the «Unir con…» picker (UI-SPEC line 272). */
+      otherSuggestions: "Otras sugerencias",
+      ownProducts: "Productos que ya tienes",
+      /** Toast after a join, whichever the destination (UI-SPEC line 273). */
+      merged: "Sugerencias unidas",
       /** Discretion text, the same form as the Phase 3 limit toasts (LIMITS.ungroupedConcepts). */
       ungroupLimit: "Llegaste al máximo de 5,000 descripciones marcadas.",
       /** Note under the title of an «Agregar a» card (D-21, UI-SPEC line 262). */

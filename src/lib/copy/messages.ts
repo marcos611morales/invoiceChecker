@@ -943,6 +943,34 @@ export function chooseMemberAria(description: string): string {
   return `Elegir «${capCodePoints(description, MEMBER_ARIA_MAX)}»`;
 }
 
+/**
+ * Member count of a card (UI-SPEC lines 258, 500): «3 descripciones», «1 descripción» for one. The
+ * card header shows it only when there are several; the «Unir con…» picker shows it for every card.
+ */
+export function memberCountCaption(n: number): string {
+  return n === 1 ? "1 descripción" : `${String(n)} descripciones`;
+}
+
+/** Accessible name of «Unir con…» inside a card, so a list of buttons is unambiguous (UI-SPEC accessibility). */
+export function mergeAria(name: string): string {
+  return `Unir la sugerencia «${name}» con…`;
+}
+
+/** Accessible name of «Separar en producto nuevo» inside a card (UI-SPEC accessibility). */
+export function splitAria(name: string): string {
+  return `Separar en producto nuevo desde «${name}»`;
+}
+
+/** Toast after «Unir con…», for a join with another suggestion and for one with a product (UI-SPEC line 273). */
+export function mergedToast(): string {
+  return es.products.queue.merged;
+}
+
+/** Toast after «Separar en producto nuevo»: the name of the new card is cut at 40 characters. */
+export function splitToast(name: string): string {
+  return `Se separó «${capCodePoints(name, PRODUCT_TOAST_MAX)}» en un producto nuevo`;
+}
+
 /** Text under the buttons of an «Agregar a» card when «Aceptar» is refused (D-21). */
 export function addMembersErrorText(reason: AddMembersError): string {
   switch (reason) {

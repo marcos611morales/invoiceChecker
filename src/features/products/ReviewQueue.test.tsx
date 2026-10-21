@@ -1166,3 +1166,331 @@ describe("«Agregar a «X»» card (D-21)", () => {
     expect(toastMock.mock.calls[0]?.[0]).toBe("Sugerencia «Leche entera» rechazada");
   });
 });
+
+describe("«Unir con…» (D-19, D-21)", () => {
+  const LACTEOS_PRODUCT: Product = {
+    id: "prod_lacteos",
+    name: "Lácteos",
+    categoryId: null,
+    members: [SAL],
+  };
+
+  function mergeButton(name: string): HTMLElement {
+    return screen.getByRole("button", { name: `Unir la sugerencia «${name}» con…` });
+  }
+
+  async function openMerge(name: string): Promise<void> {
+    fireEvent.click(mergeButton(name));
+    await screen.findByRole("combobox", { name: "Buscar producto" });
+  }
+
+  function optionTexts(): string[] {
+    return screen.getAllByRole("option").map((option) => option.textContent);
+  }
+
+  it("is an outline button that names the card, on every card of a new product and on no «Agregar a» card", () => {
+    useSettingsStore.setState({ products: [LACTEOS_PRODUCT] });
+    enqueue([
+      ...threeCards(),
+      { id: "sug_add", name: "Lácteos", target: "prod_lacteos", members: [SAL] },
+    ]);
+    render(<ProductsTab />);
+    expect(screen.getAllByRole("button", { name: /^Unir la sugerencia/ })).toHaveLength(3);
+    expect(mergeButton("Café molido")).toHaveTextContent("Unir con…");
+    expect(screen.queryByRole("button", { name: "Unir la sugerencia «Lácteos» con…" })).toBeNull();
+  });
+
+  it("lists the other suggestions with their count and the products the user already has", async () => {
+    useSettingsStore.setState({ products: [LACTEOS_PRODUCT] });
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    await openMerge("Café molido");
+    expect(screen.getByText("Otras sugerencias")).toBeInTheDocument();
+    expect(screen.getByText("Productos que ya tienes")).toBeInTheDocument();
+    // Not the card itself; a card with several members shows its count, a single one too.
+    expect(optionTexts()).toEqual(["Leche entera2 descripciones", "Azúcar1 descripción", "Lácteos"]);
+  });
+
+  it("does not list «Agregar a» cards among the other suggestions", async () => {
+    useSettingsStore.setState({ products: [LACTEOS_PRODUCT] });
+    enqueue([
+      ...threeCards(),
+      { id: "sug_add", name: "Lácteos", target: "prod_lacteos", members: [SAL] },
+    ]);
+    render(<ProductsTab />);
+    await openMerge("Café molido");
+    expect(optionTexts()).toEqual(["Leche entera2 descripciones", "Azúcar1 descripción", "Lácteos"]);
+  });
+
+  it("filters while typing and says when nothing matches", async () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    await openMerge("Café molido");
+    const search = screen.getByRole("combobox", { name: "Buscar producto" });
+    fireEvent.change(search, { target: { value: "AZUCAR" } });
+    expect(optionTexts()).toEqual(["Azúcar1 descripción"]);
+    fireEvent.change(search, { target: { value: "queso" } });
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(screen.getByText("Ningún producto coincide con «queso».")).toBeInTheDocument();
+  });
+
+  it("lists a card with no name by its first description", async () => {
+    enqueue([card("sug_a", "", [LECHE_UNO]), card("sug_b", "Café molido", [CAFE])]);
+    render(<ProductsTab />);
+    await openMerge("Café molido");
+    expect(optionTexts()).toEqual(["Leche entera 1L1 descripción"]);
+  });
+
+  it("moves the members of this card into the chosen suggestion, removes this card, and changes no settings", async () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    await openMerge("Leche entera");
+    fireEvent.click(screen.getByRole("option", { name: /^Azúcar/ }));
+    const queue = useSuggestionsStore.getState().products;
+    expect(queue.map((entry) => entry.id)).toEqual(["sug_b", "sug_c"]);
+    expect(queue[1]).toEqual({
+      id: "sug_c",
+      name: "Azúcar",
+      target: null,
+      members: [AZUCAR, LECHE_UNO, LECHE_DOS],
+    });
+    expect(storedProducts()).toEqual([]);
+    expect(screen.getByText("3 descripciones")).toBeInTheDocument();
+    expect(nameInput("Azúcar")).toHaveFocus();
+    expect(await storedNames()).toEqual(["Café molido", "Azúcar"]);
+  });
+
+  it("shows «Sugerencias unidas» for 6 seconds, and «Deshacer» puts both cards back exactly", async () => {
+    const original = threeCards();
+    enqueue(original);
+    render(<ProductsTab />);
+    await openMerge("Leche entera");
+    fireEvent.click(screen.getByRole("option", { name: /^Azúcar/ }));
+    const joined = undoToast(0);
+    expect(joined.message).toBe("Sugerencias unidas");
+    expect(joined.duration).toBe(6000);
+    expect(joined.label).toBe("Deshacer");
+    act(() => {
+      joined.undo();
+    });
+    expect(useSuggestionsStore.getState().products).toEqual(original);
+    expect(screen.queryByText("3 descripciones")).toBeNull();
+  });
+
+  it("turns the card into an «Agregar a» card when an accepted product is chosen, and applies nothing yet", async () => {
+    useSettingsStore.setState({ products: [LACTEOS_PRODUCT] });
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    await openMerge("Café molido");
+    fireEvent.click(screen.getByRole("option", { name: "Lácteos" }));
+    expect(useSuggestionsStore.getState().products[1]).toEqual({
+      id: "sug_b",
+      name: "Café molido",
+      target: "prod_lacteos",
+      members: [CAFE],
+    });
+    expect(screen.getByRole("heading", { name: "Agregar a «Lácteos»", level: 3 })).toBeInTheDocument();
+    expect(nameInputs()).toHaveLength(2);
+    // The product keeps its members until «Aceptar».
+    expect(storedProducts()).toEqual([LACTEOS_PRODUCT]);
+    expect(undoToast(0).message).toBe("Sugerencias unidas");
+    // The new card has no «Unir con…» (its actions are Aceptar, Rechazar, Separar).
+    expect(screen.queryByRole("button", { name: /^Unir la sugerencia «Lácteos»/ })).toBeNull();
+  });
+
+  it("«Deshacer» turns the «Agregar a» card back into a card of a new product", async () => {
+    useSettingsStore.setState({ products: [LACTEOS_PRODUCT] });
+    const original = threeCards();
+    enqueue(original);
+    render(<ProductsTab />);
+    await openMerge("Café molido");
+    fireEvent.click(screen.getByRole("option", { name: "Lácteos" }));
+    act(() => {
+      undoToast(0).undo();
+    });
+    expect(useSuggestionsStore.getState().products).toEqual(original);
+    expect(nameInput("Café molido")).toBeInTheDocument();
+  });
+
+  it("stores the name the user typed before joining, so «Deshacer» brings the card back with it", async () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    // The button still names the stored card; the typed text is stored by the pick itself.
+    typeName("Leche entera", "Leche deslactosada");
+    await openMerge("Leche entera");
+    fireEvent.click(screen.getByRole("option", { name: /^Azúcar/ }));
+    act(() => {
+      undoToast(0).undo();
+    });
+    expect(queueNames()).toEqual(["Leche deslactosada", "Café molido", "Azúcar"]);
+  });
+
+  it("leaves the accepted products untouched when a suggestion is joined", async () => {
+    useSettingsStore.setState({ products: [LACTEOS_PRODUCT] });
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    await openMerge("Leche entera");
+    fireEvent.click(screen.getByRole("option", { name: /^Café molido/ }));
+    expect(storedProducts()).toEqual([LACTEOS_PRODUCT]);
+  });
+});
+
+describe("«Separar en producto nuevo» and the member checkboxes (D-19, E4)", () => {
+  function splitButton(name: string): HTMLElement {
+    return screen.getByRole("button", { name: `Separar en producto nuevo desde «${name}»` });
+  }
+
+  function box(description: string): HTMLElement {
+    return screen.getByRole("checkbox", { name: `Elegir «${description}»` });
+  }
+
+  function isDisabled(button: HTMLElement): boolean {
+    return button.getAttribute("aria-disabled") === "true";
+  }
+
+  /** «Leche entera» holds three descriptions here, so one can stay while two leave. */
+  function milkCards(): ProductSuggestion[] {
+    return [
+      card("sug_a", "Leche entera", [LECHE_UNO, LECHE_DOS, SAL]),
+      card("sug_b", "Café molido", [CAFE]),
+    ];
+  }
+
+  it("gives a card with one member neither a checkbox, a «Separar» nor a count", () => {
+    enqueue([card("sug_b", "Café molido", [CAFE])]);
+    render(<ProductsTab />);
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: /^Separar en producto nuevo/ })).toBeNull();
+    expect(screen.queryByText(/^\d+ descripciones$/)).toBeNull();
+  });
+
+  it("gives a card with several members a checkbox per row that starts unchecked, and a count", () => {
+    enqueue(milkCards());
+    render(<ProductsTab />);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    for (const description of ["Leche entera 1L", "LECHE ENTERA 1L", "Sal"]) {
+      expect(box(description)).not.toBeChecked();
+    }
+    expect(screen.getByText("3 descripciones")).toBeInTheDocument();
+  });
+
+  it("cuts the description at 60 characters in the label of its checkbox", () => {
+    const long = member(UNO, "d".repeat(70));
+    enqueue([card("sug_a", "Varios", [long, CAFE])]);
+    render(<ProductsTab />);
+    expect(screen.getByRole("checkbox", { name: `Elegir «${"d".repeat(59)}…»` })).toBeInTheDocument();
+  });
+
+  it("names the card in the button and is enabled only while some but not all members are checked", () => {
+    enqueue(milkCards());
+    render(<ProductsTab />);
+    const button = splitButton("Leche entera");
+    expect(button).toHaveTextContent("Separar en producto nuevo");
+    expect(isDisabled(button)).toBe(true);
+    fireEvent.click(box("LECHE ENTERA 1L"));
+    expect(isDisabled(button)).toBe(false);
+    fireEvent.click(box("Leche entera 1L"));
+    expect(isDisabled(button)).toBe(false);
+    fireEvent.click(box("Sal"));
+    expect(isDisabled(button)).toBe(true);
+    fireEvent.click(box("Sal"));
+    expect(isDisabled(button)).toBe(false);
+  });
+
+  it("does nothing while it is disabled", () => {
+    enqueue(milkCards());
+    render(<ProductsTab />);
+    fireEvent.click(splitButton("Leche entera"));
+    expect(useSuggestionsStore.getState().products).toEqual(milkCards());
+    expect(toastMock).not.toHaveBeenCalled();
+    fireEvent.click(box("Leche entera 1L"));
+    fireEvent.click(box("LECHE ENTERA 1L"));
+    fireEvent.click(box("Sal"));
+    fireEvent.click(splitButton("Leche entera"));
+    expect(useSuggestionsStore.getState().products).toEqual(milkCards());
+  });
+
+  it("moves the checked members to a new card right below, named after the first one, and focuses its name", async () => {
+    enqueue(milkCards());
+    render(<ProductsTab />);
+    fireEvent.click(box("LECHE ENTERA 1L"));
+    fireEvent.click(box("Sal"));
+    fireEvent.click(splitButton("Leche entera"));
+    const queue = useSuggestionsStore.getState().products;
+    expect(queue.map((entry) => entry.name)).toEqual(["Leche entera", "LECHE ENTERA 1L", "Café molido"]);
+    expect(queue[0]?.members).toEqual([LECHE_UNO]);
+    expect(queue[1]?.members).toEqual([LECHE_DOS, SAL]);
+    expect(queue[1]?.target).toBeNull();
+    expect(queue[1]?.id).toMatch(/^sug_.+/);
+    expect(nameInput("LECHE ENTERA 1L")).toHaveFocus();
+    expect(storedProducts()).toEqual([]);
+    expect(await storedNames()).toEqual(["Leche entera", "LECHE ENTERA 1L", "Café molido"]);
+    // The new card's own members start unchecked, and the old card lost its ticks.
+    expect(box("Sal")).not.toBeChecked();
+    expect(screen.getByText("2 descripciones")).toBeInTheDocument();
+  });
+
+  it("shows «Se separó «{nombre}» en un producto nuevo» for 6 seconds, and «Deshacer» puts the card back exactly", () => {
+    const original = milkCards();
+    enqueue(original);
+    render(<ProductsTab />);
+    fireEvent.click(box("Sal"));
+    fireEvent.click(splitButton("Leche entera"));
+    const split = undoToast(0);
+    expect(split.message).toBe("Se separó «Sal» en un producto nuevo");
+    expect(split.duration).toBe(6000);
+    expect(split.label).toBe("Deshacer");
+    act(() => {
+      split.undo();
+    });
+    expect(useSuggestionsStore.getState().products).toEqual(original);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+  });
+
+  it("splits with the name the user typed kept on the original card", () => {
+    enqueue(milkCards());
+    render(<ProductsTab />);
+    typeName("Leche entera", "Lácteos varios");
+    fireEvent.click(box("Sal"));
+    fireEvent.click(splitButton("Leche entera"));
+    expect(queueNames()).toEqual(["Lácteos varios", "Sal", "Café molido"]);
+  });
+
+  it("splits an «Agregar a» card: its checked members become a new product and it keeps the rest and its target", () => {
+    useSettingsStore.setState({
+      products: [{ id: "prod_leche", name: "Leche entera", categoryId: null, members: [LECHE_UNO] }],
+    });
+    enqueue([{ id: "sug_add", name: "Leche", target: "prod_leche", members: [LECHE_DOS, CAFE, AZUCAR] }]);
+    render(<ProductsTab />);
+    const button = splitButton("Leche entera");
+    // All three start checked: nothing is left, so it is disabled until one is unchecked.
+    expect(isDisabled(button)).toBe(true);
+    expect(screen.getByText("3 descripciones")).toBeInTheDocument();
+    fireEvent.click(box("Azúcar"));
+    expect(isDisabled(button)).toBe(false);
+    fireEvent.click(button);
+    const queue = useSuggestionsStore.getState().products;
+    expect(queue[0]).toEqual({ id: "sug_add", name: "Leche", target: "prod_leche", members: [AZUCAR] });
+    expect(queue[1]?.target).toBeNull();
+    expect(queue[1]?.members).toEqual([LECHE_DOS, CAFE]);
+    expect(queue[1]?.name).toBe("LECHE ENTERA 1L");
+    expect(nameInput("LECHE ENTERA 1L")).toHaveFocus();
+  });
+
+  it("gives an «Agregar a» card with one member no «Separar»", () => {
+    useSettingsStore.setState({
+      products: [{ id: "prod_leche", name: "Leche entera", categoryId: null, members: [LECHE_UNO] }],
+    });
+    enqueue([{ id: "sug_add", name: "Leche", target: "prod_leche", members: [LECHE_DOS] }]);
+    render(<ProductsTab />);
+    expect(screen.queryByRole("button", { name: /^Separar en producto nuevo/ })).toBeNull();
+    expect(screen.queryByText(/descripciones$/)).toBeNull();
+  });
+
+  it("keeps the bare «Aceptar» and «Rechazar» named after the card", () => {
+    enqueue(milkCards());
+    render(<ProductsTab />);
+    expect(acceptButton("Leche entera")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rechazar la sugerencia «Leche entera»" })).toBeInTheDocument();
+  });
+});
