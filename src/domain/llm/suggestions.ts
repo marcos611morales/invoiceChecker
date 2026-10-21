@@ -70,43 +70,114 @@ export function memberKey(member: SuggestionMember): string {
   return ruleMapKey(member.rfc, member.key);
 }
 
-/** The accepted product a context target points at, or null for a group that is a new product. */
-function targetProductId(target: ContextTarget | undefined): string | null {
-  if (target === undefined) return null;
+/**
+ * What the browser knows when it applies the answer of a batch of a multi-batch run (D-28, D-33):
+ * the pending queue as it is now, the accepted product that holds a member (or null), and the
+ * member keys of each card this run enqueued (by suggestion id), as they were when it entered the
+ * queue. It is read-only here; the caller builds it from the live stores at apply time.
+ */
+export interface RunContext {
+  queue: readonly ProductSuggestion[];
+  productIdOfMember: (key: string) => string | null;
+  runCards: ReadonlyMap<string, readonly string[]>;
+}
+
+/** Members a group adds to a card that is still pending (the card keeps its id and its name). */
+export interface MemberAppend {
+  cardId: string;
+  members: SuggestionMember[];
+}
+
+/** What one answer becomes: new cards for the queue and members for cards already in it. */
+export interface ProductAnswer {
+  cards: ProductSuggestion[];
+  appends: MemberAppend[];
+}
+
+type Destination =
+  | { kind: "new" }
+  | { kind: "product"; productId: string }
+  | { kind: "pending"; cardId: string };
+
+/**
+ * Where a group goes (D-21, D-33). No target is a new card. A product target is an «Agregar a»
+ * card. A pending target joins that card while it is still in the queue; once the user accepted
+ * it, the product that holds one of its members becomes the target; once the user rejected it (or
+ * the product is gone, or the card is unknown), the group keeps its own new card.
+ */
+function destinationOf(target: ContextTarget | undefined, context: RunContext | undefined): Destination {
+  if (target === undefined) return { kind: "new" };
   switch (target.kind) {
     case "product":
-      return target.productId;
+      return { kind: "product", productId: target.productId };
+    case "pending": {
+      if (context === undefined) return { kind: "new" };
+      if (context.queue.some((card) => card.id === target.suggestionId)) {
+        return { kind: "pending", cardId: target.suggestionId };
+      }
+      for (const key of context.runCards.get(target.suggestionId) ?? []) {
+        const productId = context.productIdOfMember(key);
+        if (productId !== null) return { kind: "product", productId };
+      }
+      return { kind: "new" };
+    }
   }
 }
 
 /**
- * Turns the groups of one answer into cards. A group id that the browser never
- * sent is skipped (it has no entry in `idMap`), so an id the model invents can
- * never become a member. A card that ends with no member is kept here and
- * dropped by `enqueueProductSuggestions`.
+ * Turns the groups of one answer into cards and appends. A group id that the browser never
+ * sent is skipped (it has no entry in `idMap`), so an id the model invents can never become a
+ * member. A card that ends with no member is kept here and dropped by `enqueueProductSuggestions`.
  *
  * A group placed with an accepted product (`existing` resolves to a product target) becomes an
  * «Agregar a» card whose `target` is that product's id (D-21). Two groups of one answer that
  * point at the same product become one card, at the position of the first, with the members in
  * answer order and none repeated; a context id the browser never sent leaves a new product.
+ *
+ * A group placed with a card an earlier batch of the same run enqueued (a pending target, D-28,
+ * D-33) is resolved against `context`, which is the queue and the settings at apply time: a card
+ * still pending receives the members (an append, no new card); an accepted card becomes an
+ * «Agregar a» card for the product that holds its members; a rejected one leaves a new card with
+ * the group's own name. Without `context` a pending target is a new card.
  */
-export function toProductSuggestions(
+export function resolveProductAnswer(
   groups: GroupResponse["groups"],
   idMap: ReadonlyMap<string, SuggestionMember>,
   targets: ReadonlyMap<string, ContextTarget>,
   newId: () => string,
-): ProductSuggestion[] {
+  context?: RunContext,
+): ProductAnswer {
   const cards: ProductSuggestion[] = [];
   const byProduct = new Map<string, { card: ProductSuggestion; seen: Set<string> }>();
+  const appendTo = new Map<string, { members: SuggestionMember[]; seen: Set<string> }>();
   for (const group of groups) {
-    const target = targetProductId(
+    const destination = destinationOf(
       group.existing === null ? undefined : targets.get(group.existing),
+      context,
     );
-    const shared = target === null ? undefined : byProduct.get(target);
+    if (destination.kind === "pending") {
+      let pending = appendTo.get(destination.cardId);
+      if (pending === undefined) {
+        const queued = context?.queue.find((card) => card.id === destination.cardId);
+        pending = { members: [], seen: new Set((queued?.members ?? []).map(memberKey)) };
+        appendTo.set(destination.cardId, pending);
+      }
+      for (const id of group.ids) {
+        const member = idMap.get(id);
+        if (member === undefined) continue;
+        const key = memberKey(member);
+        if (pending.seen.has(key)) continue;
+        pending.seen.add(key);
+        pending.members.push(member);
+      }
+      continue;
+    }
+    const productId = destination.kind === "product" ? destination.productId : null;
+    const shared = productId === null ? undefined : byProduct.get(productId);
     const card: ProductSuggestion = shared?.card ?? {
       id: newId(),
       name: group.name,
-      target,
+      target: productId,
       members: [],
     };
     const seen = shared?.seen ?? new Set<string>();
@@ -120,10 +191,27 @@ export function toProductSuggestions(
     }
     if (shared === undefined) {
       cards.push(card);
-      if (target !== null) byProduct.set(target, { card, seen });
+      if (productId !== null) byProduct.set(productId, { card, seen });
     }
   }
-  return cards;
+  const appends: MemberAppend[] = [];
+  for (const [cardId, pending] of appendTo) {
+    if (pending.members.length > 0) appends.push({ cardId, members: pending.members });
+  }
+  return { cards, appends };
+}
+
+/**
+ * The cards of one answer when no earlier batch of the run is involved: the product targets of
+ * `resolveProductAnswer` without a run context (a pending target would be a new card).
+ */
+export function toProductSuggestions(
+  groups: GroupResponse["groups"],
+  idMap: ReadonlyMap<string, SuggestionMember>,
+  targets: ReadonlyMap<string, ContextTarget>,
+  newId: () => string,
+): ProductSuggestion[] {
+  return resolveProductAnswer(groups, idMap, targets, newId).cards;
 }
 
 /** Keys of every member of every pending card. */
@@ -350,6 +438,38 @@ export function restoreMember(queue: PendingQueue, dropped: DroppedMember): Pend
       card.id === dropped.cardId
         ? { ...card, members: insertAt(card.members, dropped.index, copyMember(dropped.member)) }
         : card,
+    ),
+  );
+}
+
+/**
+ * Adds members at the end of a pending card (D-33): the card is the one an earlier batch of the
+ * same run enqueued and a later batch placed more descriptions with. Idempotent per member: one
+ * that is pending in any card is skipped, and it stops at `PENDING_LIMITS.members`. An unknown
+ * card, or nothing to add, is no change: the same queue comes back.
+ */
+export function appendSuggestionMembers(
+  queue: PendingQueue,
+  cardId: string,
+  members: readonly SuggestionMember[],
+): PendingQueue {
+  if (!queue.products.some((card) => card.id === cardId)) return queue;
+  const taken = pendingMemberKeys(queue.products);
+  let room = PENDING_LIMITS.members - memberTotal(queue.products);
+  const added: SuggestionMember[] = [];
+  for (const member of members) {
+    const key = memberKey(member);
+    if (taken.has(key)) continue;
+    if (room <= 0) break;
+    taken.add(key);
+    added.push(copyMember(member));
+    room -= 1;
+  }
+  if (added.length === 0) return queue;
+  return withCards(
+    queue,
+    queue.products.map((card) =>
+      card.id === cardId ? { ...card, members: [...card.members, ...added] } : card,
     ),
   );
 }

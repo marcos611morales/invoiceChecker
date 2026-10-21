@@ -101,17 +101,20 @@ export function cutText(text: string, max: number): string {
 
 /**
  * What a context id (p1..pK) of a request stands for, kept in the browser only (D-21, D-33).
- * Today it is an accepted product; Plan 04-15 adds the `{ kind: "pending"; suggestionId }` member
- * for the names proposed by earlier batches of one run.
+ * An accepted product, or a card that an earlier batch of the same run put in the pending queue
+ * (D-28, D-33). A pending target is only ever resolved at apply time, against the queue and the
+ * settings as they are then, because the user may have accepted or rejected the card meanwhile.
  */
-export type ContextTarget = { kind: "product"; productId: string };
+export type ContextTarget =
+  | { kind: "product"; productId: string }
+  | { kind: "pending"; suggestionId: string };
 
 /** One request: the body that is sent and the browser-only maps behind its ids. */
 export interface GroupBatch {
   body: GroupRequest;
   /** Item id (i1..iK) to the member it stands for. Never leaves the browser. */
   idMap: Map<string, SuggestionMember>;
-  /** Context id (p1..pK) to the accepted product it stands for. Never leaves the browser. */
+  /** Context id (p1..pK) to the accepted product it stands for (pending cards are added per run). Never leaves the browser. */
   targets: Map<string, ContextTarget>;
 }
 

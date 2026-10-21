@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildGroupRun, type LlmItem } from "@/domain/llm/candidates";
 import type { GroupResponse } from "@/domain/llm/contract";
+import { LLM_LIMITS } from "@/domain/llm/contract";
 import { postGroup, type LlmFailure } from "@/lib/client/llmClient";
 import { resetSuggestionsStore } from "../../tests/support/suggestionsStorage";
 import { groupBatches, useLlmRunStore, type RunBatch } from "./llmRunStore";
 import { useSessionStore } from "./sessionStore";
+import { useSettingsStore } from "./settingsStore";
 import { useSuggestionsStore } from "./suggestionsStore";
 
 vi.mock("@/lib/client/llmClient", () => ({ postGroup: vi.fn() }));
@@ -460,5 +462,192 @@ describe("groupBatches", () => {
     const controller = new AbortController();
     expect(await first.send(controller.signal)).toEqual({ ok: false, error: "offline" });
     expect(vi.mocked(postGroup)).toHaveBeenCalledWith(run.batches[0]?.body, controller.signal);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Names of the earlier batches of one run (D-28, D-33)
+
+type GroupAnswer = Extract<Awaited<ReturnType<typeof postGroup>>, { ok: true }>["data"]["groups"];
+
+function answer(groups: GroupAnswer): Awaited<ReturnType<typeof postGroup>> {
+  return { ok: true, data: { groups, meta: metaOf() } };
+}
+
+function bodies(): { existing: { id: string; name: string }[]; itemIds: string[] }[] {
+  return vi.mocked(postGroup).mock.calls.map(([body]) => ({
+    existing: body.existing,
+    itemIds: body.items.map((item) => item.id),
+  }));
+}
+
+/** Items "Descripción 1".."n"; with max 2 and three items, batch 1 holds 1 and 3, batch 2 holds 2. */
+function twoBatchRun(accepted: { productId: string; name: string }[] = []) {
+  return buildGroupRun([sampleItem(1), sampleItem(2), sampleItem(3)], accepted, 2);
+}
+
+describe("groupBatches: earlier-batch names on later batches (D-28, D-33)", () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ products: [] });
+  });
+  afterEach(() => {
+    useSettingsStore.setState({ products: [] });
+  });
+
+  it("sends only the accepted names in a run of one batch", async () => {
+    const run = buildGroupRun([sampleItem(1)], [{ productId: "prod_a", name: "Leche" }]);
+    vi.mocked(postGroup).mockResolvedValue(
+      answer([{ name: "Uno", ids: ["i1"], existing: null }]),
+    );
+    await useLlmRunStore.getState().startGroupRun(run);
+    expect(bodies()).toEqual([
+      { existing: [{ id: "p1", name: "Leche" }], itemIds: ["i1"] },
+    ]);
+  });
+
+  it("adds to batch 2 the names of the cards batch 1 enqueued, after the accepted ones", async () => {
+    const run = twoBatchRun([{ productId: "prod_a", name: "Leche" }]);
+    vi.mocked(postGroup)
+      .mockResolvedValueOnce(
+        answer([
+          { name: "Uno", ids: ["i1"], existing: null },
+          { name: "Tres", ids: ["i2"], existing: null },
+        ]),
+      )
+      .mockResolvedValueOnce(answer([{ name: "Dos", ids: ["i1"], existing: null }]));
+    await useLlmRunStore.getState().startGroupRun(run);
+    const sent = bodies();
+    expect(sent[0]?.existing).toEqual([{ id: "p1", name: "Leche" }]);
+    expect(sent[1]?.existing).toEqual([
+      { id: "p1", name: "Leche" },
+      { id: "p2", name: "Uno" },
+      { id: "p3", name: "Tres" },
+    ]);
+    // The bodies the dialog lists are untouched: they keep only the accepted names.
+    expect(run.batches[1]?.body.existing).toEqual([{ id: "p1", name: "Leche" }]);
+  });
+
+  it("caps the context at 400 names in all, accepted first", async () => {
+    const accepted = Array.from({ length: LLM_LIMITS.contextNames - 1 }, (_, index) => ({
+      productId: `prod_${String(index)}`,
+      name: `Producto ${String(index).padStart(3, "0")}`,
+    }));
+    const run = twoBatchRun(accepted);
+    vi.mocked(postGroup)
+      .mockResolvedValueOnce(
+        answer([
+          { name: "Uno", ids: ["i1"], existing: null },
+          { name: "Tres", ids: ["i2"], existing: null },
+        ]),
+      )
+      .mockResolvedValueOnce(answer([{ name: "Dos", ids: ["i1"], existing: null }]));
+    await useLlmRunStore.getState().startGroupRun(run);
+    const second = bodies()[1]?.existing ?? [];
+    expect(second).toHaveLength(LLM_LIMITS.contextNames);
+    expect(second[LLM_LIMITS.contextNames - 1]).toEqual({
+      id: `p${String(LLM_LIMITS.contextNames)}`,
+      name: "Uno",
+    });
+  });
+
+  it("puts a description of batch 2 into the card of batch 1 while that card is pending", async () => {
+    const run = twoBatchRun();
+    vi.mocked(postGroup)
+      .mockResolvedValueOnce(answer([{ name: "Leche", ids: ["i1", "i2"], existing: null }]))
+      .mockResolvedValueOnce(answer([{ name: "Leche entera", ids: ["i1"], existing: "p1" }]));
+    await useLlmRunStore.getState().startGroupRun(run);
+    const queue = useSuggestionsStore.getState().products;
+    expect(queue).toHaveLength(1);
+    expect(queue[0]?.name).toBe("Leche");
+    expect(queue[0]?.members.map((m) => m.description)).toEqual([
+      "Descripción 1",
+      "Descripción 3",
+      "Descripción 2",
+    ]);
+    expect(useLlmRunStore.getState().status).toMatchObject({ phase: "finished", received: 1 });
+  });
+
+  it("makes an «Agregar a» card for the product the user accepted from the batch-1 card in the meantime", async () => {
+    const run = twoBatchRun();
+    vi.mocked(postGroup)
+      .mockResolvedValueOnce(answer([{ name: "Leche", ids: ["i1", "i2"], existing: null }]))
+      .mockImplementationOnce(() => {
+        // While batch 2 is in flight the user accepts the card of batch 1.
+        const first = useSuggestionsStore.getState().products[0];
+        if (first === undefined) throw new Error("expected the batch-1 card");
+        useSuggestionsStore.getState().removeProduct(first.id);
+        useSettingsStore.setState({
+          products: [
+            {
+              id: "prod_leche",
+              name: "Leche",
+              categoryId: null,
+              members: first.members.map((m) => ({ ...m })),
+            },
+          ],
+        });
+        return Promise.resolve(answer([{ name: "Leche entera", ids: ["i1"], existing: "p1" }]));
+      });
+    await useLlmRunStore.getState().startGroupRun(run);
+    const queue = useSuggestionsStore.getState().products;
+    expect(queue).toHaveLength(1);
+    expect(queue[0]).toMatchObject({ name: "Leche entera", target: "prod_leche" });
+    expect(queue[0]?.members.map((m) => m.description)).toEqual(["Descripción 2"]);
+  });
+
+  it("keeps its own card with the group's name when the user rejected the batch-1 card", async () => {
+    const run = twoBatchRun();
+    vi.mocked(postGroup)
+      .mockResolvedValueOnce(answer([{ name: "Leche", ids: ["i1", "i2"], existing: null }]))
+      .mockImplementationOnce(() => {
+        const first = useSuggestionsStore.getState().products[0];
+        if (first === undefined) throw new Error("expected the batch-1 card");
+        useSuggestionsStore.getState().rejectSuggestion(first.id);
+        return Promise.resolve(answer([{ name: "Leche entera", ids: ["i1"], existing: "p1" }]));
+      });
+    await useLlmRunStore.getState().startGroupRun(run);
+    const queue = useSuggestionsStore.getState().products;
+    expect(queue).toHaveLength(1);
+    expect(queue[0]).toMatchObject({ name: "Leche entera", target: null });
+  });
+
+  it("never sends, nor changes, a card that was pending from an earlier run", async () => {
+    const old = {
+      id: "sug_vieja",
+      name: "Tarjeta de otra corrida",
+      target: null,
+      members: [
+        {
+          rfc: "ZZZ990909ZZZ",
+          key: "otra cosa",
+          description: "Otra cosa",
+          supplierName: "Otra tienda",
+        },
+      ],
+    };
+    useSuggestionsStore.getState().enqueueProducts([old]);
+    const run = twoBatchRun();
+    vi.mocked(postGroup)
+      .mockResolvedValueOnce(answer([{ name: "Uno", ids: ["i1", "i2"], existing: null }]))
+      .mockResolvedValueOnce(answer([{ name: "Dos", ids: ["i1"], existing: null }]));
+    await useLlmRunStore.getState().startGroupRun(run);
+    for (const sent of bodies()) {
+      expect(sent.existing.map((entry) => entry.name)).not.toContain("Tarjeta de otra corrida");
+    }
+    expect(useSuggestionsStore.getState().products.find((c) => c.id === "sug_vieja")).toEqual(old);
+  });
+
+  it("does not offer a batch-1 «Agregar a» card as context, since its product is already in the context", async () => {
+    const run = twoBatchRun([{ productId: "prod_a", name: "Leche" }]);
+    vi.mocked(postGroup)
+      .mockResolvedValueOnce(
+        answer([
+          { name: "Leche entera", ids: ["i1"], existing: "p1" },
+          { name: "Tres", ids: ["i2"], existing: null },
+        ]),
+      )
+      .mockResolvedValueOnce(answer([{ name: "Dos", ids: ["i1"], existing: null }]));
+    await useLlmRunStore.getState().startGroupRun(run);
+    expect(bodies()[1]?.existing.map((entry) => entry.name)).toEqual(["Leche", "Tres"]);
   });
 });

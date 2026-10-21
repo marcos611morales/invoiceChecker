@@ -1,10 +1,12 @@
 import { create } from "zustand";
-import type { GroupRun } from "@/domain/llm/candidates";
-import { isRetryable } from "@/domain/llm/contract";
+import { cutText, type ContextTarget, type GroupBatch, type GroupRun } from "@/domain/llm/candidates";
+import { LLM_LIMITS, isRetryable, type GroupRequest } from "@/domain/llm/contract";
 import { coverageOf, isComplete } from "@/domain/llm/reconcile";
-import { toProductSuggestions } from "@/domain/llm/suggestions";
+import { memberKey, resolveProductAnswer } from "@/domain/llm/suggestions";
+import { ruleMapKey } from "@/domain/settings/normalize";
 import { postGroup, type LlmFailure } from "@/lib/client/llmClient";
 import { useSessionStore } from "./sessionStore";
+import { useSettingsStore } from "./settingsStore";
 import { useSuggestionsStore } from "./suggestionsStore";
 
 /** What a run asks DeepSeek for; Plan 04-18 adds the «categorize» batches. */
@@ -85,34 +87,101 @@ function stopsRun(error: LlmFailure): boolean {
 }
 
 /**
+ * A card this run put in the queue: the name DeepSeek proposed for it and the member keys it had
+ * when it entered. Memory only, in the closure of one run (D-33).
+ */
+interface RunCard {
+  suggestionId: string;
+  name: string;
+  memberKeys: string[];
+}
+
+/** The id of the accepted product that holds a member, read from the settings as they are now. */
+function acceptedProductOf(): (key: string) => string | null {
+  const byKey = new Map<string, string>();
+  for (const product of useSettingsStore.getState().products) {
+    for (const member of product.members) byKey.set(ruleMapKey(member.rfc, member.key), product.id);
+  }
+  return (key) => byKey.get(key) ?? null;
+}
+
+/**
+ * The request of batch k of a run (D-28, D-33): the body built at send time plus, after the
+ * accepted names, the names of the cards the earlier batches of this run enqueued, as p(K+1)..
+ * and never more than `LLM_LIMITS.contextNames` in all. With no earlier card the built body and
+ * targets come back as they are. The result is for the request only: the dialog keeps listing the
+ * bodies built at send time.
+ */
+function composeRequest(
+  batch: GroupBatch,
+  earlier: readonly RunCard[],
+): { body: GroupRequest; targets: ReadonlyMap<string, ContextTarget> } {
+  const accepted = batch.body.existing.length;
+  const extra: GroupRequest["existing"] = [];
+  const targets = new Map(batch.targets);
+  for (const card of earlier) {
+    if (accepted + extra.length >= LLM_LIMITS.contextNames) break;
+    const name = cutText(card.name, LLM_LIMITS.productName);
+    if (name === "") continue;
+    const id = `p${String(accepted + extra.length + 1)}`;
+    extra.push({ id, name });
+    targets.set(id, { kind: "pending", suggestionId: card.suggestionId });
+  }
+  if (extra.length === 0) return { body: batch.body, targets: batch.targets };
+  return { body: { ...batch.body, existing: [...batch.body.existing, ...extra] }, targets };
+}
+
+/**
  * The batches of a grouping run. Each one posts its body, re-checks the coverage of the answer
  * (an answer that omits, repeats or invents an id becomes an incomplete_response and adds
  * nothing, D-11, OQ3) and maps it to cards; `apply` enqueues them as soon as the runner
  * decides the batch counts (D-26).
+ *
+ * Batch k also carries the names of the cards that batches 1..k-1 enqueued (D-28, D-33). The
+ * answer is mapped at apply time, not at send time, because a group placed with one of those
+ * cards depends on what the user did with the card meanwhile: it joins the card while it is
+ * pending, becomes an «Agregar a» card once the card was accepted, or keeps its own card once it
+ * was rejected. Cards pending from earlier runs are never named here and never touched.
  */
 export function groupBatches(run: GroupRun): RunBatch[] {
+  const runCards = new Map<string, RunCard>();
   return run.batches.map((batch) => ({
     send: async (signal) => {
-      const result = await postGroup(batch.body, signal);
+      const request = composeRequest(batch, [...runCards.values()]);
+      const result = await postGroup(request.body, signal);
       if (!result.ok) return { ok: false, error: result.error };
       const coverage = coverageOf(
         batch.body.items.map((item) => item.id),
         result.data.groups.map((group) => ({ ids: group.ids })),
       );
       if (!isComplete(coverage)) return { ok: false, error: "incomplete_response" };
-      const cards = toProductSuggestions(
-        result.data.groups,
-        batch.idMap,
-        batch.targets,
-        newSuggestionId,
-      );
+      const groups = result.data.groups;
       return {
         ok: true,
         apply: () => {
           const store = useSuggestionsStore.getState();
           const before = store.products.length;
-          store.enqueueProducts(cards);
-          return useSuggestionsStore.getState().products.length - before;
+          const answer = resolveProductAnswer(groups, batch.idMap, request.targets, newSuggestionId, {
+            queue: store.products,
+            productIdOfMember: acceptedProductOf(),
+            runCards: new Map([...runCards].map(([id, card]) => [id, card.memberKeys])),
+          });
+          for (const append of answer.appends) store.appendMembers(append.cardId, append.members);
+          store.enqueueProducts(answer.cards);
+          const after = useSuggestionsStore.getState().products;
+          // Only the cards that really entered the queue, and only new products: an «Agregar a»
+          // card is named after DeepSeek's group, its product is already in the context.
+          for (const card of answer.cards) {
+            if (card.target !== null) continue;
+            const stored = after.find((candidate) => candidate.id === card.id);
+            if (stored === undefined) continue;
+            runCards.set(card.id, {
+              suggestionId: card.id,
+              name: card.name,
+              memberKeys: stored.members.map(memberKey),
+            });
+          }
+          return after.length - before;
         },
       };
     },

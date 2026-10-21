@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PENDING_LIMITS,
   SUGGESTIONS_VERSION,
+  appendSuggestionMembers,
   dropMember,
   enqueueProductSuggestions,
   memberKey,
@@ -9,12 +10,14 @@ import {
   removeSuggestion,
   renameSuggestion,
   resolvePendingQueue,
+  resolveProductAnswer,
   restoreMember,
   restoreSuggestion,
   toProductSuggestions,
   type CategorySuggestion,
   type PendingQueue,
   type ProductSuggestion,
+  type RunContext,
   type SuggestionMember,
 } from "./suggestions";
 import type { ContextTarget } from "./candidates";
@@ -694,3 +697,216 @@ describe("toProductSuggestions: «Agregar a» cards (D-21)", () => {
     ]);
   });
 });
+
+describe("resolveProductAnswer: pending targets of one run (D-28, D-33)", () => {
+  const MILK_A = member("AAA010101AAA", "leche a");
+  const MILK_B = member("BBB020202BBB", "leche b");
+  const MILK_C = member("CCC030303CCC", "leche c");
+  const OIL = member("AAA010101AAA", "aceite");
+  const idMap = new Map<string, SuggestionMember>([
+    ["i1", MILK_B],
+    ["i2", MILK_C],
+    ["i3", OIL],
+  ]);
+  const targets = new Map<string, ContextTarget>([
+    ["p1", { kind: "product", productId: "prod_aceite" }],
+    ["p2", { kind: "pending", suggestionId: "sug_old" }],
+  ]);
+  function ids(): () => string {
+    let next = 0;
+    return () => {
+      next += 1;
+      return `sug_new_${String(next)}`;
+    };
+  }
+  /** The card batch 1 enqueued, with the member it carried. */
+  const OLD_CARD: ProductSuggestion = { id: "sug_old", name: "Leche", target: null, members: [MILK_A] };
+  function context(overrides: Partial<RunContext> = {}): RunContext {
+    return {
+      queue: [OLD_CARD],
+      productIdOfMember: () => null,
+      runCards: new Map([["sug_old", [memberKey(MILK_A)]]]),
+      ...overrides,
+    };
+  }
+
+  it("appends the members of a group placed with a card that is still pending and creates no card", () => {
+    const answer = resolveProductAnswer(
+      [{ name: "Leche entera", ids: ["i1", "i2"], existing: "p2" }],
+      idMap,
+      targets,
+      ids(),
+      context(),
+    );
+    expect(answer.cards).toEqual([]);
+    expect(answer.appends).toEqual([{ cardId: "sug_old", members: [MILK_B, MILK_C] }]);
+  });
+
+  it("gathers two groups of one answer that point at the same pending card into one append, none twice", () => {
+    const answer = resolveProductAnswer(
+      [
+        { name: "Leche B", ids: ["i1"], existing: "p2" },
+        { name: "Aceite", ids: ["i3"], existing: null },
+        { name: "Leche otra vez", ids: ["i2", "i1"], existing: "p2" },
+      ],
+      idMap,
+      targets,
+      ids(),
+      context(),
+    );
+    expect(answer.appends).toEqual([{ cardId: "sug_old", members: [MILK_B, MILK_C] }]);
+    expect(answer.cards).toEqual([{ id: "sug_new_1", name: "Aceite", target: null, members: [OIL] }]);
+  });
+
+  it("becomes an «Agregar a» card for the product that now holds the card's members once the user accepted it", () => {
+    const answer = resolveProductAnswer(
+      [{ name: "Leche entera", ids: ["i1"], existing: "p2" }],
+      idMap,
+      targets,
+      ids(),
+      context({
+        queue: [],
+        productIdOfMember: (key) => (key === memberKey(MILK_A) ? "prod_leche" : null),
+      }),
+    );
+    expect(answer.appends).toEqual([]);
+    expect(answer.cards).toEqual([
+      { id: "sug_new_1", name: "Leche entera", target: "prod_leche", members: [MILK_B] },
+    ]);
+  });
+
+  it("merges it with another group of the answer that points at the same accepted product", () => {
+    const answer = resolveProductAnswer(
+      [
+        { name: "Aceite", ids: ["i3"], existing: "p1" },
+        { name: "Aceite y leche", ids: ["i1"], existing: "p2" },
+      ],
+      idMap,
+      targets,
+      ids(),
+      context({ queue: [], productIdOfMember: () => "prod_aceite" }),
+    );
+    expect(answer.cards).toEqual([
+      { id: "sug_new_1", name: "Aceite", target: "prod_aceite", members: [OIL, MILK_B] },
+    ]);
+  });
+
+  it("keeps its own card with the group's name when the user rejected the card", () => {
+    const answer = resolveProductAnswer(
+      [{ name: "Leche entera", ids: ["i1", "i2"], existing: "p2" }],
+      idMap,
+      targets,
+      ids(),
+      context({ queue: [] }),
+    );
+    expect(answer.appends).toEqual([]);
+    expect(answer.cards).toEqual([
+      { id: "sug_new_1", name: "Leche entera", target: null, members: [MILK_B, MILK_C] },
+    ]);
+  });
+
+  it("keeps its own card when the card of the run is unknown or its product was deleted", () => {
+    const unknown = resolveProductAnswer(
+      [{ name: "Leche entera", ids: ["i1"], existing: "p2" }],
+      idMap,
+      targets,
+      ids(),
+      context({ queue: [], runCards: new Map() }),
+    );
+    expect(unknown.cards.map((entry) => entry.target)).toEqual([null]);
+    const deleted = resolveProductAnswer(
+      [{ name: "Leche entera", ids: ["i1"], existing: "p2" }],
+      idMap,
+      targets,
+      ids(),
+      context({ queue: [], productIdOfMember: () => null }),
+    );
+    expect(deleted.cards.map((entry) => entry.target)).toEqual([null]);
+  });
+
+  it("does not append a member that is already in the pending card, and drops an append left empty", () => {
+    const withMember: ProductSuggestion = { ...OLD_CARD, members: [MILK_A, MILK_B] };
+    const answer = resolveProductAnswer(
+      [{ name: "Leche", ids: ["i1"], existing: "p2" }],
+      idMap,
+      targets,
+      ids(),
+      context({ queue: [withMember] }),
+    );
+    expect(answer.appends).toEqual([]);
+    expect(answer.cards).toEqual([]);
+  });
+
+  it("treats a pending target without a run context as a new card and matches toProductSuggestions", () => {
+    const groups = [{ name: "Leche entera", ids: ["i1"], existing: "p2" }];
+    const cards = toProductSuggestions(groups, idMap, targets, ids());
+    expect(cards).toEqual([
+      { id: "sug_new_1", name: "Leche entera", target: null, members: [MILK_B] },
+    ]);
+  });
+
+  it("never changes its inputs", () => {
+    const frozenQueue = [deepFreezeCard(OLD_CARD)];
+    const frozenRun = new Map<string, readonly string[]>([["sug_old", Object.freeze([memberKey(MILK_A)])]]);
+    expect(() =>
+      resolveProductAnswer(
+        [{ name: "Leche", ids: ["i1"], existing: "p2" }],
+        idMap,
+        targets,
+        ids(),
+        { queue: frozenQueue, productIdOfMember: () => null, runCards: frozenRun },
+      ),
+    ).not.toThrow();
+    expect(frozenQueue[0]?.members).toEqual([MILK_A]);
+  });
+});
+
+function deepFreezeCard(value: ProductSuggestion): ProductSuggestion {
+  for (const entry of value.members) Object.freeze(entry);
+  Object.freeze(value.members);
+  return Object.freeze(value);
+}
+
+describe("appendSuggestionMembers (D-33)", () => {
+  const NEW_ONE = member("DDD040404DDD", "leche d");
+  const NEW_TWO = member("EEE050505EEE", "leche e");
+
+  it("adds the members at the end of the card, in order, and the result is a valid queue", () => {
+    const base = reviewQueue();
+    const next = appendSuggestionMembers(base, "sug_a", [NEW_ONE, NEW_TWO]);
+    const target = next.products.find((entry) => entry.id === "sug_a");
+    expect(target?.members.slice(-2)).toEqual([NEW_ONE, NEW_TWO]);
+    expect(next.products.find((entry) => entry.id === "sug_b")).toEqual(
+      base.products.find((entry) => entry.id === "sug_b"),
+    );
+    expect(pendingQueueSchema.safeParse(next).success).toBe(true);
+  });
+
+  it("is idempotent per member: one already pending in any card is skipped, and nothing new is the same queue", () => {
+    const base = reviewQueue();
+    const once = appendSuggestionMembers(base, "sug_a", [NEW_ONE, CAFE]);
+    expect(once.products.find((entry) => entry.id === "sug_a")?.members.filter((m) => memberKey(m) === memberKey(CAFE))).toHaveLength(0);
+    expect(appendSuggestionMembers(once, "sug_a", [NEW_ONE, CAFE])).toBe(once);
+  });
+
+  it("returns the same queue for an unknown card", () => {
+    const base = reviewQueue();
+    expect(appendSuggestionMembers(base, "sug_missing", [NEW_ONE])).toBe(base);
+  });
+
+  it("stops at the members limit and does not change its input", () => {
+    const full: PendingQueue = {
+      products: [card("sug_full", "Lleno", manyMembers(PENDING_LIMITS.members - 1))],
+      categories: [],
+    };
+    const frozen = deepFreezeQueue(full);
+    const next = appendSuggestionMembers(frozen, "sug_full", [NEW_ONE, NEW_TWO]);
+    expect(next.products[0]?.members).toHaveLength(PENDING_LIMITS.members);
+    expect(pendingQueueSchema.safeParse(next).success).toBe(true);
+    expect(frozen.products[0]?.members).toHaveLength(PENDING_LIMITS.members - 1);
+  });
+});
+
+function manyMembers(count: number): SuggestionMember[] {
+  return Array.from({ length: count }, (_, index) => member("ZZZ990909ZZZ", `producto ${String(index)}`));
+}

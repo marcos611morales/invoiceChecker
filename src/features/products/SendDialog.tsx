@@ -92,7 +92,10 @@ export function SendDialog({
             <p className="text-sm text-muted-foreground">{contextNamesLine(context.length)}</p>
           ) : null}
           {run.batches.length > 1 ? (
-            <p className="text-sm text-muted-foreground">{batchesLine(run.batches.length)}</p>
+            <>
+              <p className="text-sm text-muted-foreground">{batchesLine(run.batches.length)}</p>
+              <p className="text-sm text-muted-foreground">{es.products.dialog.earlierNamesLine}</p>
+            </>
           ) : null}
           <p className="text-sm text-muted-foreground">{es.products.dialog.peopleLine}</p>
         </AlertDialogHeader>
