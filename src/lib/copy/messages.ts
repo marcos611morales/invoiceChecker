@@ -413,6 +413,19 @@ export function conceptCategoryAria(descripcion: string): string {
 }
 
 /**
+ * Accessible name of the category Select of a line whose category comes from its product
+ * (D-16): «Categoría del concepto «{descripción, 60}», {categoría} del producto {nombre}».
+ * The product name is part of the name in full, so a screen reader hears the origin.
+ */
+export function conceptCategoryProductAria(
+  descripcion: string,
+  categoria: string,
+  producto: string,
+): string {
+  return `${conceptCategoryAria(descripcion)}, ${categoria} del producto ${producto}`;
+}
+
+/**
  * Cuts a text to at most `max` code points in total: a longer text keeps `max - 1` code
  * points plus «…», so the cap includes the ellipsis and an emoji is never split.
  */

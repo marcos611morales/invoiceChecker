@@ -1642,6 +1642,192 @@ describe("InvoiceTable concept category selector (CAT-03, D-09 to D-12, E7)", ()
     expect(reachCaption()).toHaveTextContent(`Aplica a 1 línea de ${hostile}`);
     expect(toastMessages()).toContain(`Categoría de «${hostile}» cambiada a Limpieza e higiene`);
   });
+
+  describe("category from the product (CAT-04, D-16, E8)", () => {
+    const OTROS = "seed:otros";
+    const FROM_PRODUCT = "· del producto";
+
+    /** Stores a product whose only member is CLORO 1L of supplier A (rfc, normalized key, readable text). */
+    function storeProduct(name: string, categoryId: string | null): void {
+      act(() => {
+        useSettingsStore.setState({
+          products: [
+            {
+              id: "prod_cloro",
+              name,
+              categoryId,
+              members: [
+                { rfc: A.rfc, key: "cloro 1l", description: "CLORO 1L", supplierName: A.nombre },
+              ],
+            },
+          ],
+        });
+      });
+    }
+
+    /** The selector of CLORO 1L whose accessible name carries the product suffix. */
+    function productSelect(categoria: string, producto: string): HTMLElement {
+      return screen.getByRole("combobox", {
+        name: `Categoría del concepto «CLORO 1L», ${categoria} del producto ${producto}`,
+      });
+    }
+
+    function openPanel(): void {
+      seed([cloroYJabon("F1")]);
+      render(<Harness />);
+      fireEvent.click(chevron("F1"));
+    }
+
+    it("E8 populated: reads «{categoría} · del producto {nombre}» with the name muted and the suffix 12px muted", () => {
+      storeProduct("Cloro", LIMPIEZA);
+      openPanel();
+      const trigger = productSelect("Limpieza e higiene", "Cloro");
+      expect(trigger).toHaveTextContent(`Limpieza e higiene ${FROM_PRODUCT} Cloro`);
+      const name = within(trigger).getByText("Limpieza e higiene");
+      expect(name.className).toContain("text-muted-foreground");
+      expect(name.className).toContain("truncate");
+      const suffix = within(trigger).getByText(FROM_PRODUCT);
+      expect(suffix.className).toContain("text-xs");
+      expect(suffix.className).toContain("text-muted-foreground");
+      expect(suffix.className).toContain("shrink-0");
+      expect(within(trigger).queryByText("· del proveedor")).toBeNull();
+      // The other line of the invoice is not in the product.
+      expect(valueText(conceptSelect("Jabón"))).toBe("Sin categoría");
+    });
+
+    it("E8 populated: takes the category from the product even when the supplier has another", () => {
+      assignSupplier(A.rfc, A.nombre, ABARROTES);
+      storeProduct("Cloro", LIMPIEZA);
+      openPanel();
+      expect(productSelect("Limpieza e higiene", "Cloro")).toBeInTheDocument();
+      expect(valueText(conceptSelect("Jabón"))).toBe("Abarrotes y despensa · del proveedor");
+    });
+
+    it("E8 long-text: caps the product name at 120px and keeps it whole in the accessible name", () => {
+      const long = "Producto con un nombre larguísimo ".repeat(2).trim().slice(0, 60);
+      storeProduct(long, LIMPIEZA);
+      openPanel();
+      const trigger = productSelect("Limpieza e higiene", long);
+      const productText = within(trigger).getByText(long);
+      expect(productText.className).toContain("max-w-[120px]");
+      expect(productText.className).toContain("truncate");
+      expect(productText.className).toContain("text-xs");
+      expect(productText.className).toContain("text-muted-foreground");
+      // The cell does not grow with the name: the trigger keeps its width classes.
+      expect(trigger.className).toContain("min-w-[240px]");
+      expect(trigger.className).toContain("max-w-full");
+    });
+
+    it("E8 long-text: shows the full product name in a Tooltip on focus, with no button inside the trigger", async () => {
+      const long = "Producto con un nombre larguísimo ".repeat(2).trim().slice(0, 60);
+      storeProduct(long, LIMPIEZA);
+      openPanel();
+      const trigger = productSelect("Limpieza e higiene", long);
+      expect(trigger.querySelector("button")).toBeNull();
+      fireEvent.focus(trigger);
+      const tip = await screen.findByText(long, { selector: "[data-slot='tooltip-content']" });
+      expect(tip).toBeInTheDocument();
+    });
+
+    it("E8 touch form: the open popup starts with «del producto {nombre}», which is not an option", async () => {
+      storeProduct("Cloro", LIMPIEZA);
+      openPanel();
+      const trigger = productSelect("Limpieza e higiene", "Cloro");
+      const withoutLine = (await optionNames(conceptSelect("Jabón"))).length;
+      fireEvent.click(trigger);
+      const line = document.querySelector<HTMLElement>('[data-slot="concept-product-origin"]');
+      expect(line).toHaveTextContent("del producto Cloro");
+      expect(line?.className).toContain("text-xs");
+      expect(line?.className).toContain("text-muted-foreground");
+      expect(line?.className).toContain("select-none");
+      expect(screen.getAllByRole("option")).toHaveLength(withoutLine);
+      expect(screen.queryByRole("option", { name: /del producto/ })).toBeNull();
+      fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
+      await waitFor(() => {
+        expect(screen.queryByRole("option")).toBeNull();
+      });
+    });
+
+    it("shows no popup line, no suffix and the Phase 3 name on lines that do not come from a product", () => {
+      storeProduct("Cloro", LIMPIEZA);
+      openPanel();
+      fireEvent.click(conceptSelect("Jabón"));
+      expect(document.querySelector('[data-slot="concept-product-origin"]')).toBeNull();
+    });
+
+    it("picking a category creates a concept rule that beats the product, and «Quitar ajuste» returns the line to it", async () => {
+      storeProduct("Cloro", LIMPIEZA);
+      openPanel();
+      await choose(productSelect("Limpieza e higiene", "Cloro"), "Otros");
+      expect(storedRules()).toEqual([
+        { rfc: A.rfc, key: "cloro 1l", description: "CLORO 1L", categoryId: OTROS },
+      ]);
+      const adjusted = conceptSelect("CLORO 1L");
+      expect(valueText(adjusted)).toBe("Otros");
+      expect(within(adjusted).getByText("Otros").className).toContain("text-foreground");
+      expect(within(adjusted).queryByText(FROM_PRODUCT)).toBeNull();
+      expect(reachCaption()).toHaveTextContent("Aplica a 1 línea de Proveedor A");
+      // The product itself is untouched.
+      expect(useSettingsStore.getState().products[0]?.categoryId).toBe(LIMPIEZA);
+
+      await choose(adjusted, "Quitar ajuste");
+      expect(storedRules()).toEqual([]);
+      const back = productSelect("Limpieza e higiene", "Cloro");
+      expect(back).toHaveTextContent(`Limpieza e higiene ${FROM_PRODUCT} Cloro`);
+      expect(reachCaption()).toBeNull();
+    });
+
+    it("an explicit «Sin categoría» rule still beats the product", async () => {
+      storeProduct("Cloro", LIMPIEZA);
+      openPanel();
+      await choose(productSelect("Limpieza e higiene", "Cloro"), "Sin categoría");
+      const trigger = conceptSelect("CLORO 1L");
+      expect(valueText(trigger)).toBe("Sin categoría");
+      expect(within(trigger).queryByText(FROM_PRODUCT)).toBeNull();
+    });
+
+    it("E8 partial: a product without category falls to «· del proveedor»", () => {
+      assignSupplier(A.rfc, A.nombre, ABARROTES);
+      storeProduct("Cloro", null);
+      openPanel();
+      const trigger = conceptSelect("CLORO 1L");
+      expect(trigger).toHaveTextContent("Abarrotes y despensa · del proveedor");
+      expect(within(trigger).queryByText(FROM_PRODUCT)).toBeNull();
+    });
+
+    it("E8 partial: a product without category and a supplier without category reads «Sin categoría»", () => {
+      storeProduct("Cloro", null);
+      openPanel();
+      const trigger = conceptSelect("CLORO 1L");
+      expect(valueText(trigger)).toBe("Sin categoría");
+    });
+
+    it("E8 partial: a product whose category was deleted adds no level", () => {
+      assignSupplier(A.rfc, A.nombre, ABARROTES);
+      storeProduct("Cloro", "custom:gone");
+      openPanel();
+      expect(conceptSelect("CLORO 1L")).toHaveTextContent("Abarrotes y despensa · del proveedor");
+    });
+
+    it("does not give the product to the same description of another supplier", () => {
+      storeProduct("Cloro", LIMPIEZA);
+      seed([cloroYJabon("F1"), cloroYJabon("F2", B)]);
+      render(<Harness />);
+      fireEvent.click(chevron("F2"));
+      expect(valueText(conceptSelect("CLORO 1L"))).toBe("Sin categoría");
+    });
+
+    it("T-04-49: renders a markup-like product name as text only, in the trigger, the tooltip and the name", async () => {
+      const hostile = "<img src=x onerror=alert(1)>";
+      storeProduct(hostile, LIMPIEZA);
+      openPanel();
+      const trigger = productSelect("Limpieza e higiene", hostile);
+      expect(trigger).toHaveTextContent(`Limpieza e higiene ${FROM_PRODUCT} ${hostile}`);
+      fireEvent.focus(trigger);
+      await screen.findByText(hostile, { selector: "[data-slot='tooltip-content']" });
+      expect(document.querySelector("img")).toBeNull();
+    });
+  });
 });
 
 describe("InvoiceTable under the category filter (FILT-03, D-14, D-27, E7 partial)", () => {

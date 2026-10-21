@@ -297,6 +297,45 @@ describe("conceptRows categories (D-09, D-10, D-11)", () => {
   it("exposes the normalized description as the rule key", () => {
     expect(rowsWith().map((r) => r.ruleKey)).toEqual(["cloro 1l", "peña", "jabon"]);
   });
+
+  /** A product in «Limpieza e higiene» (or without category) with CLORO 1L of this supplier as its member. */
+  const withProduct = (categoryId: string | null) => (s: SettingsData): SettingsData => ({
+    ...s,
+    products: [
+      {
+        id: "prod_cloro",
+        name: "Cloro",
+        categoryId,
+        members: [
+          { rfc: RFC, key: "cloro 1l", description: "CLORO  1L", supplierName: "Proveedor" },
+        ],
+      },
+    ],
+  });
+
+  it("D-16: gives productName only to the lines whose category comes from a product", () => {
+    const rows = rowsWith(supplier("seed:abarrotes-despensa"), withProduct("seed:limpieza-higiene"));
+    expect(rows.map((r) => [r.source, r.productName])).toEqual([
+      ["producto", "Cloro"],
+      ["proveedor", null],
+      ["proveedor", null],
+    ]);
+    expect(rows[0]?.category).toBe("seed:limpieza-higiene");
+  });
+
+  it("D-16: a concept rule beats the product and carries no productName", () => {
+    const rows = rowsWith(withProduct("seed:limpieza-higiene"), rule("CLORO 1L", "seed:otros"));
+    expect(rows[0]).toMatchObject({ source: "regla", category: "seed:otros", productName: null });
+  });
+
+  it("D-16: a product without category adds no level, so the line falls to its supplier", () => {
+    const rows = rowsWith(supplier("seed:abarrotes-despensa"), withProduct(null));
+    expect(rows[0]).toMatchObject({ source: "proveedor", productName: null });
+  });
+
+  it("D-16: leaves productName null on every line when nothing is stored", () => {
+    expect(rowsWith().map((r) => r.productName)).toEqual([null, null, null]);
+  });
 });
 
 describe("roundingDifference", () => {

@@ -11,10 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CategorySource } from "@/domain/settings/resolver";
 import { SIN_CATEGORIA, type Category } from "@/domain/settings/types";
 import { es } from "@/lib/copy/es";
-import { appliesToLinesText, categoryChangedToast, conceptCategoryAria } from "@/lib/copy/messages";
+import {
+  appliesToLinesText,
+  categoryChangedToast,
+  conceptCategoryAria,
+  conceptCategoryProductAria,
+} from "@/lib/copy/messages";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settingsStore";
 
@@ -46,8 +52,10 @@ export interface ConceptCategorySelectProps {
   lineCount: number;
   /** Category the line resolves to, or the reserved «Sin categoría» key. */
   category: string;
-  /** Where that category came from: a rule of the line, the supplier, or nothing. */
+  /** Where that category came from: a rule of the line, its product, the supplier, or nothing. */
   source: CategorySource;
+  /** Name of the product that gives the category; only read when `source` is "producto" (D-16). */
+  productName: string | null;
   /** The user's categories in list order (`orderedCategories`). */
   categories: readonly Category[];
   /** Name of a category key for display. */
@@ -77,6 +85,14 @@ function decodeCategory(value: string): string | null | undefined {
  * also shows how many loaded lines its rule reaches and ends the popup with
  * «Quitar ajuste» after a separator (D-09).
  *
+ * A line whose category comes from its product (D-16) reads «{categoría} · del producto
+ * {nombre}»: the product name is capped at 120px inside the trigger, and the full name is
+ * in the accessible name, in a Tooltip (merged into the Select trigger through its render
+ * prop, so no button nests inside the trigger) and as the first, non-selectable line of the
+ * open popup, which is how a touch screen, where a tap opens the Select, reaches it. The
+ * adjusted logic does not change: only a concept rule is an adjustment, so picking a
+ * category stores a rule that beats the product and «Quitar ajuste» gives the line back to it.
+ *
  * The Select value is null unless the line has a rule of its own, so picking any
  * item, including the one the supplier already gives, fires a change. The trigger
  * content is rendered directly rather than looked up from the items: muted for a
@@ -92,6 +108,7 @@ export function ConceptCategorySelect({
   lineCount,
   category,
   source,
+  productName,
   categories,
   nameOf,
 }: ConceptCategorySelectProps) {
@@ -99,6 +116,7 @@ export function ConceptCategorySelect({
   const removeConceptRule = useSettingsStore((s) => s.removeConceptRule);
   const restoreConceptRule = useSettingsStore((s) => s.restoreConceptRule);
   const adjusted = source === "regla";
+  const product = source === "producto" ? productName : null;
 
   const onChange = (value: string | null) => {
     if (value === null) return;
@@ -125,31 +143,66 @@ export function ConceptCategorySelect({
     });
   };
 
+  const triggerClass = "max-w-full min-w-[240px] data-[size=default]:max-sm:h-11";
+  const value = (
+    <SelectValue className="min-w-0">
+      <span className={cn("min-w-0 truncate", adjusted ? "text-foreground" : "text-muted-foreground")}>
+        {nameOf(category)}
+      </span>
+      {source === "proveedor" ? (
+        <>
+          {" "}
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {es.invoices.fromSupplier}
+          </span>
+        </>
+      ) : null}
+      {product !== null ? (
+        <>
+          {" "}
+          <span className="shrink-0 text-xs text-muted-foreground">{es.invoices.fromProduct}</span>{" "}
+          <span className="max-w-[120px] min-w-0 truncate text-xs text-muted-foreground">
+            {product}
+          </span>
+        </>
+      ) : null}
+    </SelectValue>
+  );
+
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <Select value={adjusted ? encodeCategory(category) : null} onValueChange={onChange}>
-        <SelectTrigger
-          aria-label={conceptCategoryAria(descripcion)}
-          className="max-w-full min-w-[240px] data-[size=default]:max-sm:h-11"
-        >
-          <SelectValue className="min-w-0">
-            <span className={cn("min-w-0 truncate", adjusted ? "text-foreground" : "text-muted-foreground")}>
-              {nameOf(category)}
-            </span>
-            {source === "proveedor" ? (
-              <>
-                {" "}
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {es.invoices.fromSupplier}
-                </span>
-              </>
-            ) : null}
-          </SelectValue>
-        </SelectTrigger>
+        {product === null ? (
+          <SelectTrigger aria-label={conceptCategoryAria(descripcion)} className={triggerClass}>
+            {value}
+          </SelectTrigger>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <SelectTrigger
+                  aria-label={conceptCategoryProductAria(descripcion, nameOf(category), product)}
+                  className={triggerClass}
+                />
+              }
+            >
+              {value}
+            </TooltipTrigger>
+            <TooltipContent className="break-words">{product}</TooltipContent>
+          </Tooltip>
+        )}
         <SelectContent
           alignItemWithTrigger={false}
           className="max-h-[min(18rem,var(--available-height))]"
         >
+          {product !== null ? (
+            <p
+              data-slot="concept-product-origin"
+              className="px-2 py-1.5 text-xs break-words text-muted-foreground select-none"
+            >
+              {`${es.invoices.productOrigin} ${product}`}
+            </p>
+          ) : null}
           <SelectItem value={NONE_VALUE} className="min-h-9 max-sm:min-h-11">
             <span className={cn(WRAPPING_TEXT, "text-muted-foreground")}>{es.categories.none}</span>
           </SelectItem>

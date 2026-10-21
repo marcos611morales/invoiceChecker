@@ -12,6 +12,7 @@ import {
   exportedAtText,
   variationMonthText,
   conceptCategoryAria,
+  conceptCategoryProductAria,
   deleteCategoryAria,
   deleteCategoryBody,
   deleteCategoryTitle,
@@ -603,9 +604,25 @@ describe("Concept category Select copy (UI-SPEC E7)", () => {
     expect(conceptCategoryAria("<img src=x>")).toBe("Categoría del concepto «<img src=x>»");
   });
 
+  it("D-16: adds «{categoría} del producto {nombre}» to the name, the description capped at 60", () => {
+    expect(conceptCategoryProductAria("CLORO 1L", "Limpieza e higiene", "Cloro")).toBe(
+      "Categoría del concepto «CLORO 1L», Limpieza e higiene del producto Cloro",
+    );
+    const text = conceptCategoryProductAria("y".repeat(200), "Otros", "Cloro");
+    expect(text).toBe(`Categoría del concepto «${"y".repeat(59)}…», Otros del producto Cloro`);
+  });
+
+  it("D-16: keeps a long product name whole in the accessible name", () => {
+    const long = "P".repeat(60);
+    expect(conceptCategoryProductAria("Jabón", "Otros", long)).toBe(
+      `Categoría del concepto «Jabón», Otros del producto ${long}`,
+    );
+  });
+
   it("holds the fixed copy of the selector", () => {
     expect(es.invoices.conceptColumns.category).toBe("Categoría");
     expect(es.invoices.fromSupplier).toBe("· del proveedor");
+    expect(es.invoices.fromProduct).toBe("· del producto");
     expect(es.invoices.conceptLimit).toBe("Llegaste al máximo de 20,000 conceptos ajustados.");
   });
 });
