@@ -4,6 +4,7 @@ import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { CircleAlert, Layers, X } from "lucide-react";
 import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import {
   buildGroupRun,
@@ -26,6 +27,7 @@ import {
 import { useLlmRunStore } from "@/stores/llmRunStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
+import { ProductList } from "./ProductList";
 import { ReviewQueue } from "./ReviewQueue";
 import { SendDialog } from "./SendDialog";
 
@@ -47,6 +49,7 @@ export function ProductsTab() {
   const startGroupRun = useLlmRunStore((s) => s.startGroupRun);
   const dismissResult = useLlmRunStore((s) => s.dismissResult);
   const products = useSettingsStore((s) => s.products);
+  const marks = useSettingsStore((s) => s.ungroupedConcepts);
   // A description is taken when it waits in a card or already belongs to an accepted product
   // (D-04, D-13): taken descriptions leave the caption count and are never sent again.
   const free = useMemo(
@@ -140,6 +143,14 @@ export function ProductsTab() {
           </AlertAction>
         </Alert>
       ) : null}
+      {products.length === 0 && queue.length === 0 && marks.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle className="text-base">{es.products.list.emptyHeading}</EmptyTitle>
+            <EmptyDescription>{es.products.list.emptyBody}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : null}
       {queue.length > 0 ? (
         <section className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-col gap-1">
@@ -159,6 +170,14 @@ export function ProductsTab() {
             focusHeading={focusHeading}
           />
         </section>
+      ) : null}
+      {products.length > 0 ? (
+        <ProductList
+          onEmptied={() => {
+            // The list unmounts with its last product: focus goes to the tab heading.
+            titleHeading.current?.focus();
+          }}
+        />
       ) : null}
       <p aria-live="polite" className="sr-only">
         {announcement}

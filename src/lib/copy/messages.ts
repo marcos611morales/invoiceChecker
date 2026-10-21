@@ -642,6 +642,90 @@ export function productQueueHeading(n: number): string {
   return `Sugerencias de productos · ${String(n)}`;
 }
 
+/** Heading of «Mis productos»: «Mis productos · 1 producto» or «Mis productos · {n} productos». */
+export function productsHeading(n: number): string {
+  return `Mis productos · ${n === 1 ? "1 producto" : `${String(n)} productos`}`;
+}
+
+/** Members cell of a product row: «1 miembro» or «{n} miembros». */
+export function membersCount(n: number): string {
+  return n === 1 ? "1 miembro" : `${String(n)} miembros`;
+}
+
+/** Suppliers cell: the first two distinct names, then «+{k}» for the rest. */
+export function suppliersCell(names: readonly string[]): string {
+  const shown = names.slice(0, 2).join(", ");
+  return names.length > 2 ? `${shown} +${String(names.length - 2)}` : shown;
+}
+
+/** `aria-label` of the expander button of a product row. */
+export function expandMembersAria(name: string, open: boolean): string {
+  return open ? `Ocultar miembros de ${name}` : `Ver miembros de ${name}`;
+}
+
+/** `aria-label` of the pencil of one product row. */
+export function renameProductAria(name: string): string {
+  return `Renombrar producto ${name}`;
+}
+
+/** `aria-label` of the trash button of one product row. */
+export function deleteProductAria(name: string): string {
+  return `Borrar producto ${name}`;
+}
+
+/** `aria-label` of the inline product rename input. */
+export function renameProductInputAria(name: string): string {
+  return `Nuevo nombre del producto ${name}`;
+}
+
+/** Toast after «Borrar producto»: the name is cut at 40 characters in total, «…» included. */
+export function productDeletedToast(name: string): string {
+  return `Producto «${capCodePoints(name, PRODUCT_TOAST_MAX)}» borrado`;
+}
+
+/**
+ * Description line of that toast (D-15): «Sus {n} descripciones vuelven a quedar libres.»
+ * The singular is the grammatical form of the same sentence.
+ */
+export function productFreedText(n: number): string {
+  return n === 1
+    ? "Su descripción vuelve a quedar libre."
+    : `Sus ${String(n)} descripciones vuelven a quedar libres.`;
+}
+
+/** Toast when removing or moving the last member also deleted the product (UI-SPEC OQ5). */
+export function productEmptiedToast(name: string): string {
+  return `Producto «${capCodePoints(name, PRODUCT_TOAST_MAX)}» borrado porque se quedó sin descripciones`;
+}
+
+/** Longest description kept in the `aria-label` of a member action, «…» included (UI-SPEC: 60). */
+const MEMBER_ARIA_MAX = 60;
+
+/** `aria-label` of the «Mover a otro producto» button of one member. */
+export function moveMemberAria(description: string): string {
+  return `Mover «${capCodePoints(description, MEMBER_ARIA_MAX)}» a otro producto`;
+}
+
+/** `aria-label` of the «Quitar del producto» button of one member. */
+export function removeMemberAria(description: string): string {
+  return `Quitar «${capCodePoints(description, MEMBER_ARIA_MAX)}» del producto`;
+}
+
+/** Toast after taking a member out of a product (D-15): the description is cut at 40 characters. */
+export function memberRemovedToast(description: string, product: string): string {
+  return `«${capCodePoints(description, PRODUCT_TOAST_MAX)}» quitada de «${product}»`;
+}
+
+/** Toast after moving a member to another product (D-15): the description is cut at 40 characters. */
+export function memberMovedToast(description: string, product: string): string {
+  return `«${capCodePoints(description, PRODUCT_TOAST_MAX)}» movida a «${product}»`;
+}
+
+/** Empty text of the product picker: «Ningún producto coincide con «{texto}».» */
+export function noProductMatches(text: string): string {
+  return `Ningún producto coincide con «${text}».`;
+}
+
 /** Caption of a card member: the supplier and its loaded lines, «1 línea» for one (D-19). */
 export function memberCaption(supplierName: string, lines: number): string {
   return lines === 1

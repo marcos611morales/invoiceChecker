@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ruleMapKey } from "@/domain/settings/normalize";
 import {
   SEED_CATEGORIES,
   SIN_CATEGORIA,
   defaultSettings,
+  type ProductMember,
   type SettingsData,
   type SettingsDataV2,
 } from "@/domain/settings/types";
@@ -929,5 +931,121 @@ describe("settingsStore replaceAll (AJUS-02, D-08)", () => {
       ungroupedConcepts: [],
     });
     expect(snapshot().categories).toEqual([]);
+  });
+});
+
+describe("settingsStore product actions (D-14, D-15)", () => {
+  const uno = (key: string): ProductMember => ({
+    rfc: "AAA010101AAA",
+    key,
+    description: key.toUpperCase(),
+    supplierName: "Tienda Uno",
+  });
+  const keyOf = (member: ProductMember): string => ruleMapKey(member.rfc, member.key);
+
+  function seed(): void {
+    useSettingsStore.setState({
+      products: [
+        { id: "prod_a", name: "Leche", categoryId: null, members: [uno("a1"), uno("a2")] },
+        { id: "prod_b", name: "Café", categoryId: null, members: [uno("b1")] },
+      ],
+    });
+  }
+
+  it("renames in one write that touches only the products, and refuses a bad name without writing", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const before = snapshot();
+    expect(useSettingsStore.getState().renameProduct("prod_a", "  Leche entera ")).toEqual({ ok: true });
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().products.map((product) => product.name)).toEqual(["Leche entera", "Café"]);
+    expect(snapshot().categories).toBe(before.categories);
+
+    setItem.mockClear();
+    expect(useSettingsStore.getState().renameProduct("prod_a", " café ")).toEqual({
+      ok: false,
+      reason: "duplicate",
+    });
+    expect(useSettingsStore.getState().renameProduct("prod_a", "   ")).toEqual({
+      ok: false,
+      reason: "empty",
+    });
+    // An unchanged name and an unknown id are no change either.
+    expect(useSettingsStore.getState().renameProduct("prod_a", "Leche entera")).toEqual({ ok: true });
+    expect(useSettingsStore.getState().renameProduct("prod_x", "Lo que sea")).toEqual({ ok: true });
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("deletes and restores a product, each in one write, and a refused restore writes nothing", () => {
+    seed();
+    const original = snapshot().products;
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const snap = useSettingsStore.getState().deleteProduct("prod_a");
+    expect(snap).not.toBeNull();
+    if (snap === null) return;
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().products.map((product) => product.id)).toEqual(["prod_b"]);
+
+    setItem.mockClear();
+    useSettingsStore.getState().restoreProduct(snap);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().products).toEqual(original);
+
+    setItem.mockClear();
+    // The id is taken again: the restore is refused and nothing is written.
+    useSettingsStore.getState().restoreProduct(snap);
+    expect(setItem).not.toHaveBeenCalled();
+    expect(useSettingsStore.getState().deleteProduct("prod_x")).toBeNull();
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("takes a member out and undoes it; the only member deletes the product and undo brings it back", () => {
+    seed();
+    const original = snapshot().products;
+    const out = useSettingsStore.getState().removeProductMember("prod_a", keyOf(uno("a1")));
+    expect(out?.kind).toBe("member");
+    if (out === null) return;
+    expect(snapshot().products[0]?.members.map((member) => member.key)).toEqual(["a2"]);
+    useSettingsStore.getState().undoMemberChange(out);
+    expect(snapshot().products).toEqual(original);
+
+    const last = useSettingsStore.getState().removeProductMember("prod_b", keyOf(uno("b1")));
+    expect(last?.kind).toBe("product");
+    if (last === null) return;
+    expect(snapshot().products.map((product) => product.id)).toEqual(["prod_a"]);
+    useSettingsStore.getState().undoMemberChange(last);
+    expect(snapshot().products).toEqual(original);
+    expect(useSettingsStore.getState().removeProductMember("prod_a", keyOf(uno("zz")))).toBeNull();
+  });
+
+  it("moves a member to another product and undoes it", () => {
+    seed();
+    const original = snapshot().products;
+    const moved = useSettingsStore.getState().moveProductMember("prod_a", keyOf(uno("a1")), "prod_b");
+    expect(moved?.kind).toBe("moved");
+    if (moved === null) return;
+    expect(snapshot().products.map((product) => product.members.map((member) => member.key))).toEqual([
+      ["a2"],
+      ["b1", "a1"],
+    ]);
+    useSettingsStore.getState().undoMemberChange(moved);
+    expect(snapshot().products).toEqual(original);
+    expect(useSettingsStore.getState().moveProductMember("prod_a", keyOf(uno("a1")), "prod_a")).toBeNull();
+  });
+
+  it("writes only values that load back unchanged", async () => {
+    seed();
+    useSettingsStore.getState().renameProduct("prod_b", "Café molido");
+    const moved = useSettingsStore.getState().moveProductMember("prod_b", keyOf(uno("b1")), "prod_a");
+    expect(moved?.kind).toBe("product");
+    const expected = snapshot();
+    const written = window.localStorage.getItem(KEY);
+    expect(written).not.toBeNull();
+    // Resetting the store rewrites the storage, so put the written value back before loading it.
+    useSettingsStore.setState(defaultSettings());
+    window.localStorage.setItem(KEY, written ?? "");
+    await rehydrate();
+    expect(snapshot()).toEqual(expected);
+    expect(useStorageStatusStore.getState().readFailed).toBe(false);
   });
 });

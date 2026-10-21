@@ -446,6 +446,35 @@ export const es = {
       "Revisa cada grupo. Puedes cambiar el nombre, separar descripciones o unir grupos antes de aceptar.",
     closeAlert: "Cerrar aviso",
     signIn: "Iniciar sesión",
+    /** «Mis productos» (UI-SPEC lines 296-318): the accepted products and their members. */
+    list: {
+      intro:
+        "Cada producto junta descripciones de distintas tiendas. Su categoría gana a la del proveedor, pero no a la que ajustes en un concepto.",
+      emptyHeading: "Todavía no hay productos agrupados",
+      emptyBody:
+        "Pulsa «Agrupar productos» para que DeepSeek junte las descripciones que son el mismo producto en distintas tiendas. Antes de enviar verás exactamente qué datos salen.",
+      columns: {
+        expander: "Miembros",
+        product: "Producto",
+        members: "Miembros",
+        suppliers: "Proveedores",
+        actions: "Acciones",
+      },
+      memberColumns: {
+        description: "Descripción",
+        supplier: "Proveedor",
+        lines: "Líneas",
+        actions: "Acciones",
+      },
+      saveName: "Guardar nombre",
+      cancelRename: "Cancelar cambio de nombre",
+      undo: "Deshacer",
+    },
+    /** Searchable product picker used by «Mover a…» (and «Unir con…» later). */
+    picker: {
+      search: "Buscar producto",
+      groupHeading: "Productos",
+    },
     /** Product-suggestion cards (UI-SPEC lines 261-273): the accept button and its refusals. */
     queue: {
       accept: "Aceptar",

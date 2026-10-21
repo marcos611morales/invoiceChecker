@@ -21,7 +21,19 @@ import {
   type NameError,
 } from "@/domain/settings/categories";
 import { resolvePersisted } from "@/domain/settings/migrate";
-import { acceptProduct, type AcceptProductError } from "@/domain/settings/products";
+import {
+  acceptProduct,
+  deleteProduct,
+  moveProductMember,
+  removeProductMember,
+  renameProduct,
+  restoreProduct,
+  undoMemberChange,
+  type AcceptProductError,
+  type MemberUndo,
+  type ProductNameError,
+  type ProductSnapshot,
+} from "@/domain/settings/products";
 import {
   SETTINGS_VERSION,
   defaultSettings,
@@ -118,6 +130,32 @@ interface SettingsState extends SettingsData {
     name: string;
     members: readonly ProductMember[];
   }) => { ok: true; product: Product } | { ok: false; reason: AcceptProductError };
+  /**
+   * Renames a product keeping its id, category and members (D-14). A refused name (empty,
+   * reserved, repeated, too long) changes and writes nothing, and so does an unchanged name.
+   */
+  renameProduct: (id: string, name: string) => { ok: true } | { ok: false; reason: ProductNameError };
+  /**
+   * Deletes a product; its descriptions are free again (D-14, D-15). Returns the snapshot
+   * `restoreProduct` needs, or null when the id is unknown (nothing is written then).
+   */
+  deleteProduct: (id: string) => ProductSnapshot | null;
+  /** Undo of `deleteProduct`. A refused restore (something it needs is taken again) writes nothing. */
+  restoreProduct: (snapshot: ProductSnapshot) => void;
+  /**
+   * Takes one member (`key` is `ruleMapKey(rfc, key)`) out of a product (D-15); the only member
+   * of a product deletes the product too. Returns what `undoMemberChange` needs, or null when
+   * the product or the member is unknown.
+   */
+  removeProductMember: (productId: string, key: string) => MemberUndo | null;
+  /**
+   * Moves one member to the end of another product (D-15); the only member of the source
+   * deletes the source too. Returns what `undoMemberChange` needs, or null for an unknown or
+   * identical product or an unknown member.
+   */
+  moveProductMember: (fromId: string, key: string, toId: string) => MemberUndo | null;
+  /** Undo of `removeProductMember` and `moveProductMember`. A refused undo writes nothing. */
+  undoMemberChange: (undo: MemberUndo) => void;
   /**
    * Replaces all six stored fields with an already validated settings value, in one `set`
    * (AJUS-02, D-08), so persist writes once and a reader never sees a half-replaced state.
@@ -272,6 +310,46 @@ export const useSettingsStore = create<SettingsState>()(
         if (!result.ok) return result;
         set({ products: result.next.products });
         return { ok: true, product: result.product };
+      },
+      renameProduct: (id, name) => {
+        const current = dataOf(get());
+        const result = renameProduct(current, id, name);
+        if (!result.ok) return result;
+        // An unknown id or an unchanged name comes back as the same object: nothing to write.
+        if (result.next !== current) set({ products: result.next.products });
+        return { ok: true };
+      },
+      deleteProduct: (id) => {
+        const result = deleteProduct(dataOf(get()), id);
+        if (result === null) return null;
+        set({ products: result.next.products });
+        return result.snapshot;
+      },
+      restoreProduct: (snapshot) => {
+        const current = dataOf(get());
+        const next = restoreProduct(current, snapshot);
+        // A refused restore comes back as the same object: nothing to write.
+        if (next === current) return;
+        set({ products: next.products });
+      },
+      removeProductMember: (productId, key) => {
+        const result = removeProductMember(dataOf(get()), productId, key);
+        if (result === null) return null;
+        set({ products: result.next.products });
+        return result.undo;
+      },
+      moveProductMember: (fromId, key, toId) => {
+        const result = moveProductMember(dataOf(get()), fromId, key, toId);
+        if (result === null) return null;
+        set({ products: result.next.products });
+        return result.undo;
+      },
+      undoMemberChange: (undo) => {
+        const current = dataOf(get());
+        const next = undoMemberChange(current, undo);
+        // A refused undo comes back as the same object: nothing to write.
+        if (next === current) return;
+        set({ products: next.products });
       },
       replaceAll: (data) => {
         set({
