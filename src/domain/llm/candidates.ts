@@ -35,6 +35,16 @@ function hasReadableName(entry: LedgerEntry): boolean {
   return name !== "" && name.toLowerCase() !== entry.supplierRfc.trim().toLowerCase();
 }
 
+/** Supplier name, then description, then the plain RFC and key as tie-breakers (stable and total). */
+function compareItems(a: LlmItem, b: LlmItem): number {
+  return (
+    COLLATOR.compare(a.supplierName, b.supplierName) ||
+    COLLATOR.compare(a.description, b.description) ||
+    comparePlain(a.rfc, b.rfc) ||
+    comparePlain(a.key, b.key)
+  );
+}
+
 /**
  * Every concept of every entry, whatever its tipo, exclusion or whether the
  * invoice counts (D-03, OQ2), one item per supplier RFC and normalized
@@ -64,13 +74,7 @@ export function collectItems(entries: readonly LedgerEntry[]): LlmItem[] {
       }
     }
   }
-  return [...byKey.values()].sort(
-    (a, b) =>
-      COLLATOR.compare(a.supplierName, b.supplierName) ||
-      COLLATOR.compare(a.description, b.description) ||
-      comparePlain(a.rfc, b.rfc) ||
-      comparePlain(a.key, b.key),
-  );
+  return [...byKey.values()].sort(compareItems);
 }
 
 /** The items whose key (rfc plus normalized description) is not in `taken`. */
@@ -115,9 +119,11 @@ export interface GroupRun {
 }
 
 /**
- * Splits the free items into M = ceil(N / max) consecutive batches of near-equal
- * size (D-28). In each batch the ids are i1..iK in order, the description and the
- * supplier are cut to their limits, and the context names are p1..pK.
+ * Splits the free items into M = ceil(N / max) batches of near-equal size (D-28). The items are
+ * sorted by supplier name then description and dealt round-robin (item j goes to batch j mod M),
+ * so every supplier is spread across the batches instead of one big supplier filling one of
+ * them. Each batch keeps the sorted order; its ids are i1..iK in that order, the description and
+ * the supplier are cut to their limits, and the context names are p1..pK.
  */
 export function buildGroupRun(
   free: readonly LlmItem[],
@@ -127,13 +133,14 @@ export function buildGroupRun(
   const context = existing.slice(0, LLM_LIMITS.contextNames);
   const total = free.length;
   const count = total === 0 ? 0 : Math.ceil(total / max);
+  const sorted = [...free].sort(compareItems);
+  const slices: LlmItem[][] = Array.from({ length: count }, () => []);
+  sorted.forEach((item, index) => {
+    slices[index % count]?.push(item);
+  });
   const batches: GroupBatch[] = [];
   const suppliers = new Set<string>();
-  let offset = 0;
-  for (let b = 0; b < count; b += 1) {
-    const size = Math.floor(total / count) + (b < total % count ? 1 : 0);
-    const slice = free.slice(offset, offset + size);
-    offset += size;
+  for (const slice of slices) {
     const idMap = new Map<string, SuggestionMember>();
     const items = slice.map((item, index) => {
       const id = `i${String(index + 1)}`;

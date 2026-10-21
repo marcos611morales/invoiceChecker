@@ -61,12 +61,6 @@ async function started(batch: Controlled, sends = 1): Promise<void> {
   });
 }
 
-async function phase(expected: string): Promise<void> {
-  await vi.waitFor(() => {
-    expect(useLlmRunStore.getState().status.phase).toBe(expected);
-  });
-}
-
 beforeEach(() => {
   resetSuggestionsStore();
   useLlmRunStore.setState({ status: { phase: "idle" }, controller: null });
