@@ -413,3 +413,16 @@ export function undoMemberChange(settings: SettingsData, undo: MemberUndo): Sett
     }
   }
 }
+
+// --- Product category (Plan 04-08, CAT-04, D-16) ---
+
+/** Inert skeleton so the RED tests resolve their imports; replaced in the GREEN commit. */
+export function setProductCategory(
+  settings: SettingsData,
+  id: string,
+  categoryId: string | null,
+): { ok: true; next: SettingsData } | { ok: false; reason: "unknown-category" } {
+  void id;
+  void categoryId;
+  return { ok: true, next: settings };
+}

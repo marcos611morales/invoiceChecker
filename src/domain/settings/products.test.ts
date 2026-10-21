@@ -8,6 +8,7 @@ import {
   removeProductMember,
   renameProduct,
   restoreProduct,
+  setProductCategory,
   undoMemberChange,
   validateProductName,
 } from "./products";
@@ -614,6 +615,74 @@ describe("no reducer mutates its input", () => {
       if (removed !== null) undoMemberChange(frozen, removed.undo);
       const moved = moveProductMember(frozen, "prod_leche", KEY_A, "prod_cafe");
       if (moved !== null) undoMemberChange(frozen, moved.undo);
+    }).not.toThrow();
+  });
+});
+
+describe("setProductCategory (CAT-04, D-16)", () => {
+  const INSUMOS = "seed:insumos-cafeteria";
+  const OTROS = "seed:otros";
+
+  function settings(): SettingsData {
+    return withProducts([
+      product("prod_leche", "Leche", LECHE),
+      { ...product("prod_cafe", "Café", [member(UNO, "cafe molido", "Café molido", "Tienda Uno")]), categoryId: OTROS },
+    ]);
+  }
+
+  it("gives the product the category and leaves the rest as it was", () => {
+    const before = settings();
+    const result = setProductCategory(before, "prod_leche", INSUMOS);
+    if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+    expect(result.next.products.map((entry) => [entry.id, entry.categoryId])).toEqual([
+      ["prod_leche", INSUMOS],
+      ["prod_cafe", OTROS],
+    ]);
+    expect(result.next.products[0]?.members).toEqual(LECHE);
+    expect(result.next.products[0]?.name).toBe("Leche");
+    expect(result.next.categories).toBe(before.categories);
+    expect(settingsDataSchema.safeParse(result.next).success).toBe(true);
+  });
+
+  it("changes the category of a product that already had one", () => {
+    const result = setProductCategory(settings(), "prod_cafe", INSUMOS);
+    if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+    expect(result.next.products[1]?.categoryId).toBe(INSUMOS);
+  });
+
+  it("clears the category with null", () => {
+    const result = setProductCategory(settings(), "prod_cafe", null);
+    if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+    expect(result.next.products[1]?.categoryId).toBeNull();
+    expect(settingsDataSchema.safeParse(result.next).success).toBe(true);
+  });
+
+  it("refuses a category id that is not a category as unknown-category", () => {
+    expect(setProductCategory(settings(), "prod_leche", "cat_missing")).toEqual({
+      ok: false,
+      reason: "unknown-category",
+    });
+    expect(setProductCategory(settings(), "prod_leche", SIN_CATEGORIA)).toEqual({
+      ok: false,
+      reason: "unknown-category",
+    });
+  });
+
+  it("returns the very same settings object for an unknown product or an unchanged category", () => {
+    const before = settings();
+    const unknown = setProductCategory(before, "prod_nope", INSUMOS);
+    expect(unknown.ok && unknown.next === before).toBe(true);
+    const unchanged = setProductCategory(before, "prod_cafe", OTROS);
+    expect(unchanged.ok && unchanged.next === before).toBe(true);
+    const alreadyNone = setProductCategory(before, "prod_leche", null);
+    expect(alreadyNone.ok && alreadyNone.next === before).toBe(true);
+  });
+
+  it("does not mutate frozen settings", () => {
+    const frozen = deepFreeze(settings());
+    expect(() => {
+      setProductCategory(frozen, "prod_leche", INSUMOS);
+      setProductCategory(frozen, "prod_cafe", null);
     }).not.toThrow();
   });
 });

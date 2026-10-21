@@ -714,3 +714,125 @@ describe("Mover a otro producto (D-15, OQ5)", () => {
     expect(screen.queryAllByRole("option")).toHaveLength(0);
   });
 });
+
+describe("Categoría del producto (E6 populated and partial, D-14, D-16)", () => {
+  const INSUMOS = "seed:insumos-cafeteria";
+  const LIMPIEZA = "seed:limpieza-higiene";
+
+  const threeProducts = (): Product[] => [
+    productWith("prod_leche", "Leche entera", [LECHE_UNO, LECHE_DOS]),
+    productWith("prod_cafe", "Café molido", [CAFE]),
+    productWith("prod_azucar", "Azúcar", [AZUCAR]),
+  ];
+
+  function storedProducts(): Product[] {
+    return useSettingsStore.getState().products;
+  }
+
+  function categorySelect(name: string): HTMLElement {
+    return screen.getByRole("combobox", { name: `Categoría del producto ${name}` });
+  }
+
+  function choose(name: string, optionText: string): void {
+    fireEvent.click(categorySelect(name));
+    const option = screen.getByRole("option", { name: optionText });
+    // Base UI commits a mouse selection only when the pointer went down on the item.
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+  }
+
+  it("shows a Categoría column after Producto with one Select per product that reads «Sin categoría» when unset", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    const names = screen.getAllByRole("columnheader").map((header) => header.textContent);
+    expect(names.indexOf("Categoría")).toBe(names.indexOf("Producto") + 1);
+    for (const name of ["Leche entera", "Café molido", "Azúcar"]) {
+      expect(categorySelect(name)).toHaveTextContent("Sin categoría");
+      expect(categorySelect(name).className).toContain("text-muted-foreground");
+    }
+  });
+
+  it("is 240px wide and full width under 640px", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    const className = categorySelect("Azúcar").className;
+    expect(className).toContain("w-[240px]");
+    expect(className).toContain("max-sm:w-full");
+  });
+
+  it("shows the stored category of a product in the foreground color", () => {
+    setProducts([{ ...productWith("prod_cafe", "Café molido", [CAFE]), categoryId: INSUMOS }]);
+    render(<ProductList />);
+    expect(categorySelect("Café molido")).toHaveTextContent("Insumos de cafetería");
+    expect(categorySelect("Café molido").className).not.toContain("text-muted-foreground");
+  });
+
+  it("reads «Sin categoría» for a stored category that no longer exists", () => {
+    setProducts([{ ...productWith("prod_cafe", "Café molido", [CAFE]), categoryId: "cat_gone" }]);
+    render(<ProductList />);
+    expect(categorySelect("Café molido")).toHaveTextContent("Sin categoría");
+  });
+
+  it("applies a chosen category at once, stores it, and shows no toast", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    choose("Café molido", "Insumos de cafetería");
+    expect(storedProducts().map((entry) => [entry.id, entry.categoryId])).toEqual([
+      ["prod_leche", null],
+      ["prod_cafe", INSUMOS],
+      ["prod_azucar", null],
+    ]);
+    expect(categorySelect("Café molido")).toHaveTextContent("Insumos de cafetería");
+    expect(toastMock).not.toHaveBeenCalled();
+    const raw = window.localStorage.getItem("invoicechecker:settings");
+    expect(raw).not.toBeNull();
+    expect(raw).toContain(INSUMOS);
+  });
+
+  it("removes the product's level when «Sin categoría» is chosen", () => {
+    setProducts([{ ...productWith("prod_cafe", "Café molido", [CAFE]), categoryId: INSUMOS }]);
+    render(<ProductList />);
+    choose("Café molido", "Sin categoría");
+    expect(storedProducts()[0]?.categoryId).toBeNull();
+    expect(categorySelect("Café molido")).toHaveTextContent("Sin categoría");
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("offers «Sin categoría» first and then the categories in list order", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    fireEvent.click(categorySelect("Azúcar"));
+    const options = screen.getAllByRole("option").map((option) => option.textContent);
+    expect(options[0]).toBe("Sin categoría");
+    expect(options[1]).toBe("Abarrotes y despensa");
+    expect(options.at(-1)).toBe("Otros");
+    expect(options).toHaveLength(10);
+  });
+
+  it("sorts by category name with products without category last in both directions", () => {
+    setProducts([
+      { ...productWith("prod_leche", "Leche entera", [LECHE_UNO]), categoryId: LIMPIEZA },
+      { ...productWith("prod_cafe", "Café molido", [CAFE]), categoryId: INSUMOS },
+      productWith("prod_azucar", "Azúcar", [AZUCAR]),
+    ]);
+    render(<ProductList />);
+    const header = screen.getByRole("columnheader", { name: "Categoría" });
+    fireEvent.click(within(header).getByRole("button"));
+    expect(header).toHaveAttribute("aria-sort", "ascending");
+    // Insumos de cafetería < Limpieza e higiene; Azúcar has none.
+    expect(shownNames()).toEqual(["Café molido", "Leche entera", "Azúcar"]);
+    fireEvent.click(within(header).getByRole("button"));
+    expect(header).toHaveAttribute("aria-sort", "descending");
+    expect(shownNames()).toEqual(["Leche entera", "Café molido", "Azúcar"]);
+  });
+
+  it("re-sorts a category change made under the category sort", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    const header = screen.getByRole("columnheader", { name: "Categoría" });
+    fireEvent.click(within(header).getByRole("button"));
+    choose("Azúcar", "Insumos de cafetería");
+    // Those without a category keep their stored order after it.
+    expect(shownNames()).toEqual(["Azúcar", "Leche entera", "Café molido"]);
+  });
+});

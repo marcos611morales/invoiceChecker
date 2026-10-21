@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import { parseCfdi } from "@/domain/cfdi/parseCfdi";
 import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
+import { normalizeDescription } from "@/domain/settings/normalize";
 import { defaultSettings } from "@/domain/settings/types";
 import { AppShell } from "@/features/shell/AppShell";
 import { shortUuid } from "@/lib/format";
@@ -1515,6 +1516,120 @@ describe("Dashboard tab: Gasto por categoría (DASH-03, DASH-05, AJUS-01, D-12, 
     render(<DashboardTab />);
     expect(within(categoryRow(0)).getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
     expect(document.querySelector("img")).toBeNull();
+  });
+
+  describe("product level (CAT-04, D-16)", () => {
+    const INSUMOS = "seed:insumos-cafeteria";
+    const OTROS = "seed:otros";
+
+    /**
+     * A product in «Insumos de cafetería» with Trapeador and Jabón of supplier A and Café of
+     * supplier B. Jabón also has a concept rule to «Otros», which must win. Supplier A is in
+     * «Limpieza e higiene»; supplier B has no category.
+     */
+    function storeProductCase(): void {
+      const member = (supplier: typeof A, description: string) => ({
+        rfc: supplier.rfc,
+        key: normalizeDescription(description),
+        description,
+        supplierName: supplier.nombre,
+      });
+      storeSettings({
+        ...defaultSettings(),
+        supplierCategories: [{ rfc: A.rfc, name: A.nombre, categoryId: LIMPIEZA }],
+        conceptRules: [
+          {
+            rfc: A.rfc,
+            key: normalizeDescription("Jabón"),
+            description: "Jabón",
+            categoryId: OTROS,
+          },
+        ],
+        products: [
+          {
+            id: "prod_insumos",
+            name: "Insumos",
+            categoryId: INSUMOS,
+            members: [
+              member(A, "Trapeador"),
+              member(A, "Jabón"),
+              member(B, "Café"),
+            ],
+          },
+        ],
+      });
+    }
+
+    function netOf(categoryName: string): string {
+      const row = categoryRows().find(
+        (candidate) => within(candidate).queryByText(categoryName) !== null,
+      );
+      if (row === undefined) throw new Error(`no category row «${categoryName}»`);
+      return within(row).getByText(/^−?\$[\d,]+\.\d{2}$/).textContent;
+    }
+
+    it("moves the lines of the product to its category, keeps the rule line under its rule and the rest under the supplier, adding up to Gasto total", async () => {
+      storeProductCase();
+      load(sample());
+      await rehydrateStore();
+      render(<DashboardTab />);
+      expect(categoryRows()).toHaveLength(3);
+      // Con IVA. Insumos: Trapeador 33.34 + 5.34 and Café 50.00 + 8.00. Otros: Jabón 33.33 + 5.33.
+      // Limpieza: Cloro 33.33 + 5.33, the one-cent gap of the invoice, minus the credit note 11.60.
+      const insumos = toCents("33.34") + toCents("5.34") + toCents("58.00");
+      const otros = toCents("33.33") + toCents("5.33");
+      const limpieza = toCents("33.33") + toCents("5.33") + toCents("0.01") - toCents("11.60");
+      expect(netOf("Insumos de cafetería")).toBe(`$${centsToPlain(insumos)}`);
+      expect(netOf("Otros")).toBe(`$${centsToPlain(otros)}`);
+      expect(netOf("Limpieza e higiene")).toBe(`$${centsToPlain(limpieza)}`);
+      expect(screen.queryByText("Sin categoría")).toBeNull();
+      expectIdentity(toCents("116.01") - toCents("11.60") + toCents("58.00"));
+      expect(insumos + otros + limpieza).toBe(toCents("162.41"));
+    });
+
+    it("keeps the same split and the identity in Sin IVA", async () => {
+      storeProductCase();
+      load(sample());
+      await rehydrateStore();
+      render(<DashboardTab />);
+      act(() => {
+        useSettingsStore.getState().setIvaMode("sin");
+      });
+      // Insumos: 33.34 + 50.00. Otros: 33.33. Limpieza: 33.33 + 0.01 gap - 10.00 credit note.
+      const insumos = toCents("33.34") + toCents("50.00");
+      const otros = toCents("33.33");
+      const limpieza = toCents("33.33") + toCents("0.01") - toCents("10.00");
+      expect(netOf("Insumos de cafetería")).toBe(`$${centsToPlain(insumos)}`);
+      expect(netOf("Otros")).toBe(`$${centsToPlain(otros)}`);
+      expect(netOf("Limpieza e higiene")).toBe(`$${centsToPlain(limpieza)}`);
+      expectIdentity(toCents("100.01") - toCents("10.00") + toCents("50.00"));
+    });
+
+    it("sends the lines back to the supplier's category when the product loses its category", async () => {
+      storeProductCase();
+      load(sample());
+      await rehydrateStore();
+      render(<DashboardTab />);
+      act(() => {
+        useSettingsStore.getState().setProductCategory("prod_insumos", null);
+      });
+      // Café has no supplier category, Trapeador goes back to Limpieza, Jabón stays under its rule.
+      expect(netOf("Sin categoría")).toBe("$58.00");
+      expect(netOf("Otros")).toBe(`$${centsToPlain(toCents("33.33") + toCents("5.33"))}`);
+      expectIdentity(toCents("116.01") - toCents("11.60") + toCents("58.00"));
+    });
+
+    it("changes the split as soon as the category of the product changes in the store", async () => {
+      storeProductCase();
+      load(sample());
+      await rehydrateStore();
+      render(<DashboardTab />);
+      act(() => {
+        useSettingsStore.getState().setProductCategory("prod_insumos", LIMPIEZA);
+      });
+      expect(screen.queryByText("Insumos de cafetería")).toBeNull();
+      expectIdentity(toCents("116.01") - toCents("11.60") + toCents("58.00"));
+    });
   });
 });
 
