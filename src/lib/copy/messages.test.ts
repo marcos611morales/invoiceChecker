@@ -100,6 +100,12 @@ import {
   runCaptionReceived,
   runCaptionWaiting,
   runFinishedToast,
+  rejectSuggestionAria,
+  rejectedAnnouncement,
+  rejectedToast,
+  ungroupedToast,
+  ungroupedTrigger,
+  unmarkAria,
 } from "./messages";
 
 describe("rejectReasonText", () => {
@@ -923,5 +929,47 @@ describe("Run card, cancel and result copy (Plan 04-12, UI-SPEC Run progress, ca
     expect(es.products.run.progressLabel).toBe("Progreso de los lotes");
     expect(es.products.run.retry).toBe("Reintentar");
     expect(es.products.run.review).toBe("Revisar");
+  });
+});
+
+describe("Reject, «No agrupar» and rename copy (Plan 04-13, UI-SPEC 255-273, 320-327)", () => {
+  it("names the card in the reject button and cuts the name in the toast at 40 characters", () => {
+    expect(rejectSuggestionAria("Leche entera")).toBe("Rechazar la sugerencia «Leche entera»");
+    expect(rejectedToast("Leche entera")).toBe("Sugerencia «Leche entera» rechazada");
+    expect(rejectedToast("x".repeat(50))).toBe(`Sugerencia «${"x".repeat(39)}…» rechazada`);
+  });
+
+  it("announces how many suggestions remain after a reject, with the singular and the empty form", () => {
+    expect(rejectedAnnouncement(2)).toBe("Sugerencia rechazada. Quedan 2 sugerencias.");
+    expect(rejectedAnnouncement(1)).toBe("Sugerencia rechazada. Queda 1 sugerencia.");
+    expect(rejectedAnnouncement(0)).toBe("Sugerencia rechazada. No quedan sugerencias.");
+  });
+
+  it("says a marked description will not be sent again, cutting it at 40 characters", () => {
+    expect(ungroupedToast("Flete")).toBe("«Flete» no se volverá a enviar");
+    expect(ungroupedToast("d".repeat(50))).toBe(`«${"d".repeat(39)}…» no se volverá a enviar`);
+  });
+
+  it("builds the collapsible trigger and the unmark label, cutting the description at 60", () => {
+    expect(ungroupedTrigger(3)).toBe("Descripciones marcadas «No agrupar» (3)");
+    expect(unmarkAria("Flete")).toBe("Quitar la marca «No agrupar» de «Flete»");
+    expect(unmarkAria("d".repeat(70))).toBe(
+      `Quitar la marca «No agrupar» de «${"d".repeat(59)}…»`,
+    );
+  });
+
+  it("keeps the static texts of the copy table", () => {
+    expect(es.products.queue.nameAria).toBe("Nombre del producto sugerido");
+    expect(es.products.queue.reject).toBe("Rechazar");
+    expect(es.products.queue.ungroup).toBe("No agrupar esta descripción");
+    expect(es.products.queue.undo).toBe("Deshacer");
+    expect(es.products.queue.ungroupLimit).toBe("Llegaste al máximo de 5,000 descripciones marcadas.");
+    expect(es.products.ungrouped.remove).toBe("Quitar marca");
+    expect(es.products.ungrouped.intro).toBe(
+      "DeepSeek no vuelve a recibir estas descripciones. Quita la marca si quieres que se consideren de nuevo.",
+    );
+    expect(es.products.ungrouped.removedAnnouncement).toBe(
+      "Marca quitada. La descripción se enviará en el próximo «Agrupar productos».",
+    );
   });
 });

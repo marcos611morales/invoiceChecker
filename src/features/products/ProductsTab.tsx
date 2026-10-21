@@ -13,7 +13,7 @@ import {
 } from "@/domain/llm/candidates";
 import { pendingMemberKeys } from "@/domain/llm/suggestions";
 import { ruleMapKey } from "@/domain/settings/normalize";
-import { productMemberKeys } from "@/domain/settings/products";
+import { productMemberKeys, ungroupedKeys } from "@/domain/settings/products";
 import { useLedger } from "@/features/dashboard/useLedger";
 import { es } from "@/lib/copy/es";
 import { freeDescriptionsCaption, productQueueHeading } from "@/lib/copy/messages";
@@ -27,6 +27,7 @@ import { ReviewQueue } from "./ReviewQueue";
 import { RunProgress } from "./RunProgress";
 import { RunResult } from "./RunResult";
 import { SendDialog } from "./SendDialog";
+import { UngroupedList } from "./UngroupedList";
 
 /**
  * Productos tab (D-01, D-02). The entry button builds the run from the free
@@ -50,11 +51,20 @@ export function ProductsTab() {
   // pending queue each have their own status.
   const settingsWriteFailed = useStorageStatusStore((s) => s.writeFailed);
   const queueWriteFailed = useSuggestionsStatusStore((s) => s.writeFailed);
-  // A description is taken when it waits in a card or already belongs to an accepted product
-  // (D-04, D-13): taken descriptions leave the caption count and are never sent again.
+  // A description is taken when it waits in a card, already belongs to an accepted product or is
+  // marked «No agrupar» (D-04, D-13, D-22, D-25): taken descriptions leave the caption count and
+  // are never sent again.
   const free = useMemo(
-    () => freeItems(items, new Set([...pendingMemberKeys(queue), ...productMemberKeys({ products })])),
-    [items, queue, products],
+    () =>
+      freeItems(
+        items,
+        new Set([
+          ...pendingMemberKeys(queue),
+          ...productMemberKeys({ products }),
+          ...ungroupedKeys({ ungroupedConcepts: marks }),
+        ]),
+      ),
+    [items, queue, products, marks],
   );
   const [run, setRun] = useState<GroupRun | null>(null);
   const [open, setOpen] = useState(false);
@@ -169,6 +179,15 @@ export function ProductsTab() {
         <ProductList
           onEmptied={() => {
             // The list unmounts with its last product: focus goes to the tab heading.
+            titleHeading.current?.focus();
+          }}
+        />
+      ) : null}
+      {marks.length > 0 ? (
+        <UngroupedList
+          onAnnounce={setAnnouncement}
+          onEmptied={() => {
+            // The section unmounts with its last mark: focus goes to the tab heading.
             titleHeading.current?.focus();
           }}
         />
