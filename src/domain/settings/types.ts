@@ -97,7 +97,9 @@ export const SETTINGS_VERSION = 3;
 /**
  * Limits applied when reading stored settings and backup files (D-30, Phase 4 D-13).
  * `productMembers` counts the members of all products together; `productName` is the same
- * 60 characters as a category name.
+ * 60 characters as a category name. `backupBytes` is the largest settings file the app reads,
+ * in bytes (4 MB, D-31: raised from 1 MB so every file the app writes at the product limits
+ * can be uploaded again).
  */
 export const LIMITS = {
   categories: 200,
@@ -108,7 +110,7 @@ export const LIMITS = {
   productMembers: 5000,
   ungroupedConcepts: 5000,
   productName: 60,
-  backupBytes: 1048576,
+  backupBytes: 4194304,
 } as const;
 
 /** The nine suggested categories of D-02, in D-02 order, with stable ids. */

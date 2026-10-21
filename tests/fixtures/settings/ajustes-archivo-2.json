@@ -1,0 +1,66 @@
+{
+  "app": "invoicechecker-settings",
+  "version": 2,
+  "settings": {
+    "ivaMode": "con",
+    "categories": [
+      { "id": "seed:insumos-cafeteria", "name": "Insumos de cafetería" },
+      { "id": "seed:otros", "name": "Otros" },
+      { "id": "cat_9a4e7b21-5d3c-4f08-8e16-2b7c1a0d6e35", "name": "Eventos del coworking" }
+    ],
+    "supplierCategories": [
+      { "rfc": "EKU9003173C9", "name": "Proveedor de prueba uno", "categoryId": "seed:insumos-cafeteria" },
+      { "rfc": "XAXX010101000", "name": "Público en general", "categoryId": "cat_9a4e7b21-5d3c-4f08-8e16-2b7c1a0d6e35" }
+    ],
+    "conceptRules": [
+      {
+        "rfc": "EKU9003173C9",
+        "key": "azucar refinada 1 kg",
+        "description": "Azúcar refinada 1 kg",
+        "categoryId": "seed:otros"
+      }
+    ],
+    "products": [
+      {
+        "id": "prod_3c1f8a52-7e04-4b9d-a6d1-5f2e90b4c718",
+        "name": "Leche entera",
+        "categoryId": "seed:insumos-cafeteria",
+        "members": [
+          {
+            "rfc": "EKU9003173C9",
+            "key": "leche entera 1 l",
+            "description": "Leche entera 1 L",
+            "supplierName": "Proveedor de prueba uno"
+          },
+          {
+            "rfc": "XAXX010101000",
+            "key": "leche ent 12 pz",
+            "description": "Leche ENT 12 pz",
+            "supplierName": "Público en general"
+          }
+        ]
+      },
+      {
+        "id": "prod_b7d20e94-1a6c-45f3-8c70-9e3a4d51f286",
+        "name": "Vasos desechables",
+        "categoryId": null,
+        "members": [
+          {
+            "rfc": "EKU9003173C9",
+            "key": "vaso 12 oz paquete 50",
+            "description": "Vaso 12 oz paquete 50",
+            "supplierName": "Proveedor de prueba uno"
+          }
+        ]
+      }
+    ],
+    "ungroupedConcepts": [
+      {
+        "rfc": "XAXX010101000",
+        "key": "renta de salon",
+        "description": "Renta de salón",
+        "supplierName": "Público en general"
+      }
+    ]
+  }
+}

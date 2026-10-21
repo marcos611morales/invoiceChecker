@@ -297,7 +297,7 @@ describe("settings version 3 defaults and constants", () => {
     expect(LIMITS.productMembers).toBe(5000);
     expect(LIMITS.ungroupedConcepts).toBe(5000);
     expect(LIMITS.productName).toBe(60);
-    expect(LIMITS.backupBytes).toBe(1048576);
+    expect(LIMITS.backupBytes).toBe(4194304);
   });
 
   it("exports the name comparison of D-04", () => {

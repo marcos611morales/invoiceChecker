@@ -329,7 +329,7 @@ export const es = {
         notInvoiceChecker: "no es un archivo de ajustes de InvoiceChecker",
         damaged: "está dañado o incompleto",
         newer: "es de una versión más nueva de la app",
-        tooLarge: "es demasiado grande (máx. 1 MB)",
+        tooLarge: "es demasiado grande (máx. 4 MB)",
       },
     },
   },

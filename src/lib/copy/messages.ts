@@ -551,7 +551,11 @@ export function invalidFileText(name: string, motivo: string): string {
   return `No se pudo usar el archivo «${name}»: ${motivo}. Tus ajustes actuales no cambiaron.`;
 }
 
-/** {resumen} of the replace dialog: always the three parts, a zero reads «0 …» (D-08). */
+/**
+ * {resumen} of the replace dialog: always the five parts, a zero reads «0 …» (D-08, UI-SPEC
+ * 346): «9 categorías, 24 proveedores, 7 conceptos ajustados, 5 productos (14 descripciones)».
+ * A version-1 file reads «0 productos (0 descripciones)».
+ */
 export function replaceSummaryText(summary: BackupSummary): string {
   const suppliers =
     summary.suppliers === 1 ? "1 proveedor" : `${String(summary.suppliers)} proveedores`;
@@ -559,12 +563,15 @@ export function replaceSummaryText(summary: BackupSummary): string {
     summary.concepts === 1
       ? "1 concepto ajustado"
       : `${String(summary.concepts)} conceptos ajustados`;
-  return `${categoryCountLabel(summary.categories)}, ${suppliers}, ${concepts}`;
+  const products = summary.products === 1 ? "1 producto" : `${String(summary.products)} productos`;
+  const members =
+    summary.members === 1 ? "1 descripción" : `${String(summary.members)} descripciones`;
+  return `${categoryCountLabel(summary.categories)}, ${suppliers}, ${concepts}, ${products} (${members})`;
 }
 
-/** Body of the replace dialog. */
+/** Body of the replace dialog: replacing also replaces the products agrupados (UI-SPEC 347). */
 export function replaceSettingsBody(name: string, resumen: string): string {
-  return `El archivo «${name}» contiene ${resumen}. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados y el modo de IVA actuales. Si quieres conservarlos, descárgalos antes.`;
+  return `El archivo «${name}» contiene ${resumen}. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados, los productos agrupados y el modo de IVA actuales. Si quieres conservarlos, descárgalos antes.`;
 }
 
 /** Success toast of the Excel export; the file name has a bounded pattern (E8 long-text). */

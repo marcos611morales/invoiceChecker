@@ -702,7 +702,7 @@ describe("settings file messages (D-07, D-08)", () => {
     );
     expect(backupReasonText("damaged")).toBe("está dañado o incompleto");
     expect(backupReasonText("newer")).toBe("es de una versión más nueva de la app");
-    expect(backupReasonText("too-large")).toBe("es demasiado grande (máx. 1 MB)");
+    expect(backupReasonText("too-large")).toBe("es demasiado grande (máx. 4 MB)");
   });
 
   it("builds the invalid-file text with the full file name and the closing sentence", () => {
@@ -713,9 +713,12 @@ describe("settings file messages (D-07, D-08)", () => {
 
   it("never cuts a long file name", () => {
     const longName = `${"a".repeat(200)}.json`;
-    expect(invalidFileText(longName, "es demasiado grande (máx. 1 MB)")).toContain(`«${longName}»`);
+    expect(invalidFileText(longName, "es demasiado grande (máx. 4 MB)")).toContain(`«${longName}»`);
     expect(
-      replaceSettingsBody(longName, "1 categoría, 0 proveedores, 0 conceptos ajustados"),
+      replaceSettingsBody(
+        longName,
+        "1 categoría, 0 proveedores, 0 conceptos ajustados, 0 productos (0 descripciones)",
+      ),
     ).toContain(`«${longName}»`);
   });
 
@@ -725,24 +728,32 @@ describe("settings file messages (D-07, D-08)", () => {
     );
   });
 
-  it("lists the three parts of the summary, plurals included", () => {
-    expect(replaceSummaryText({ categories: 9, suppliers: 24, concepts: 7 })).toBe(
-      "9 categorías, 24 proveedores, 7 conceptos ajustados",
-    );
+  it("lists the five parts of the summary, plurals included (UI-SPEC 346)", () => {
+    expect(
+      replaceSummaryText({ categories: 9, suppliers: 24, concepts: 7, products: 5, members: 14 }),
+    ).toBe("9 categorías, 24 proveedores, 7 conceptos ajustados, 5 productos (14 descripciones)");
   });
 
   it("reads the singular forms for one and «0 …» for zero, never omitting a part", () => {
-    expect(replaceSummaryText({ categories: 1, suppliers: 0, concepts: 1 })).toBe(
-      "1 categoría, 0 proveedores, 1 concepto ajustado",
-    );
-    expect(replaceSummaryText({ categories: 0, suppliers: 1, concepts: 0 })).toBe(
-      "0 categorías, 1 proveedor, 0 conceptos ajustados",
-    );
+    expect(
+      replaceSummaryText({ categories: 1, suppliers: 0, concepts: 1, products: 1, members: 1 }),
+    ).toBe("1 categoría, 0 proveedores, 1 concepto ajustado, 1 producto (1 descripción)");
+    expect(
+      replaceSummaryText({ categories: 0, suppliers: 1, concepts: 0, products: 0, members: 0 }),
+    ).toBe("0 categorías, 1 proveedor, 0 conceptos ajustados, 0 productos (0 descripciones)");
+    expect(
+      replaceSummaryText({ categories: 2, suppliers: 2, concepts: 2, products: 2, members: 3 }),
+    ).toBe("2 categorías, 2 proveedores, 2 conceptos ajustados, 2 productos (3 descripciones)");
   });
 
-  it("builds the replace body from the UI-SPEC sentence", () => {
-    expect(replaceSettingsBody("x.json", "3 categorías, 2 proveedores, 1 concepto ajustado")).toBe(
-      "El archivo «x.json» contiene 3 categorías, 2 proveedores, 1 concepto ajustado. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados y el modo de IVA actuales. Si quieres conservarlos, descárgalos antes.",
+  it("builds the replace body from the UI-SPEC sentence, products included (UI-SPEC 347)", () => {
+    expect(
+      replaceSettingsBody(
+        "x.json",
+        "3 categorías, 2 proveedores, 1 concepto ajustado, 0 productos (0 descripciones)",
+      ),
+    ).toBe(
+      "El archivo «x.json» contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 0 productos (0 descripciones). Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados, los productos agrupados y el modo de IVA actuales. Si quieres conservarlos, descárgalos antes.",
     );
   });
 
