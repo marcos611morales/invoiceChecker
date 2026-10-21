@@ -167,6 +167,36 @@ describe("buildConceptos (D-20 to D-22, Q6)", () => {
     ]);
   });
 
+  it("writes «Del producto» for a line that takes its category from a product, below a rule and above the supplier", () => {
+    const settings = settingsWith({
+      supplierCategories: SUPPLIER_IN_LIMPIEZA,
+      conceptRules: [{ rfc: RFC, key: "jabon", description: "Jabon", categoryId: "seed:otros" }],
+      products: [
+        {
+          id: "prod_insumos",
+          name: "Insumos",
+          categoryId: "seed:insumos-cafeteria",
+          members: [
+            { rfc: RFC, key: "papel", description: "Papel", supplierName: "Papelería Uno" },
+            { rfc: RFC, key: "jabon", description: "Jabon", supplierName: "Papelería Uno" },
+          ],
+        },
+      ],
+    });
+    const entry = entryOf(
+      invoiceOf({
+        conceptos: [line("Cloro", "10.00"), line("Papel", "20.00"), line("Jabon", "30.00")],
+      }),
+      { conIva: new Big("60.00"), sinIva: new Big("60.00") },
+    );
+    const sheet = sheetFor([entry], settings);
+    expect(sheet.rows.map((row) => [row[COL.categoria], row[COL.origen]])).toEqual([
+      [text(LIMPIEZA_NAME), text("Del proveedor")],
+      [text("Insumos de cafetería"), text("Del producto")],
+      [text("Otros"), text("Ajuste del concepto")],
+    ]);
+  });
+
   it("writes lines of a Pago and of an excluded invoice with Monto 0.00, their category and no rounding line", () => {
     const settings = settingsWith({ supplierCategories: SUPPLIER_IN_LIMPIEZA });
     const pago = entryOf(

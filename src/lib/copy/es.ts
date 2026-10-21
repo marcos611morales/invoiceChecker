@@ -424,6 +424,7 @@ export const es = {
     /** Origen de la categoría of a line, from where the resolver took it (D-22, Q6). */
     origin: {
       regla: "Ajuste del concepto",
+      producto: "Del producto",
       proveedor: "Del proveedor",
       ninguna: "Sin categoría",
     },
@@ -456,6 +457,7 @@ export const es = {
       columns: {
         expander: "Miembros",
         product: "Producto",
+        category: "Categoría",
         members: "Miembros",
         suppliers: "Proveedores",
         actions: "Acciones",

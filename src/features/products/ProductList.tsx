@@ -27,6 +27,13 @@ import { TruncatedText } from "@/components/TruncatedText";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -35,8 +42,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { orderedCategories } from "@/domain/settings/categories";
 import type { ProductNameError } from "@/domain/settings/products";
-import type { Product } from "@/domain/settings/types";
+import { SIN_CATEGORIA, type Category, type Product } from "@/domain/settings/types";
 import { es } from "@/lib/copy/es";
 import {
   acceptErrorText,
@@ -45,6 +53,7 @@ import {
   membersCount,
   paginationPageText,
   paginationRangeText,
+  productCategoryAria,
   productDeletedToast,
   productFreedText,
   productsHeading,
@@ -64,13 +73,19 @@ const TOAST_DURATION_MS = 6000;
 interface ProductRow {
   id: string;
   name: string;
+  /** Id of the product's category when it exists; null reads «Sin categoría» (D-16). */
+  categoryId: string | null;
+  /** Name of that category; undefined when unset so it sorts last. */
+  categoryName: string | undefined;
   memberCount: number;
   /** Distinct supplier names, in member order. */
   suppliers: string[];
   product: Product;
 }
 
-function toRow(product: Product): ProductRow {
+function toRow(product: Product, categoryNames: ReadonlyMap<string, string>): ProductRow {
+  const categoryName =
+    product.categoryId === null ? undefined : categoryNames.get(product.categoryId);
   const suppliers: string[] = [];
   for (const member of product.members) {
     if (!suppliers.includes(member.supplierName)) suppliers.push(member.supplierName);
@@ -78,6 +93,9 @@ function toRow(product: Product): ProductRow {
   return {
     id: product.id,
     name: product.name,
+    // A category that no longer exists adds no level, so the row reads it as unset.
+    categoryId: categoryName === undefined ? null : product.categoryId,
+    categoryName,
     memberCount: product.members.length,
     suppliers,
     product,
@@ -117,6 +135,12 @@ const columns = helper.columns([
     header: es.products.list.columns.product,
     sortFn: "es",
   }),
+  helper.accessor("categoryName", {
+    id: "categoria",
+    header: es.products.list.columns.category,
+    sortFn: "es",
+    sortUndefined: "last",
+  }),
   helper.accessor("memberCount", {
     id: "miembros",
     header: es.products.list.columns.members,
@@ -128,6 +152,9 @@ const columns = helper.columns([
     enableSorting: false,
   }),
 ]);
+
+/** Item text wraps even though the shared SelectItem keeps it on one line. */
+const WRAPPING_TEXT = "whitespace-normal break-words";
 
 /** Name ascending is the default order (UI-SPEC, es collator). */
 const DEFAULT_SORTING: SortingState = [{ id: "producto", desc: false }];
@@ -224,6 +251,17 @@ function RenameEditor({
   );
 }
 
+/** «Sin categoría» first, then the categories in list order (UI-SPEC E6). */
+function categoryItems(categories: readonly Category[]): { value: string; label: string }[] {
+  return [
+    { value: SIN_CATEGORIA, label: es.categories.none },
+    ...orderedCategories(categories).map((category) => ({
+      value: category.id,
+      label: category.name,
+    })),
+  ];
+}
+
 /** Which button gets focus once the list has rendered again. */
 type PendingFocus = { kind: "pencil" | "expander"; id: string };
 
@@ -237,10 +275,16 @@ type PendingFocus = { kind: "pencil" | "expander"; id: string };
  */
 export function ProductList({ onEmptied }: { onEmptied?: () => void }) {
   const products = useSettingsStore((s) => s.products);
+  const categories = useSettingsStore((s) => s.categories);
+  const setProductCategory = useSettingsStore((s) => s.setProductCategory);
   const renameProduct = useSettingsStore((s) => s.renameProduct);
   const deleteProduct = useSettingsStore((s) => s.deleteProduct);
   const restoreProduct = useSettingsStore((s) => s.restoreProduct);
-  const data = useMemo(() => products.map(toRow), [products]);
+  const data = useMemo(() => {
+    const names = new Map<string, string>(categories.map((category) => [category.id, category.name]));
+    return products.map((product) => toRow(product, names));
+  }, [products, categories]);
+  const items = useMemo(() => categoryItems(categories), [categories]);
   const headingId = useId();
   const panelBaseId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -326,6 +370,12 @@ export function ProductList({ onEmptied }: { onEmptied?: () => void }) {
     sortDescFirst: false,
     enableMultiSort: false,
   });
+
+  // The change applies at once and persists; «Sin categoría» removes the product's level (D-16).
+  const changeCategory = (row: ProductRow, next: string | null) => {
+    if (next === null) return;
+    setProductCategory(row.id, next === SIN_CATEGORIA ? null : next);
+  };
 
   const toggle = (id: string) => {
     setExpanded((current) => {
@@ -444,6 +494,40 @@ export function ProductList({ onEmptied }: { onEmptied?: () => void }) {
                             <NameCell name={row.name} />
                           )
                         ) : null}
+                        {id === "categoria" ? (
+                          <Select
+                            items={items}
+                            value={row.categoryId ?? SIN_CATEGORIA}
+                            onValueChange={(next) => {
+                              changeCategory(row, next);
+                            }}
+                          >
+                            <SelectTrigger
+                              aria-label={productCategoryAria(row.name)}
+                              className={cn(
+                                "w-[240px] data-[size=default]:max-sm:h-11 max-sm:w-full",
+                                row.categoryId === null && "text-muted-foreground",
+                              )}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent alignItemWithTrigger={false}>
+                              {items.map((item) => (
+                                <SelectItem key={item.value} value={item.value}>
+                                  <span
+                                    className={
+                                      item.value === SIN_CATEGORIA
+                                        ? `${WRAPPING_TEXT} text-muted-foreground`
+                                        : WRAPPING_TEXT
+                                    }
+                                  >
+                                    {item.label}
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : null}
                         {id === "miembros" ? membersCount(row.memberCount) : null}
                         {id === "proveedores" ? (
                           <TruncatedText text={suppliersCell(row.suppliers)} />
@@ -480,7 +564,7 @@ export function ProductList({ onEmptied }: { onEmptied?: () => void }) {
                 </TableRow>
                 {open ? (
                   <TableRow className="hover:bg-transparent">
-                    <TableCell id={panelId} colSpan={5} className="bg-secondary p-4 whitespace-normal">
+                    <TableCell id={panelId} colSpan={6} className="bg-secondary p-4 whitespace-normal">
                       <ProductMembers
                         product={row.product}
                         onChanged={(deleted) => {

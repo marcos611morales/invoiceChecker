@@ -563,6 +563,31 @@ describe("CategoryList: delete dialog", () => {
     expect(rowNames()).toEqual([...SORTED_SEEDS, "Sin categoría"]);
   });
 
+  it("deletes a category that only products use, moving them to Sin categoría, and Deshacer puts their category back (CAT-05, D-13)", () => {
+    const product = {
+      id: "prod_cloro",
+      name: "Cloro",
+      categoryId: SERVICIOS,
+      members: [{ rfc: "AAA010101AAA", key: "cloro", description: "Cloro", supplierName: "A" }],
+    };
+    useSettingsStore.setState({ products: [product] });
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    confirmDelete();
+    let state = useSettingsStore.getState();
+    expect(state.categories.some((category) => category.id === SERVICIOS)).toBe(false);
+    expect(state.products.map((entry) => entry.categoryId)).toEqual([null]);
+    const [, options] = toastMock.mock.calls[0] ?? [];
+    const undo = options?.action?.onClick;
+    if (undo === undefined) throw new Error("the toast must offer Deshacer");
+    act(() => {
+      undo();
+    });
+    state = useSettingsStore.getState();
+    expect(state.categories.some((category) => category.id === SERVICIOS)).toBe(true);
+    expect(state.products).toEqual([product]);
+  });
+
   it("takes a deleted category out of the category filter and keeps the others (T-03-38)", () => {
     useSessionStore.getState().setCategories(new Set([SERVICIOS, LIMPIEZA]));
     render(<CategoryList />);

@@ -1048,4 +1048,89 @@ describe("settingsStore product actions (D-14, D-15)", () => {
     expect(snapshot()).toEqual(expected);
     expect(useStorageStatusStore.getState().readFailed).toBe(false);
   });
+
+  it("sets and clears the category of a product in one write that touches only the products", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const before = snapshot();
+    expect(useSettingsStore.getState().setProductCategory("prod_a", "seed:servicios")).toEqual({ ok: true });
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().products.map((product) => product.categoryId)).toEqual(["seed:servicios", null]);
+    expect(snapshot().categories).toBe(before.categories);
+    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 3 });
+
+    setItem.mockClear();
+    expect(useSettingsStore.getState().setProductCategory("prod_a", null)).toEqual({ ok: true });
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().products.map((product) => product.categoryId)).toEqual([null, null]);
+  });
+
+  it("writes nothing for an unknown category, an unknown product or an unchanged category", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().setProductCategory("prod_a", "cat_missing")).toEqual({
+      ok: false,
+      reason: "unknown-category",
+    });
+    expect(useSettingsStore.getState().setProductCategory("prod_x", "seed:servicios")).toEqual({ ok: true });
+    expect(useSettingsStore.getState().setProductCategory("prod_a", null)).toEqual({ ok: true });
+    expect(setItem).not.toHaveBeenCalled();
+  });
+});
+
+describe("settingsStore deleteCategory and restoreCategory carry the products (CAT-05, D-13)", () => {
+  const member = (key: string): ProductMember => ({
+    rfc: "AAA010101AAA",
+    key,
+    description: key,
+    supplierName: "Tienda Uno",
+  });
+
+  function seed(): void {
+    useSettingsStore.setState({
+      products: [
+        { id: "prod_a", name: "Leche", categoryId: "seed:servicios", members: [member("a1")] },
+        { id: "prod_b", name: "Café", categoryId: "seed:limpieza-higiene", members: [member("b1")] },
+        { id: "prod_c", name: "Sal", categoryId: null, members: [member("c1")] },
+      ],
+    });
+  }
+
+  it("moves the products to the target in the same write as the category and the rest", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const deleted = useSettingsStore.getState().deleteCategory("seed:servicios", "seed:otros");
+    if (deleted === null) throw new Error("the delete must be accepted");
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().products.map((product) => product.categoryId)).toEqual([
+      "seed:otros",
+      "seed:limpieza-higiene",
+      null,
+    ]);
+    expect(deleted.products.map((product) => product.id)).toEqual(["prod_a"]);
+  });
+
+  it("clears the category of the products when the target is «Sin categoría» and restore puts it back", () => {
+    seed();
+    const before = storedEnvelope();
+    const deleted = useSettingsStore.getState().deleteCategory("seed:servicios", null);
+    if (deleted === null) throw new Error("the delete must be accepted");
+    expect(snapshot().products[0]?.categoryId).toBeNull();
+    useSettingsStore.getState().restoreCategory(deleted);
+    expect(storedEnvelope()).toEqual(before);
+  });
+
+  it("never leaves a stored product pointing at a deleted category, also after a reload", async () => {
+    seed();
+    useSettingsStore.getState().deleteCategory("seed:limpieza-higiene", null);
+    const written = window.localStorage.getItem(KEY);
+    expect(written).not.toBeNull();
+    const expected = snapshot();
+    useSettingsStore.setState(defaultSettings());
+    window.localStorage.setItem(KEY, written ?? "");
+    await rehydrate();
+    expect(snapshot()).toEqual(expected);
+    expect(snapshot().products.map((product) => product.categoryId)).toEqual(["seed:servicios", null, null]);
+    expect(useStorageStatusStore.getState().readFailed).toBe(false);
+  });
 });

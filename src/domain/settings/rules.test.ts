@@ -149,7 +149,11 @@ describe("Resolver.explain (D-09, UI-SPEC Q4)", () => {
       setConceptRule(withSupplier(RFC, ABARROTES), RFC, "CLORO 1L", LIMPIEZA),
     ).next;
     const resolver = makeResolver(settings);
-    expect(resolver.explain(RFC, "cloro  1l")).toEqual({ category: LIMPIEZA, source: "regla" });
+    expect(resolver.explain(RFC, "cloro  1l")).toEqual({
+      category: LIMPIEZA,
+      source: "regla",
+      product: null,
+    });
     expect(resolver.resolve(RFC, "CLORO 1L")).toBe(LIMPIEZA);
   });
 
@@ -160,12 +164,17 @@ describe("Resolver.explain (D-09, UI-SPEC Q4)", () => {
     expect(makeResolver(settings).explain(RFC, "CLORO 1L")).toEqual({
       category: SIN_CATEGORIA,
       source: "regla",
+      product: null,
     });
   });
 
   it("falls back to the supplier category with source «proveedor»", () => {
     const resolver = makeResolver(withSupplier(RFC, ABARROTES));
-    expect(resolver.explain(RFC, "Jabón")).toEqual({ category: ABARROTES, source: "proveedor" });
+    expect(resolver.explain(RFC, "Jabón")).toEqual({
+      category: ABARROTES,
+      source: "proveedor",
+      product: null,
+    });
     expect(resolver.resolve(RFC, "Jabón")).toBe(ABARROTES);
   });
 
@@ -173,6 +182,7 @@ describe("Resolver.explain (D-09, UI-SPEC Q4)", () => {
     expect(makeResolver(defaultSettings()).explain(RFC, "Jabón")).toEqual({
       category: SIN_CATEGORIA,
       source: "ninguna",
+      product: null,
     });
   });
 
@@ -183,6 +193,7 @@ describe("Resolver.explain (D-09, UI-SPEC Q4)", () => {
     expect(makeResolver(settings).explain(OTHER_RFC, "CLORO 1L")).toEqual({
       category: ABARROTES,
       source: "proveedor",
+      product: null,
     });
   });
 
@@ -196,7 +207,11 @@ describe("Resolver.explain (D-09, UI-SPEC Q4)", () => {
   it("works for an rfc such as __proto__", () => {
     const settings = mustApply(setConceptRule(defaultSettings(), "__proto__", "x", LIMPIEZA)).next;
     const resolver = makeResolver(settings);
-    expect(resolver.explain("__proto__", "X")).toEqual({ category: LIMPIEZA, source: "regla" });
+    expect(resolver.explain("__proto__", "X")).toEqual({
+      category: LIMPIEZA,
+      source: "regla",
+      product: null,
+    });
     expect(resolver.explain("constructor", "X").source).toBe("ninguna");
   });
 
@@ -208,6 +223,7 @@ describe("Resolver.explain (D-09, UI-SPEC Q4)", () => {
     expect(makeResolver(settings).explain(RFC, "Cloro")).toEqual({
       category: ABARROTES,
       source: "proveedor",
+      product: null,
     });
   });
 

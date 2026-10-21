@@ -413,3 +413,31 @@ export function undoMemberChange(settings: SettingsData, undo: MemberUndo): Sett
     }
   }
 }
+
+// --- Product category (Plan 04-08, CAT-04, D-16) ---
+
+/**
+ * Gives a product a category, or takes it away with null (D-14, D-16): a product without
+ * category adds no level to the precedence. A category id that is not a category (the reserved
+ * «Sin categoría» key included) is refused as "unknown-category", because the stored settings
+ * would not pass validation on the next load. An unknown product, or a category the product
+ * already has, is no change: `next` is the very same settings object.
+ */
+export function setProductCategory(
+  settings: SettingsData,
+  id: string,
+  categoryId: string | null,
+): { ok: true; next: SettingsData } | { ok: false; reason: "unknown-category" } {
+  if (categoryId !== null && !settings.categories.some((category) => category.id === categoryId)) {
+    return { ok: false, reason: "unknown-category" };
+  }
+  const current = settings.products.find((product) => product.id === id);
+  if (current === undefined || current.categoryId === categoryId) return { ok: true, next: settings };
+  return {
+    ok: true,
+    next: withProducts(
+      settings,
+      settings.products.map((product) => (product.id === id ? { ...product, categoryId } : product)),
+    ),
+  };
+}
