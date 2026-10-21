@@ -1,5 +1,5 @@
 /**
- * Product reducers (Phase 4, D-06, D-09, D-10, D-12, D-13).
+ * Product reducers (Phase 4, D-06, D-09, D-10, D-12, D-13, D-14, D-15).
  *
  * Pure functions over SettingsData: they never mutate their input and they refuse any
  * change that would make the stored settings fail the version-3 validation on the next
@@ -108,68 +108,308 @@ export function acceptProduct(
   return { ok: true, next: { ...settings, products: [...settings.products, product] }, product };
 }
 
-// --- RED skeleton (Plan 04-07 Task 2): inert values so the tests import and fail on their assertions.
+// --- Editing the accepted products (Plan 04-07, D-14, D-15, UI-SPEC OQ5) ---
 
+/** A copy that shares nothing with the original, so an undo value never aliases the store. */
+function copyMember(member: ProductMember): ProductMember {
+  return {
+    rfc: member.rfc,
+    key: member.key,
+    description: member.description,
+    supplierName: member.supplierName,
+  };
+}
+
+function copyProduct(product: Product): Product {
+  return {
+    id: product.id,
+    name: product.name,
+    categoryId: product.categoryId,
+    members: product.members.map(copyMember),
+  };
+}
+
+function withProducts(settings: SettingsData, products: Product[]): SettingsData {
+  return { ...settings, products };
+}
+
+/** Index of the member with this `ruleMapKey` in the product, or -1. */
+function memberIndexOf(product: Product, key: string): number {
+  return product.members.findIndex((member) => ruleMapKey(member.rfc, member.key) === key);
+}
+
+/** True when the member is in any product or marked «No agrupar» (D-10, D-22). */
+function isTaken(settings: SettingsData, member: ProductMember): boolean {
+  const key = ruleMapKey(member.rfc, member.key);
+  return (
+    productMemberKeys(settings).has(key) ||
+    settings.ungroupedConcepts.some((mark) => ruleMapKey(mark.rfc, mark.key) === key)
+  );
+}
+
+function storedMemberCount(settings: SettingsData): number {
+  return settings.products.reduce((sum, product) => sum + product.members.length, 0);
+}
+
+/** `items` with `item` inserted at `index`, clamped to the list. */
+function insertAt<T>(items: readonly T[], index: number, item: T): T[] {
+  const position = Math.min(Math.max(index, 0), items.length);
+  return [...items.slice(0, position), item, ...items.slice(position)];
+}
+
+/**
+ * Renames a product keeping its id, its position, its category and its members (D-14). The
+ * rules are those of `validateProductName`; the product's own name in another case is fine.
+ * An unknown id, or a name that is already exactly the current one, is no change: `next` is
+ * the very same settings object.
+ */
 export function renameProduct(
   settings: SettingsData,
   id: string,
   raw: string,
 ): { ok: true; next: SettingsData } | { ok: false; reason: ProductNameError } {
-  void settings;
-  void id;
-  void raw;
-  return { ok: false, reason: "empty" };
+  const current = settings.products.find((product) => product.id === id);
+  if (current === undefined) return { ok: true, next: settings };
+  const checked = validateProductName(settings, raw, id);
+  if (!checked.ok) return checked;
+  if (checked.name === current.name) return { ok: true, next: settings };
+  return {
+    ok: true,
+    next: withProducts(
+      settings,
+      settings.products.map((product) =>
+        product.id === id ? { ...product, name: checked.name } : product,
+      ),
+    ),
+  };
 }
 
+/** A deleted product and the position it had, which is all `restoreProduct` needs (D-14). */
 export interface ProductSnapshot {
   product: Product;
   index: number;
 }
 
+/**
+ * Deletes a product (D-14). Its members are no longer taken, so they are free again (D-15).
+ * Returns the snapshot for «Deshacer», or null when the id is unknown.
+ */
 export function deleteProduct(
   settings: SettingsData,
   id: string,
 ): { next: SettingsData; snapshot: ProductSnapshot } | null {
-  void settings;
-  void id;
-  return null;
+  const index = settings.products.findIndex((product) => product.id === id);
+  const product = settings.products[index];
+  if (product === undefined) return null;
+  return {
+    next: withProducts(
+      settings,
+      settings.products.filter((candidate) => candidate.id !== id),
+    ),
+    snapshot: { product: copyProduct(product), index },
+  };
 }
 
+/**
+ * Puts a deleted product back at min(index, length) with the same id, name and members. A
+ * category that no longer exists comes back as null. When the result would not pass the stored
+ * validation (the id or the name is taken again, a member now belongs to another product or is
+ * marked «No agrupar», or a limit would break) the settings come back unchanged, the very
+ * same object.
+ */
 export function restoreProduct(settings: SettingsData, snapshot: ProductSnapshot): SettingsData {
-  void snapshot;
-  return { ...settings };
+  const { product } = snapshot;
+  if (product.members.length === 0 || product.id === SIN_CATEGORIA) return settings;
+  const name = comparableName(product.name);
+  const idOrNameTaken = settings.products.some(
+    (candidate) => candidate.id === product.id || comparableName(candidate.name) === name,
+  );
+  if (idOrNameTaken) return settings;
+  if (product.members.some((member) => isTaken(settings, member))) return settings;
+  if (
+    settings.products.length >= LIMITS.products ||
+    storedMemberCount(settings) + product.members.length > LIMITS.productMembers
+  ) {
+    return settings;
+  }
+  const categoryExists =
+    product.categoryId !== null &&
+    settings.categories.some((category) => category.id === product.categoryId);
+  const restored: Product = {
+    ...copyProduct(product),
+    categoryId: categoryExists ? product.categoryId : null,
+  };
+  return withProducts(settings, insertAt(settings.products, snapshot.index, restored));
 }
 
+/**
+ * What `undoMemberChange` needs to reverse one member change (D-15, OQ5):
+ * - `member`: a member was taken out of a product that kept others;
+ * - `product`: the member was the last one, so the product was deleted too (`movedTo` is the
+ *   product that received the member when it was a move, null when it was taken out);
+ * - `moved`: a member went to another product and the source kept others.
+ */
 export type MemberUndo =
   | { kind: "member"; productId: string; member: ProductMember; index: number }
   | { kind: "product"; snapshot: ProductSnapshot; movedTo: string | null; member: ProductMember }
   | { kind: "moved"; fromId: string; toId: string; member: ProductMember; index: number };
 
+/**
+ * Takes one member out of a product (D-15; `key` is `ruleMapKey(rfc, key)`). The freed
+ * description is no longer taken, so it is free again. The only member of a product cannot
+ * be taken out alone: the product is deleted too (OQ5). Returns null when the product or the
+ * member is unknown.
+ */
 export function removeProductMember(
   settings: SettingsData,
   productId: string,
   key: string,
 ): { next: SettingsData; undo: MemberUndo } | null {
-  void settings;
-  void productId;
-  void key;
-  return null;
+  const productIndex = settings.products.findIndex((product) => product.id === productId);
+  const product = settings.products[productIndex];
+  if (product === undefined) return null;
+  const index = memberIndexOf(product, key);
+  const member = product.members[index];
+  if (member === undefined) return null;
+
+  if (product.members.length === 1) {
+    const deleted = deleteProduct(settings, productId);
+    if (deleted === null) return null;
+    return {
+      next: deleted.next,
+      undo: { kind: "product", snapshot: deleted.snapshot, movedTo: null, member: copyMember(member) },
+    };
+  }
+  return {
+    next: withProducts(
+      settings,
+      settings.products.map((candidate) =>
+        candidate.id === productId
+          ? { ...candidate, members: candidate.members.filter((_, at) => at !== index) }
+          : candidate,
+      ),
+    ),
+    undo: { kind: "member", productId, member: copyMember(member), index },
+  };
 }
 
+/**
+ * Moves one member to the end of another product (D-15). Moving the only member of the
+ * source deletes the source too (OQ5). Returns null when the products are the same or
+ * unknown, or the member is not in the source.
+ */
 export function moveProductMember(
   settings: SettingsData,
   fromId: string,
   key: string,
   toId: string,
 ): { next: SettingsData; undo: MemberUndo } | null {
-  void settings;
-  void fromId;
-  void key;
-  void toId;
-  return null;
+  if (fromId === toId) return null;
+  const source = settings.products.find((product) => product.id === fromId);
+  const target = settings.products.find((product) => product.id === toId);
+  if (source === undefined || target === undefined) return null;
+  const index = memberIndexOf(source, key);
+  const member = source.members[index];
+  if (member === undefined) return null;
+
+  const moving = copyMember(member);
+  const appended = settings.products.map((product) =>
+    product.id === toId ? { ...product, members: [...product.members, copyMember(member)] } : product,
+  );
+  if (source.members.length === 1) {
+    const sourceIndex = settings.products.findIndex((product) => product.id === fromId);
+    return {
+      next: withProducts(
+        settings,
+        appended.filter((product) => product.id !== fromId),
+      ),
+      undo: {
+        kind: "product",
+        snapshot: { product: copyProduct(source), index: sourceIndex },
+        movedTo: toId,
+        member: moving,
+      },
+    };
+  }
+  return {
+    next: withProducts(
+      settings,
+      appended.map((product) =>
+        product.id === fromId
+          ? { ...product, members: product.members.filter((_, at) => at !== index) }
+          : product,
+      ),
+    ),
+    undo: { kind: "moved", fromId, toId, member: moving, index },
+  };
 }
 
+/** `settings` with the member taken out of the product `toId`, or null when that cannot be done safely. */
+function withoutMovedMember(
+  settings: SettingsData,
+  toId: string,
+  member: ProductMember,
+): SettingsData | null {
+  const target = settings.products.find((product) => product.id === toId);
+  if (target === undefined) return null;
+  const at = memberIndexOf(target, ruleMapKey(member.rfc, member.key));
+  // A target left without members would break the stored validation: refuse.
+  if (at === -1 || target.members.length < 2) return null;
+  return withProducts(
+    settings,
+    settings.products.map((product) =>
+      product.id === toId
+        ? { ...product, members: product.members.filter((_, index) => index !== at) }
+        : product,
+    ),
+  );
+}
+
+/**
+ * Reverses a member change (D-15, OQ5): a taken-out member goes back at its index, a moved one
+ * leaves the target and goes back to the source, and a deleted product is restored. Anything
+ * that changed meanwhile so that the result would not pass the stored validation (the member
+ * is taken again, a product is gone, a limit would break) leaves the settings unchanged, the
+ * very same object.
+ */
 export function undoMemberChange(settings: SettingsData, undo: MemberUndo): SettingsData {
-  void undo;
-  return { ...settings };
+  switch (undo.kind) {
+    case "member": {
+      if (!settings.products.some((product) => product.id === undo.productId)) return settings;
+      if (isTaken(settings, undo.member)) return settings;
+      if (storedMemberCount(settings) + 1 > LIMITS.productMembers) return settings;
+      return withProducts(
+        settings,
+        settings.products.map((product) =>
+          product.id === undo.productId
+            ? { ...product, members: insertAt(product.members, undo.index, copyMember(undo.member)) }
+            : product,
+        ),
+      );
+    }
+    case "moved": {
+      const source = settings.products.find((product) => product.id === undo.fromId);
+      if (source === undefined) return settings;
+      const trimmed = withoutMovedMember(settings, undo.toId, undo.member);
+      if (trimmed === null) return settings;
+      return withProducts(
+        trimmed,
+        trimmed.products.map((product) =>
+          product.id === undo.fromId
+            ? { ...product, members: insertAt(product.members, undo.index, copyMember(undo.member)) }
+            : product,
+        ),
+      );
+    }
+    case "product": {
+      let base = settings;
+      if (undo.movedTo !== null) {
+        const trimmed = withoutMovedMember(settings, undo.movedTo, undo.member);
+        if (trimmed === null) return settings;
+        base = trimmed;
+      }
+      const restored = restoreProduct(base, undo.snapshot);
+      return restored === base ? settings : restored;
+    }
+  }
 }
