@@ -9,8 +9,8 @@
  */
 import { z } from "zod";
 import { ruleMapKey } from "../settings/normalize";
-import type { ContextTarget } from "./candidates";
-import type { GroupResponse } from "./contract";
+import { cutText, type ContextTarget } from "./candidates";
+import { LLM_LIMITS, type GroupResponse } from "./contract";
 
 export interface SuggestionMember {
   rfc: string;
@@ -484,44 +484,155 @@ export interface QueueUndo {
   createdId: string | null;
 }
 
+/**
+ * Joins card `fromId` into card `intoId` (D-19): the members of `from` go to the end of `into`
+ * and `from` is removed. `into` keeps its id, its name and its target. Returns null for the same
+ * card twice or an unknown id. The number of members in the queue does not change.
+ */
 export function mergeSuggestions(
   queue: PendingQueue,
   fromId: string,
   intoId: string,
 ): { next: PendingQueue; undo: QueueUndo } | null {
-  void queue;
-  void fromId;
-  void intoId;
-  return null;
+  if (fromId === intoId) return null;
+  const fromIndex = queue.products.findIndex((card) => card.id === fromId);
+  const intoIndex = queue.products.findIndex((card) => card.id === intoId);
+  const from = queue.products[fromIndex];
+  const into = queue.products[intoIndex];
+  if (from === undefined || into === undefined) return null;
+  const joined: ProductSuggestion = {
+    ...into,
+    members: [...into.members, ...from.members.map(copyMember)],
+  };
+  return {
+    next: withCards(
+      queue,
+      queue.products
+        .filter((card) => card.id !== fromId)
+        .map((card) => (card.id === intoId ? joined : card)),
+    ),
+    undo: {
+      cards: [
+        { card: copyCard(from), index: fromIndex },
+        { card: copyCard(into), index: intoIndex },
+      ],
+      createdId: null,
+    },
+  };
 }
 
+/**
+ * Turns a card into an «Agregar a» card for the accepted product `productId` (D-19, D-21): only
+ * its target changes, its members stay. Nothing reaches the settings here; that happens on
+ * «Aceptar». Returns null for an unknown card, an empty product id or a card that already points
+ * at that product.
+ */
 export function turnIntoAddCard(
   queue: PendingQueue,
   id: string,
   productId: string,
 ): { next: PendingQueue; undo: QueueUndo } | null {
-  void queue;
-  void id;
-  void productId;
-  return null;
+  const index = queue.products.findIndex((card) => card.id === id);
+  const current = queue.products[index];
+  if (current === undefined || productId === "" || current.target === productId) return null;
+  return {
+    next: withCards(
+      queue,
+      queue.products.map((card) => (card.id === id ? { ...card, target: productId } : card)),
+    ),
+    undo: { cards: [{ card: copyCard(current), index }], createdId: null },
+  };
 }
 
+/**
+ * Splits the members whose `memberKey` is in `keys` off card `id` into a new product card, placed
+ * right below it (D-19). Both cards keep the members in the order the card had. The new card has
+ * no target (it is a new product, even when the original is an «Agregar a» card) and is named
+ * after its first member, cut to 60. Returns null unless at least one but not all of the card's
+ * members are named (keys the card does not have are ignored), the new id is empty or already in
+ * the queue, or the queue is at its card cap.
+ */
 export function splitSuggestion(
   queue: PendingQueue,
   id: string,
   keys: readonly string[],
   newId: string,
 ): { next: PendingQueue; undo: QueueUndo } | null {
-  void queue;
-  void id;
-  void keys;
-  void newId;
-  return null;
+  const index = queue.products.findIndex((card) => card.id === id);
+  const current = queue.products[index];
+  if (current === undefined) return null;
+  const wanted = new Set(keys);
+  const moved = current.members.filter((member) => wanted.has(memberKey(member)));
+  const first = moved[0];
+  if (first === undefined || moved.length === current.members.length) return null;
+  if (newId === "" || queue.products.some((card) => card.id === newId)) return null;
+  if (queue.products.length >= PENDING_LIMITS.productCards) return null;
+  const created: ProductSuggestion = {
+    id: newId,
+    name: cutText(first.description, LLM_LIMITS.productName),
+    target: null,
+    members: moved.map(copyMember),
+  };
+  const staying = current.members.filter((member) => !wanted.has(memberKey(member)));
+  const products = [...queue.products];
+  products.splice(index, 1, { ...current, members: staying }, created);
+  return {
+    next: withCards(queue, products),
+    undo: { cards: [{ card: copyCard(current), index }], createdId: newId },
+  };
 }
 
+/**
+ * Reverses `mergeSuggestions`, `turnIntoAddCard` or `splitSuggestion` (D-19, D-22): the card the
+ * change created is removed and the saved cards go back to the index they had. A saved member
+ * that is pending in another card now is left out, a saved card left with no member is not
+ * restored, and a member that a later batch added to one of these cards since stays (with the
+ * saved card of the same id, or with the first restored card when its own card was the created
+ * one), so no pending suggestion is lost. When none of the cards of the change is in the queue any
+ * more (it was accepted or rejected), the same queue comes back.
+ */
 export function undoQueueChange(queue: PendingQueue, undo: QueueUndo): PendingQueue {
-  void undo;
-  return queue;
+  const savedIds = new Set(undo.cards.map((entry) => entry.card.id));
+  const touched = queue.products.filter(
+    (card) => savedIds.has(card.id) || card.id === undo.createdId,
+  );
+  if (touched.length === 0) return queue;
+  const rest = queue.products.filter((card) => !touched.includes(card));
+  const taken = pendingMemberKeys(rest);
+  const known = new Set<string>();
+  for (const entry of undo.cards) {
+    for (const member of entry.card.members) known.add(memberKey(member));
+  }
+  // Members that arrived after the change, by the card (saved id) they now sit in.
+  const later = new Map<string, SuggestionMember[]>();
+  const orphans: SuggestionMember[] = [];
+  for (const card of touched) {
+    const extra = card.members.filter((member) => !known.has(memberKey(member)));
+    if (savedIds.has(card.id)) later.set(card.id, extra);
+    else orphans.push(...extra);
+  }
+  const restored: { index: number; card: ProductSuggestion }[] = [];
+  for (const entry of [...undo.cards].sort((a, b) => a.index - b.index)) {
+    const members = [...entry.card.members, ...(later.get(entry.card.id) ?? [])].filter(
+      (member) => !taken.has(memberKey(member)),
+    );
+    for (const member of members) taken.add(memberKey(member));
+    if (members.length === 0) continue;
+    restored.push({ index: entry.index, card: { ...copyCard(entry.card), members: members.map(copyMember) } });
+  }
+  const first = restored[0];
+  // Nothing can be restored (every saved member is pending elsewhere now): refuse, keep the queue.
+  if (first === undefined) return queue;
+  for (const member of orphans) {
+    if (taken.has(memberKey(member))) continue;
+    taken.add(memberKey(member));
+    first.card.members.push(copyMember(member));
+  }
+  const products = [...rest];
+  for (const entry of restored) {
+    products.splice(Math.min(Math.max(entry.index, 0), products.length), 0, entry.card);
+  }
+  return withCards(queue, products);
 }
 
 // ---------------------------------------------------------------------------------------

@@ -1155,6 +1155,26 @@ describe("mergeSuggestions, turnIntoAddCard, splitSuggestion and undoQueueChange
       expect(pendingQueueSchema.safeParse(undone).success).toBe(true);
     });
 
+    it("keeps a member that a later batch added to a card of the change", () => {
+      const base = joinQueue();
+      const { next, undo } = merged(base, "sug_a", "sug_b");
+      const late = member("DDD040404DDD", "te verde 20 sobres");
+      const meanwhile = appendSuggestionMembers(next, "sug_b", [late]);
+      const undone = undoQueueChange(meanwhile, undo);
+      expect(undone.products.map((entry) => entry.id)).toEqual(["sug_a", "sug_b", "sug_c"]);
+      expect(undone.products[0]?.members).toEqual([LECHE_UNO, LECHE_DOS]);
+      expect(undone.products[1]?.members).toEqual([CAFE, late]);
+      expect(pendingQueueSchema.safeParse(undone).success).toBe(true);
+
+      // The created card of a split took the late member: it goes back to the restored card.
+      const split = splitSuggestion(base, "sug_a", [memberKey(LECHE_DOS)], "sug_new");
+      if (split === null) throw new Error("expected a split");
+      const afterSplit = appendSuggestionMembers(split.next, "sug_new", [late]);
+      const back = undoQueueChange(afterSplit, split.undo);
+      expect(back.products.map((entry) => entry.id)).toEqual(["sug_a", "sug_b", "sug_c"]);
+      expect(back.products[0]?.members).toEqual([LECHE_UNO, LECHE_DOS, late]);
+    });
+
     it("does nothing when no card of the change is left in the queue (it was accepted or rejected)", () => {
       const base = joinQueue();
       const { next, undo } = merged(base, "sug_a", "sug_b");

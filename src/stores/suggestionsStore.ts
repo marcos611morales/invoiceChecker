@@ -62,9 +62,20 @@ interface SuggestionsState {
   dropMember: (cardId: string, key: string) => DroppedMember | null;
   /** Undo of `dropMember`; a refused restore writes nothing. */
   restoreMember: (dropped: DroppedMember) => void;
+  /**
+   * Joins card `fromId` into `intoId` (D-19); returns what `undoQueueChange` needs, or null (and
+   * writes nothing) for the same card or an unknown one.
+   */
   mergeSuggestions: (fromId: string, intoId: string) => QueueUndo | null;
+  /** Turns a card into an «Agregar a» card for an accepted product; null (nothing written) when it changes nothing. */
   turnIntoAddCard: (id: string, productId: string) => QueueUndo | null;
+  /**
+   * Moves the members whose `memberKey` is in `keys` into a new card placed right below
+   * («sug_» plus a random id, reported as `createdId` of the result); null (nothing written)
+   * unless some but not all of the card's members are named.
+   */
   splitSuggestion: (id: string, keys: readonly string[]) => QueueUndo | null;
+  /** Undo of the three actions above; a refused undo writes nothing. */
   undoQueueChange: (undo: QueueUndo) => void;
 }
 
@@ -135,17 +146,34 @@ export const useSuggestionsStore = create<SuggestionsState>()(
         if (next !== current) set({ products: next.products });
       },
       mergeSuggestions: (fromId, intoId) => {
-        void fromId;
-        void intoId;
-        void splitSuggestion;
-        void turnIntoAddCard;
-        void mergeSuggestions;
-        void undoQueueChange;
-        return null;
+        const result = mergeSuggestions(queueOf(get()), fromId, intoId);
+        if (result === null) return null;
+        set({ products: result.next.products });
+        return result.undo;
       },
-      turnIntoAddCard: () => null,
-      splitSuggestion: () => null,
-      undoQueueChange: () => undefined,
+      turnIntoAddCard: (id, productId) => {
+        const result = turnIntoAddCard(queueOf(get()), id, productId);
+        if (result === null) return null;
+        set({ products: result.next.products });
+        return result.undo;
+      },
+      splitSuggestion: (id, keys) => {
+        const result = splitSuggestion(
+          queueOf(get()),
+          id,
+          keys,
+          `sug_${crypto.randomUUID()}`,
+        );
+        if (result === null) return null;
+        set({ products: result.next.products });
+        return result.undo;
+      },
+      undoQueueChange: (undo) => {
+        const current = queueOf(get());
+        const next = undoQueueChange(current, undo);
+        // A refused undo comes back as the same object: nothing to write.
+        if (next !== current) set({ products: next.products });
+      },
     }),
     {
       name: STORAGE_KEY,
