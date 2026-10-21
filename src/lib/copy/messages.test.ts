@@ -106,6 +106,14 @@ import {
   ungroupedToast,
   ungroupedTrigger,
   unmarkAria,
+  addMembersErrorText,
+  addToCategoryCaption,
+  addToTitle,
+  chooseMemberAria,
+  contextGroupHeading,
+  contextNamesLine,
+  membersAddedAnnouncement,
+  membersAddedToast,
 } from "./messages";
 
 describe("rejectReasonText", () => {
@@ -971,5 +979,61 @@ describe("Reject, «No agrupar» and rename copy (Plan 04-13, UI-SPEC 255-273, 3
     expect(es.products.ungrouped.removedAnnouncement).toBe(
       "Marca quitada. La descripción se enviará en el próximo «Agrupar productos».",
     );
+  });
+});
+
+describe("Context names and «Agregar a» copy (Plan 04-14, UI-SPEC 198-203, 262, 269)", () => {
+  it("says how many accepted product names go as context, with the singular", () => {
+    expect(contextNamesLine(3)).toBe(
+      "Como contexto también se enviarán 3 nombres de productos que ya aceptaste.",
+    );
+    expect(contextNamesLine(1)).toBe(
+      "Como contexto también se enviarán 1 nombre de producto que ya aceptaste.",
+    );
+    expect(contextGroupHeading(3)).toBe("Productos existentes, solo como contexto (3)");
+  });
+
+  it("titles the card and captions its category, or «Sin categoría»", () => {
+    expect(addToTitle("Leche entera")).toBe("Agregar a «Leche entera»");
+    expect(addToCategoryCaption("Lácteos")).toBe("Categoría: Lácteos");
+    expect(addToCategoryCaption(null)).toBe("Sin categoría");
+    expect(es.products.queue.addToNote).toBe(
+      "Solo se suman estas descripciones nuevas; el producto conserva sus miembros y su categoría.",
+    );
+  });
+
+  it("reports the added descriptions, cutting the product name at 40 characters", () => {
+    expect(membersAddedToast(2, "Leche entera")).toBe("Se agregaron 2 descripciones a «Leche entera»");
+    expect(membersAddedToast(1, "Leche entera")).toBe("Se agregó 1 descripción a «Leche entera»");
+    expect(membersAddedToast(2, "x".repeat(50))).toBe(
+      `Se agregaron 2 descripciones a «${"x".repeat(39)}…»`,
+    );
+    expect(membersAddedAnnouncement(2, "Leche entera", 3)).toBe(
+      "Se agregaron 2 descripciones a «Leche entera». Quedan 3 sugerencias.",
+    );
+    expect(membersAddedAnnouncement(1, "Leche entera", 1)).toBe(
+      "Se agregó 1 descripción a «Leche entera». Queda 1 sugerencia.",
+    );
+    expect(membersAddedAnnouncement(1, "Leche entera", 0)).toBe(
+      "Se agregó 1 descripción a «Leche entera». No quedan sugerencias.",
+    );
+  });
+
+  it("names the member in the checkbox label, cutting the description at 60", () => {
+    expect(chooseMemberAria("Leche")).toBe("Elegir «Leche»");
+    expect(chooseMemberAria("d".repeat(70))).toBe(`Elegir «${"d".repeat(59)}…»`);
+  });
+
+  it("explains each refusal of an «Agregar a» card", () => {
+    expect(addMembersErrorText("gone")).toBe(
+      "Ese producto ya no existe. Rechaza la sugerencia o únela con otro producto.",
+    );
+    expect(addMembersErrorText("members-taken")).toBe(
+      "Algunas descripciones de esta sugerencia ya están en otro producto. Revisa «Mis productos».",
+    );
+    expect(addMembersErrorText("limit")).toBe(
+      "Alcanzaste el límite de 5,000 descripciones en tus productos. Quita alguna para agregar más.",
+    );
+    expect(addMembersErrorText("no-members")).toBe("Elige al menos una descripción para agregar.");
   });
 });

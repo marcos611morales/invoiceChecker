@@ -119,6 +119,16 @@ function productWith(id: string, name: string, members: ProductMember[]): Produc
   return { id, name, categoryId: null, members };
 }
 
+/** The first text of every row under the heading `heading` in the open send dialog. */
+function sectionRows(dialog: HTMLElement, heading: string): string[] {
+  const title = within(dialog).getByRole("heading", { name: heading });
+  const section = title.closest("section");
+  if (section === null) throw new Error(`the heading «${heading}» is not inside a section`);
+  return within(section)
+    .getAllByRole("listitem")
+    .map((row) => row.querySelector("span")?.textContent ?? "");
+}
+
 /** The text of the element the button points at with aria-describedby, or null. */
 function describedText(button: HTMLElement): string | null {
   const id = button.getAttribute("aria-describedby");
@@ -396,11 +406,12 @@ describe("accepted descriptions are no longer free (D-04, D-13, ROADMAP criterio
     fireEvent.click(screen.getByRole("button", { name: "Agrupar productos" }));
     const dialog = screen.getByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: /Ver exactamente qué se envía/ }));
-    const sent = within(dialog)
-      .getAllByRole("listitem")
-      .map((row) => row.querySelector("span")?.textContent ?? "")
-      .sort();
+    const sent = sectionRows(dialog, "Descripciones y proveedores (3)").sort();
     expect(sent).toEqual(["Azúcar", "Café Molido 1kg", "Sal"]);
+    // The accepted product travels by name only, as context (D-04, D-33).
+    expect(sectionRows(dialog, "Productos existentes, solo como contexto (1)")).toEqual([
+      "Leche entera",
+    ]);
   });
 
   it("does not keep a product that was never accepted: without it all five are free", () => {
@@ -930,5 +941,228 @@ describe("Descripciones marcadas «No agrupar» (E7, D-22)", () => {
     const area = view.container.querySelector("[data-slot='scroll-area']");
     expect(area).not.toBeNull();
     expect(area?.className).toContain("max-h-72");
+  });
+});
+
+describe("the send dialog lists the accepted product names as context (D-04, D-33, LLM-06)", () => {
+  const CONTEXT_HEADING = /^Productos existentes, solo como contexto/;
+
+  function openDialog(): HTMLElement {
+    fireEvent.click(screen.getByRole("button", { name: "Agrupar productos" }));
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Ver exactamente qué se envía/ }));
+    return dialog;
+  }
+
+  it("adds the line and the group when products are accepted, sorted by name", () => {
+    useSettingsStore.setState({
+      products: [
+        productWith("prod_c", "Café molido", [CAFE]),
+        productWith("prod_a", "Azúcar", [AZUCAR]),
+      ],
+    });
+    render(<ProductsTab />);
+    const dialog = openDialog();
+    expect(
+      within(dialog).getByText(
+        "Como contexto también se enviarán 2 nombres de productos que ya aceptaste.",
+      ),
+    ).toBeInTheDocument();
+    expect(sectionRows(dialog, "Productos existentes, solo como contexto (2)")).toEqual([
+      "Azúcar",
+      "Café molido",
+    ]);
+  });
+
+  it("uses the singular for one accepted product", () => {
+    useSettingsStore.setState({ products: [productWith("prod_l", "Leche entera", [LECHE_UNO])] });
+    render(<ProductsTab />);
+    const dialog = openDialog();
+    expect(
+      within(dialog).getByText(
+        "Como contexto también se enviarán 1 nombre de producto que ya aceptaste.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows neither the line nor the group with no accepted product", () => {
+    render(<ProductsTab />);
+    const dialog = openDialog();
+    expect(within(dialog).queryByText(/Como contexto también se enviarán/)).toBeNull();
+    expect(within(dialog).queryByRole("heading", { name: CONTEXT_HEADING })).toBeNull();
+  });
+
+  it("never lists the name of a card that is still pending", () => {
+    enqueue([card("sug_a", "Leche entera", [LECHE_UNO]), card("sug_c", "Azúcar", [AZUCAR])]);
+    render(<ProductsTab />);
+    const dialog = openDialog();
+    expect(within(dialog).queryByText(/Como contexto también se enviarán/)).toBeNull();
+    expect(within(dialog).queryByRole("heading", { name: CONTEXT_HEADING })).toBeNull();
+    expect(within(dialog).queryByText("Leche entera")).toBeNull();
+  });
+});
+
+describe("«Agregar a «X»» card (D-21)", () => {
+  const LACTEOS = "cat_lacteos";
+
+  /** «Leche entera» already holds LECHE_UNO and has a category; DeepSeek proposes more. */
+  function seedProductWithCategory(categoryId: string | null = LACTEOS): void {
+    useSettingsStore.setState({
+      categories: [{ id: LACTEOS, name: "Lácteos" }],
+      products: [{ id: "prod_leche", name: "Leche entera", categoryId, members: [LECHE_UNO] }],
+    });
+  }
+
+  function addToCard(members: ProductMember[]): ProductSuggestion {
+    return { id: "sug_add", name: "Leche", target: "prod_leche", members };
+  }
+
+  function memberBox(description: string): HTMLElement {
+    return screen.getByRole("checkbox", { name: `Elegir «${description}»` });
+  }
+
+  it("is titled with the product, captions its category and the note, and has no name Input", () => {
+    seedProductWithCategory();
+    enqueue([addToCard([LECHE_DOS, CAFE])]);
+    render(<ProductsTab />);
+    expect(
+      screen.getByRole("heading", { name: "Agregar a «Leche entera»", level: 3 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Categoría: Lácteos")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Solo se suman estas descripciones nuevas; el producto conserva sus miembros y su categoría.",
+      ),
+    ).toBeInTheDocument();
+    expect(nameInputs()).toHaveLength(0);
+    // Only the new members are listed; the product's own member is not.
+    expect(screen.queryByText("Leche entera 1L")).toBeNull();
+    expect(screen.getByText("LECHE ENTERA 1L")).toBeInTheDocument();
+  });
+
+  it("says «Sin categoría» for a product with no category", () => {
+    seedProductWithCategory(null);
+    enqueue([addToCard([LECHE_DOS])]);
+    render(<ProductsTab />);
+    // The accepted-products list below also says «Sin categoría»: look inside the card.
+    const title = screen.getByRole("heading", { name: "Agregar a «Leche entera»" });
+    const cardElement = title.closest("li");
+    if (cardElement === null) throw new Error("the title is not inside a card");
+    expect(within(cardElement).getByText("Sin categoría")).toBeInTheDocument();
+  });
+
+  it("lists each new member with a checkbox that starts checked", () => {
+    seedProductWithCategory();
+    enqueue([addToCard([LECHE_DOS, CAFE, AZUCAR])]);
+    render(<ProductsTab />);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    for (const description of ["LECHE ENTERA 1L", "Café Molido 1kg", "Azúcar"]) {
+      expect(memberBox(description)).toBeChecked();
+    }
+  });
+
+  it("adds the checked members, keeps the other members and the category, and keeps the unchecked one in the card", () => {
+    seedProductWithCategory();
+    enqueue([addToCard([LECHE_DOS, CAFE, AZUCAR])]);
+    render(<ProductsTab />);
+    fireEvent.click(memberBox("Azúcar"));
+    expect(memberBox("Azúcar")).not.toBeChecked();
+    press("Leche entera");
+
+    const [product] = storedProducts();
+    expect(product?.members).toEqual([LECHE_UNO, LECHE_DOS, CAFE]);
+    expect(product?.categoryId).toBe(LACTEOS);
+    expect(product?.name).toBe("Leche entera");
+    // The third member waits in the same card, still unchecked.
+    expect(useSuggestionsStore.getState().products).toEqual([
+      { id: "sug_add", name: "Leche", target: "prod_leche", members: [AZUCAR] },
+    ]);
+    expect(screen.queryByText("LECHE ENTERA 1L")).toBeNull();
+    expect(memberBox("Azúcar")).not.toBeChecked();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(toastMock.mock.calls[0]?.[0]).toBe("Se agregaron 2 descripciones a «Leche entera»");
+  });
+
+  it("removes the card when every member was added, and moves focus on", () => {
+    seedProductWithCategory();
+    enqueue([addToCard([LECHE_DOS, CAFE]), card("sug_b", "Azúcar", [AZUCAR])]);
+    render(<ProductsTab />);
+    press("Leche entera");
+    expect(storedProducts()[0]?.members).toEqual([LECHE_UNO, LECHE_DOS, CAFE]);
+    expect(useSuggestionsStore.getState().products.map((entry) => entry.id)).toEqual(["sug_b"]);
+    expect(nameInput("Azúcar")).toHaveFocus();
+    expect(toastMock.mock.calls[0]?.[0]).toBe("Se agregaron 2 descripciones a «Leche entera»");
+  });
+
+  it("explains that the product is gone, changes nothing, and still lets the card be rejected", () => {
+    seedProductWithCategory();
+    enqueue([addToCard([LECHE_DOS])]);
+    render(<ProductsTab />);
+    act(() => {
+      useSettingsStore.setState({ products: [] });
+    });
+    // The title falls back to the name DeepSeek proposed.
+    expect(screen.getByRole("heading", { name: "Agregar a «Leche»" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar la sugerencia «Leche»" }));
+    expect(
+      screen.getByText("Ese producto ya no existe. Rechaza la sugerencia o únela con otro producto."),
+    ).toBeInTheDocument();
+    expect(storedProducts()).toEqual([]);
+    expect(useSuggestionsStore.getState().products).toHaveLength(1);
+    expect(toastMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar la sugerencia «Leche»" }));
+    expect(useSuggestionsStore.getState().products).toEqual([]);
+  });
+
+  it("refuses members that are already in another product and keeps the card whole", () => {
+    useSettingsStore.setState({
+      categories: [{ id: LACTEOS, name: "Lácteos" }],
+      products: [
+        { id: "prod_leche", name: "Leche entera", categoryId: LACTEOS, members: [LECHE_UNO] },
+        { id: "prod_cafe", name: "Café", categoryId: null, members: [CAFE] },
+      ],
+    });
+    enqueue([addToCard([LECHE_DOS, CAFE])]);
+    render(<ProductsTab />);
+    const button = acceptButton("Leche entera");
+    fireEvent.click(button);
+    const message =
+      "Algunas descripciones de esta sugerencia ya están en otro producto. Revisa «Mis productos».";
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(describedText(button)).toBe(message);
+    expect(storedProducts().find((entry) => entry.id === "prod_leche")?.members).toEqual([
+      LECHE_UNO,
+    ]);
+    expect(useSuggestionsStore.getState().products[0]?.members).toEqual([LECHE_DOS, CAFE]);
+    // Unchecking the member that is taken lets the other one in.
+    fireEvent.click(memberBox("Café Molido 1kg"));
+    expect(screen.queryByText(message)).toBeNull();
+    fireEvent.click(button);
+    expect(storedProducts().find((entry) => entry.id === "prod_leche")?.members).toEqual([
+      LECHE_UNO,
+      LECHE_DOS,
+    ]);
+  });
+
+  it("asks for at least one description when none is checked", () => {
+    seedProductWithCategory();
+    enqueue([addToCard([LECHE_DOS])]);
+    render(<ProductsTab />);
+    fireEvent.click(memberBox("LECHE ENTERA 1L"));
+    press("Leche entera");
+    expect(screen.getByText("Elige al menos una descripción para agregar.")).toBeInTheDocument();
+    expect(storedProducts()[0]?.members).toEqual([LECHE_UNO]);
+    expect(useSuggestionsStore.getState().products).toHaveLength(1);
+  });
+
+  it("«Rechazar» removes the card, leaving the product alone", () => {
+    seedProductWithCategory();
+    enqueue([addToCard([LECHE_DOS])]);
+    render(<ProductsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar la sugerencia «Leche entera»" }));
+    expect(useSuggestionsStore.getState().products).toEqual([]);
+    expect(storedProducts()[0]?.members).toEqual([LECHE_UNO]);
+    expect(toastMock.mock.calls[0]?.[0]).toBe("Sugerencia «Leche entera» rechazada");
   });
 });

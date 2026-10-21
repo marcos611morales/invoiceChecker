@@ -496,6 +496,20 @@ export const es = {
       undo: "Deshacer",
       /** Discretion text, the same form as the Phase 3 limit toasts (LIMITS.ungroupedConcepts). */
       ungroupLimit: "Llegaste al máximo de 5,000 descripciones marcadas.",
+      /** Note under the title of an «Agregar a» card (D-21, UI-SPEC line 262). */
+      addToNote:
+        "Solo se suman estas descripciones nuevas; el producto conserva sus miembros y su categoría.",
+      /**
+       * Refusals of an «Agregar a» card. «gone» is the planner's text; «limit» and «noneChosen» are
+       * Claude's discretion (the UI-SPEC defines neither): the first follows the form of the other
+       * limit texts, the second explains why «Aceptar» did nothing with no checked description.
+       */
+      addToErrors: {
+        gone: "Ese producto ya no existe. Rechaza la sugerencia o únela con otro producto.",
+        limit:
+          "Alcanzaste el límite de 5,000 descripciones en tus productos. Quita alguna para agregar más.",
+        noneChosen: "Elige al menos una descripción para agregar.",
+      },
       errors: {
         empty: "Escribe un nombre para el producto.",
         duplicate: "Ya existe un producto con ese nombre. Cambia el nombre o usa «Unir con…».",

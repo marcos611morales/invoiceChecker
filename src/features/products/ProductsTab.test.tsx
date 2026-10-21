@@ -926,3 +926,138 @@ describe("Storage notices of the Productos tab (Q8 pattern)", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
+
+describe("Accepted products as context and «Agregar a» cards through the real route (D-04, D-21, D-33, LLM-06)", () => {
+  const MM_LECHE: SuggestionMember = {
+    rfc: UNO.rfc,
+    key: normalizeDescription("MM LECHE ENT"),
+    description: "MM LECHE ENT",
+    supplierName: UNO.nombre,
+  };
+
+  /** «Leche entera» already holds «MM LECHE ENT»; the other four descriptions are free. */
+  function acceptLeche(): void {
+    act(() => {
+      useSettingsStore.setState({
+        products: [{ id: "prod_leche", name: "Leche entera", categoryId: null, members: [MM_LECHE] }],
+      });
+    });
+  }
+
+  async function sendAndWait(): Promise<void> {
+    await openDialog();
+    await confirm();
+    await waitFor(() => {
+      expect(routeBodies).toHaveLength(1);
+    });
+  }
+
+  /** DeepSeek places «LECHE ENTERA 1L» (and, when asked, «Café Molido 1kg») with product p1. */
+  function placeWithP1(...descriptions: string[]): (body: GroupRequest) => Response {
+    return (body) => {
+      const placed = descriptions.map((description) => idOf(body, description));
+      const rest = body.items
+        .filter((item) => !placed.includes(item.id))
+        .map((item) => ({ n: item.description, i: [item.id], e: null }));
+      const groups = descriptions.map((description) => ({
+        n: description === "LECHE ENTERA 1L" ? "Leche" : "Leche deslactosada",
+        i: [idOf(body, description)],
+        e: "p1",
+      }));
+      return completion({ g: [...groups, ...rest] });
+    };
+  }
+
+  it("sends the accepted names on the request, the very ones the dialog lists, and never an id", async () => {
+    acceptLeche();
+    render(<ProductsTab />);
+    await openDialog();
+    expect(
+      within(dialog()).getByText(
+        "Como contexto también se enviarán 1 nombre de producto que ya aceptaste.",
+      ),
+    ).toBeInTheDocument();
+    expect(dialogRows().map((row) => row.description)).toContain("Leche entera");
+    expect(
+      within(dialog()).getByRole("heading", { name: "Productos existentes, solo como contexto (1)" }),
+    ).toBeInTheDocument();
+    await confirm();
+    await waitFor(() => {
+      expect(routeBodies).toHaveLength(1);
+    });
+    expect(lastBody().existing).toEqual([{ id: "p1", name: "Leche entera" }]);
+    const sent = upstreamCalls.map((call) => bodyText(call.init)).join("\n");
+    expect(sent).toContain("Leche entera");
+    expect(sent).not.toContain("prod_leche");
+  });
+
+  it("never sends the name of a card that is still pending from an earlier run, and leaves that card as it was", async () => {
+    const pending = {
+      id: "sug_old",
+      name: "Aceite de oliva",
+      target: null,
+      members: [
+        {
+          rfc: "ZZZ090909ZZZ",
+          key: normalizeDescription("ACEITE 1L"),
+          description: "ACEITE 1L",
+          supplierName: "Tienda Tres",
+        },
+      ],
+    };
+    act(() => {
+      useSuggestionsStore.getState().enqueueProducts([pending]);
+    });
+    render(<ProductsTab />);
+    await openDialog();
+    expect(within(dialog()).queryByText(/Como contexto también se enviarán/)).toBeNull();
+    await confirm();
+    await waitFor(() => {
+      expect(routeBodies).toHaveLength(1);
+    });
+    expect(lastBody().existing).toEqual([]);
+    expect(upstreamCalls.map((call) => bodyText(call.init)).join("\n")).not.toContain(
+      "Aceite de oliva",
+    );
+    await findNameInput("Leche entera");
+    expect(useSuggestionsStore.getState().products.find((card) => card.id === "sug_old")).toEqual(
+      pending,
+    );
+  });
+
+  it("turns a group that DeepSeek places with an accepted product into an «Agregar a» card and adds it on «Aceptar»", async () => {
+    acceptLeche();
+    upstream = placeWithP1("LECHE ENTERA 1L");
+    render(<ProductsTab />);
+    await sendAndWait();
+    const title = await screen.findByRole("heading", { name: "Agregar a «Leche entera»" });
+    const card = title.closest("li");
+    if (card === null) throw new Error("the title is not inside a card");
+    expect(within(card).getAllByRole("checkbox")).toHaveLength(1);
+    expect(within(card).getByRole("checkbox", { name: "Elegir «LECHE ENTERA 1L»" })).toBeChecked();
+    const queued = useSuggestionsStore.getState().products.find((entry) => entry.target !== null);
+    expect(queued?.target).toBe("prod_leche");
+
+    fireEvent.click(
+      within(card).getByRole("button", { name: "Aceptar la sugerencia «Leche entera»" }),
+    );
+    const [leche] = useSettingsStore.getState().products;
+    expect(leche?.members.map((member) => member.description)).toEqual([
+      "MM LECHE ENT",
+      "LECHE ENTERA 1L",
+    ]);
+    expect(screen.queryByRole("heading", { name: "Agregar a «Leche entera»" })).toBeNull();
+  });
+
+  it("merges two groups of one answer that point at the same product into one card", async () => {
+    acceptLeche();
+    upstream = placeWithP1("LECHE ENTERA 1L", "Café Molido 1kg");
+    render(<ProductsTab />);
+    await sendAndWait();
+    const titles = await screen.findAllByRole("heading", { name: "Agregar a «Leche entera»" });
+    expect(titles).toHaveLength(1);
+    const card = titles[0]?.closest("li");
+    if (card === undefined || card === null) throw new Error("the title is not inside a card");
+    expect(within(card).getAllByRole("checkbox")).toHaveLength(2);
+  });
+});
