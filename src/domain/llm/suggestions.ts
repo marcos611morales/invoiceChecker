@@ -474,6 +474,56 @@ export function appendSuggestionMembers(
   );
 }
 
+/**
+ * What «Deshacer» needs after a join, a turn into «Agregar a» or a split (D-19): the cards as they
+ * were before the change, each with the index it had, and the id of the card the change created
+ * (null when it created none).
+ */
+export interface QueueUndo {
+  cards: { card: ProductSuggestion; index: number }[];
+  createdId: string | null;
+}
+
+export function mergeSuggestions(
+  queue: PendingQueue,
+  fromId: string,
+  intoId: string,
+): { next: PendingQueue; undo: QueueUndo } | null {
+  void queue;
+  void fromId;
+  void intoId;
+  return null;
+}
+
+export function turnIntoAddCard(
+  queue: PendingQueue,
+  id: string,
+  productId: string,
+): { next: PendingQueue; undo: QueueUndo } | null {
+  void queue;
+  void id;
+  void productId;
+  return null;
+}
+
+export function splitSuggestion(
+  queue: PendingQueue,
+  id: string,
+  keys: readonly string[],
+  newId: string,
+): { next: PendingQueue; undo: QueueUndo } | null {
+  void queue;
+  void id;
+  void keys;
+  void newId;
+  return null;
+}
+
+export function undoQueueChange(queue: PendingQueue, undo: QueueUndo): PendingQueue {
+  void undo;
+  return queue;
+}
+
 // ---------------------------------------------------------------------------------------
 // The stored queue (D-24, D-30). Everything read from browser storage is untrusted: shape,
 // limits and integrity are all checked here, and a failure is a plain `safeParse` failure

@@ -5,15 +5,20 @@ import {
   appendSuggestionMembers,
   dropMember,
   enqueueProductSuggestions,
+  mergeSuggestions,
   removeSuggestion,
   renameSuggestion,
   resolvePendingQueue,
   restoreMember,
   restoreSuggestion,
+  splitSuggestion,
+  turnIntoAddCard,
+  undoQueueChange,
   type CategorySuggestion,
   type DroppedMember,
   type PendingQueue,
   type ProductSuggestion,
+  type QueueUndo,
   type RemovedSuggestion,
   type SuggestionMember,
 } from "@/domain/llm/suggestions";
@@ -57,6 +62,10 @@ interface SuggestionsState {
   dropMember: (cardId: string, key: string) => DroppedMember | null;
   /** Undo of `dropMember`; a refused restore writes nothing. */
   restoreMember: (dropped: DroppedMember) => void;
+  mergeSuggestions: (fromId: string, intoId: string) => QueueUndo | null;
+  turnIntoAddCard: (id: string, productId: string) => QueueUndo | null;
+  splitSuggestion: (id: string, keys: readonly string[]) => QueueUndo | null;
+  undoQueueChange: (undo: QueueUndo) => void;
 }
 
 /** The queue as the domain reducers take it. */
@@ -125,6 +134,18 @@ export const useSuggestionsStore = create<SuggestionsState>()(
         // A refused restore comes back as the same object: nothing to write.
         if (next !== current) set({ products: next.products });
       },
+      mergeSuggestions: (fromId, intoId) => {
+        void fromId;
+        void intoId;
+        void splitSuggestion;
+        void turnIntoAddCard;
+        void mergeSuggestions;
+        void undoQueueChange;
+        return null;
+      },
+      turnIntoAddCard: () => null,
+      splitSuggestion: () => null,
+      undoQueueChange: () => undefined,
     }),
     {
       name: STORAGE_KEY,
