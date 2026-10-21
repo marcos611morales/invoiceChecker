@@ -548,8 +548,10 @@ describe("parseBackupText: version-2 files that break a rule are damaged", () =>
   });
 
   it("rejects a version-2 file without the products or the marks field", () => {
-    const { products: _products, ...withoutProducts } = sampleWithProducts();
-    const { ungroupedConcepts: _marks, ...withoutMarks } = sampleWithProducts();
+    const withoutProducts: Record<string, unknown> = { ...sampleWithProducts() };
+    delete withoutProducts.products;
+    const withoutMarks: Record<string, unknown> = { ...sampleWithProducts() };
+    delete withoutMarks.ungroupedConcepts;
     expect(failure(fileText2(withoutProducts))).toBe("damaged");
     expect(failure(fileText2(withoutMarks))).toBe("damaged");
   });

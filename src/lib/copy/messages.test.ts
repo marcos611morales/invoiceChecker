@@ -726,16 +726,16 @@ describe("settings file messages (D-07, D-08)", () => {
   });
 
   it("lists the three parts of the summary, plurals included", () => {
-    expect(replaceSummaryText({ categories: 9, suppliers: 24, concepts: 7 })).toBe(
+    expect(replaceSummaryText({ categories: 9, suppliers: 24, concepts: 7, products: 0, members: 0 })).toBe(
       "9 categorías, 24 proveedores, 7 conceptos ajustados",
     );
   });
 
   it("reads the singular forms for one and «0 …» for zero, never omitting a part", () => {
-    expect(replaceSummaryText({ categories: 1, suppliers: 0, concepts: 1 })).toBe(
+    expect(replaceSummaryText({ categories: 1, suppliers: 0, concepts: 1, products: 0, members: 0 })).toBe(
       "1 categoría, 0 proveedores, 1 concepto ajustado",
     );
-    expect(replaceSummaryText({ categories: 0, suppliers: 1, concepts: 0 })).toBe(
+    expect(replaceSummaryText({ categories: 0, suppliers: 1, concepts: 0, products: 0, members: 0 })).toBe(
       "0 categorías, 1 proveedor, 0 conceptos ajustados",
     );
   });
