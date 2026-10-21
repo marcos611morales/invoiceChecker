@@ -15,6 +15,7 @@ import {
   type Product,
   type ProductMember,
   type SettingsData,
+  type UngroupedConcept,
 } from "./types";
 
 export type ProductNameError = "empty" | "duplicate" | "reserved" | "too-long";
@@ -412,6 +413,67 @@ export function undoMemberChange(settings: SettingsData, undo: MemberUndo): Sett
       return restored === base ? settings : restored;
     }
   }
+}
+
+// --- «No agrupar» marks (Plan 04-13, D-13, D-22) ---
+
+/** `ruleMapKey(rfc, key)` of every description marked «No agrupar» (D-04: those are never sent). */
+export function ungroupedKeys(settings: Pick<SettingsData, "ungroupedConcepts">): Set<string> {
+  const keys = new Set<string>();
+  for (const mark of settings.ungroupedConcepts) keys.add(ruleMapKey(mark.rfc, mark.key));
+  return keys;
+}
+
+/**
+ * Marks one description «No agrupar» so it is never sent to DeepSeek again (D-22). The mark
+ * keeps the four fields of a member, copied. Marking what is already marked is no change: `next`
+ * is the very same settings object. A description that belongs to a product is refused as
+ * "taken" (a description is a member or a mark, never both, D-10), and the 5,001st mark as
+ * "limit"; a refusal returns no settings, so nothing can fail the stored validation.
+ */
+export function markUngrouped(
+  settings: SettingsData,
+  member: UngroupedConcept,
+): { ok: true; next: SettingsData } | { ok: false; reason: "limit" | "taken" } {
+  const key = ruleMapKey(member.rfc, member.key);
+  if (ungroupedKeys(settings).has(key)) return { ok: true, next: settings };
+  if (productMemberKeys(settings).has(key)) return { ok: false, reason: "taken" };
+  if (settings.ungroupedConcepts.length >= LIMITS.ungroupedConcepts) {
+    return { ok: false, reason: "limit" };
+  }
+  const mark: UngroupedConcept = {
+    rfc: member.rfc,
+    key: member.key,
+    description: member.description,
+    supplierName: member.supplierName,
+  };
+  return { ok: true, next: { ...settings, ungroupedConcepts: [...settings.ungroupedConcepts, mark] } };
+}
+
+/**
+ * Removes the mark with this `ruleMapKey(rfc, key)` and returns it, so the description is sent
+ * again by the next run (D-22). Returns null when the key is not marked.
+ */
+export function unmarkUngrouped(
+  settings: SettingsData,
+  key: string,
+): { next: SettingsData; removed: UngroupedConcept } | null {
+  const removed = settings.ungroupedConcepts.find((mark) => ruleMapKey(mark.rfc, mark.key) === key);
+  if (removed === undefined) return null;
+  return {
+    next: {
+      ...settings,
+      ungroupedConcepts: settings.ungroupedConcepts.filter(
+        (mark) => ruleMapKey(mark.rfc, mark.key) !== key,
+      ),
+    },
+    removed: {
+      rfc: removed.rfc,
+      key: removed.key,
+      description: removed.description,
+      supplierName: removed.supplierName,
+    },
+  };
 }
 
 // --- Product category (Plan 04-08, CAT-04, D-16) ---
