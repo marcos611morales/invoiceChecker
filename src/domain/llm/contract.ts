@@ -8,7 +8,7 @@
 import { z } from "zod";
 
 export const LLM_LIMITS = {
-  groupItems: 250,
+  groupItems: 120,
   categorizeEntries: 150,
   description: 200,
   supplier: 120,

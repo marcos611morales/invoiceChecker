@@ -350,7 +350,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
       thinking: { type: "disabled" },
       response_format: { type: "json_object" },
       temperature: 0,
-      max_tokens: 8192,
+      max_tokens: 6144,
       stream: false,
     });
   });

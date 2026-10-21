@@ -132,9 +132,9 @@ describe("buildGroupRun (D-28, LLM-03)", () => {
   it.each([
     [0, 0, []],
     [1, 1, [1]],
-    [250, 1, [250]],
-    [251, 2, [126, 125]],
-    [500, 2, [250, 250]],
+    [120, 1, [120]],
+    [121, 2, [61, 60]],
+    [240, 2, [120, 120]],
   ])("splits %i items into %i batch(es) of sizes %j", (count, batches, sizes) => {
     const run = buildGroupRun(items(count), []);
     expect(run.batches).toHaveLength(batches);
@@ -143,7 +143,7 @@ describe("buildGroupRun (D-28, LLM-03)", () => {
   });
 
   it("numbers the ids i1.. in each batch and every body passes the request schema", () => {
-    const run = buildGroupRun(items(251), []);
+    const run = buildGroupRun(items(121), []);
     for (const batch of run.batches) {
       expect(batch.body.items.map((bodyItem) => bodyItem.id)).toEqual(
         batch.body.items.map((_unused, index) => `i${String(index + 1)}`),
@@ -233,8 +233,8 @@ describe("groupRequestSchema (LLM-03)", () => {
     expect(groupRequestSchema.safeParse({ ...valid, uuid: "x" }).success).toBe(false);
   });
 
-  it("rejects 251 items", () => {
-    const many = Array.from({ length: 251 }, (_unused, index) => ({
+  it("rejects 121 items", () => {
+    const many = Array.from({ length: 121 }, (_unused, index) => ({
       id: `i${String(index + 1)}`,
       description: "Leche",
       supplier: "Tienda Uno",

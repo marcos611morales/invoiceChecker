@@ -9,7 +9,7 @@ import { groupWithDeepSeek, readDeepseekEnv } from "@/lib/server/deepseek";
 import { requireSession } from "@/lib/server/requireSession";
 
 /** Hobby with Fluid compute allows up to 300 s; the server deadline stays below this (D-28). */
-export const maxDuration = 180;
+export const maxDuration = 120;
 
 /** Our own status for each of our own codes: an upstream status is never forwarded. */
 function statusOf(code: LlmErrorCode): number {

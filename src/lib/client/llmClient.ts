@@ -11,8 +11,8 @@ import {
   type LlmErrorCode,
 } from "@/domain/llm/contract";
 
-/** Slightly above the route's maxDuration (180 s), so the server's own error arrives first. */
-export const CLIENT_TIMEOUT_MS = 190000;
+/** Slightly above the route's maxDuration (120 s), so the server's own error arrives first. */
+export const CLIENT_TIMEOUT_MS = 130000;
 
 export type LlmFailure = LlmErrorCode | "offline" | "aborted";
 
