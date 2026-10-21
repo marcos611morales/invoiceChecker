@@ -642,6 +642,27 @@ export function productQueueHeading(n: number): string {
   return `Sugerencias de productos · ${String(n)}`;
 }
 
+/** Heading of «Mis productos»: «Mis productos · 1 producto» or «Mis productos · {n} productos». */
+export function productsHeading(n: number): string {
+  return `Mis productos · ${n === 1 ? "1 producto" : `${String(n)} productos`}`;
+}
+
+/** Members cell of a product row: «1 miembro» or «{n} miembros». */
+export function membersCount(n: number): string {
+  return n === 1 ? "1 miembro" : `${String(n)} miembros`;
+}
+
+/** Suppliers cell: the first two distinct names, then «+{k}» for the rest. */
+export function suppliersCell(names: readonly string[]): string {
+  const shown = names.slice(0, 2).join(", ");
+  return names.length > 2 ? `${shown} +${String(names.length - 2)}` : shown;
+}
+
+/** `aria-label` of the expander button of a product row. */
+export function expandMembersAria(name: string, open: boolean): string {
+  return open ? `Ocultar miembros de ${name}` : `Ver miembros de ${name}`;
+}
+
 /** Caption of a card member: the supplier and its loaded lines, «1 línea» for one (D-19). */
 export function memberCaption(supplierName: string, lines: number): string {
   return lines === 1
