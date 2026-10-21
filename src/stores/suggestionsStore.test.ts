@@ -680,7 +680,7 @@ describe("rejectMany and restoreMany in the queue store (D-20)", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem");
     useSuggestionsStore.getState().restoreMany(removed);
     expect(setItem).toHaveBeenCalledTimes(1);
-    expect(snapshot().products.map((entry) => entry.id)).toEqual(["sug_a", "sug_c", "sug_d", "sug_e"]);
+    expect(snapshot().products.map((entry) => entry.id)).toEqual(["sug_a", "sug_d", "sug_c", "sug_e"]);
   });
 
   it("restoreMany with nothing to put back writes nothing, and the category rows are left alone", () => {

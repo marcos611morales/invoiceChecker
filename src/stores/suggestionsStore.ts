@@ -182,11 +182,30 @@ export const useSuggestionsStore = create<SuggestionsState>()(
         if (next !== current) set({ products: next.products });
       },
       rejectMany: (ids) => {
-        void ids;
-        return [];
+        const wanted = new Set(ids);
+        let queue = queueOf(get());
+        // Last card first: each removal then reports the index the card had in the whole queue.
+        const targets = queue.products.filter((card) => wanted.has(card.id)).reverse();
+        const removed: RemovedSuggestion[] = [];
+        for (const target of targets) {
+          const result = removeSuggestion(queue, target.id);
+          if (result === null) continue;
+          queue = result.next;
+          removed.push(result.removed);
+        }
+        if (removed.length === 0) return [];
+        set({ products: queue.products });
+        return removed.reverse();
       },
       restoreMany: (removed) => {
-        void removed;
+        const before = queueOf(get());
+        let queue = before;
+        // First card first: the cards before each index are back already, so it lands where it was.
+        for (const entry of [...removed].sort((a, b) => a.index - b.index)) {
+          queue = restoreSuggestion(queue, entry);
+        }
+        // A queue where every restore was refused is the same object: nothing to write.
+        if (queue !== before) set({ products: queue.products });
       },
     }),
     {
