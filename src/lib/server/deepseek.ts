@@ -25,17 +25,17 @@ import {
 export const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
 export const DEFAULT_MODEL = "deepseek-flash";
 
-/** The whole call stays below maxDuration (180 s) so our own JSON error arrives before Vercel's cut. */
-const DEADLINE_MS = 170000;
+/** The whole call stays below maxDuration (120 s) so our own JSON error arrives before Vercel's cut. */
+const DEADLINE_MS = 110000;
 /** One attempt, further capped by the time left minus SAFETY_MS. */
-const ATTEMPT_TIMEOUT_MS = 80000;
+const ATTEMPT_TIMEOUT_MS = 50000;
 /** D-27 with RESEARCH OQ4: one retry, so two attempts at most. */
 const MAX_ATTEMPTS = 2;
 /** No retry starts with less than this left. */
 const MIN_RETRY_BUDGET_MS = 20000;
 /** Kept free at the end of the deadline for building our own answer. */
 const SAFETY_MS = 5000;
-const GROUP_MAX_TOKENS = 8192;
+const GROUP_MAX_TOKENS = 6144;
 const RATE_LIMIT_WAIT_MIN_MS = 1000;
 const RATE_LIMIT_WAIT_JITTER_MS = 1000;
 

@@ -253,23 +253,23 @@ describe("5xx and network failures are retried once", () => {
   });
 });
 
-describe("the 170-second deadline (OQ3)", () => {
-  it("gives the first attempt 80 seconds and the retry no more than the remaining time minus 5 seconds", async () => {
+describe("the 110-second deadline (OQ3)", () => {
+  it("gives the first attempt 50 seconds and the retry no more than the remaining time minus 5 seconds", async () => {
     fetchMock
       .mockImplementationOnce(() => {
-        clock.time = 100_000;
+        clock.time = 60_000;
         return Promise.resolve(status(503));
       })
       .mockResolvedValueOnce(good());
     const result = await run();
     expect(result.ok).toBe(true);
-    expect(clock.timeouts.map((entry) => entry.ms)).toEqual([80_000, 65_000]);
+    expect(clock.timeouts.map((entry) => entry.ms)).toEqual([50_000, 45_000]);
   });
 
   it("does not retry after an attempt timeout when less than 20 seconds are left", async () => {
     fetchMock.mockImplementationOnce(
       hangUntilAborted(() => {
-        clock.time = 160_000;
+        clock.time = 100_000;
         clock.expire(0);
       }),
     );
@@ -282,7 +282,7 @@ describe("the 170-second deadline (OQ3)", () => {
     fetchMock
       .mockImplementationOnce(
         hangUntilAborted(() => {
-          clock.time = 80_000;
+          clock.time = 50_000;
           clock.expire(0);
         }),
       )
@@ -290,20 +290,20 @@ describe("the 170-second deadline (OQ3)", () => {
     const result = await run();
     expect(result.ok).toBe(true);
     expect(result.meta.attempts).toBe(2);
-    expect(clock.timeouts.map((entry) => entry.ms)).toEqual([80_000, 80_000]);
+    expect(clock.timeouts.map((entry) => entry.ms)).toEqual([50_000, 50_000]);
   });
 
   it("answers upstream_timeout after two attempt timeouts", async () => {
     fetchMock
       .mockImplementationOnce(
         hangUntilAborted(() => {
-          clock.time = 80_000;
+          clock.time = 50_000;
           clock.expire(0);
         }),
       )
       .mockImplementationOnce(
         hangUntilAborted(() => {
-          clock.time = 150_000;
+          clock.time = 100_000;
           clock.expire(1);
         }),
       );
@@ -313,7 +313,7 @@ describe("the 170-second deadline (OQ3)", () => {
 
   it("does not start a retry when the first failure leaves less than 20 seconds", async () => {
     fetchMock.mockImplementation(() => {
-      clock.time = 155_000;
+      clock.time = 95_000;
       return Promise.resolve(status(503));
     });
     const result = await run();
