@@ -107,3 +107,69 @@ export function acceptProduct(
   const product: Product = { id, name: checked.name, categoryId: null, members };
   return { ok: true, next: { ...settings, products: [...settings.products, product] }, product };
 }
+
+// --- RED skeleton (Plan 04-07 Task 2): inert values so the tests import and fail on their assertions.
+
+export function renameProduct(
+  settings: SettingsData,
+  id: string,
+  raw: string,
+): { ok: true; next: SettingsData } | { ok: false; reason: ProductNameError } {
+  void settings;
+  void id;
+  void raw;
+  return { ok: false, reason: "empty" };
+}
+
+export interface ProductSnapshot {
+  product: Product;
+  index: number;
+}
+
+export function deleteProduct(
+  settings: SettingsData,
+  id: string,
+): { next: SettingsData; snapshot: ProductSnapshot } | null {
+  void settings;
+  void id;
+  return null;
+}
+
+export function restoreProduct(settings: SettingsData, snapshot: ProductSnapshot): SettingsData {
+  void snapshot;
+  return { ...settings };
+}
+
+export type MemberUndo =
+  | { kind: "member"; productId: string; member: ProductMember; index: number }
+  | { kind: "product"; snapshot: ProductSnapshot; movedTo: string | null; member: ProductMember }
+  | { kind: "moved"; fromId: string; toId: string; member: ProductMember; index: number };
+
+export function removeProductMember(
+  settings: SettingsData,
+  productId: string,
+  key: string,
+): { next: SettingsData; undo: MemberUndo } | null {
+  void settings;
+  void productId;
+  void key;
+  return null;
+}
+
+export function moveProductMember(
+  settings: SettingsData,
+  fromId: string,
+  key: string,
+  toId: string,
+): { next: SettingsData; undo: MemberUndo } | null {
+  void settings;
+  void fromId;
+  void key;
+  void toId;
+  return null;
+}
+
+export function undoMemberChange(settings: SettingsData, undo: MemberUndo): SettingsData {
+  void undo;
+  return { ...settings };
+}
