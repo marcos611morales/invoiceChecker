@@ -9,7 +9,7 @@ import {
   checkBackupSize,
   parseBackupText,
 } from "./backup";
-import { SIN_CATEGORIA, type SettingsData } from "./types";
+import { LIMITS, SIN_CATEGORIA, type Product, type SettingsData, type UngroupedConcept } from "./types";
 
 const CAFE = "seed:insumos-cafeteria";
 const CUSTOM = "cat_0b6a8f10-4c1d-4e0a-9b52-7a3f6d2e1c44";
@@ -34,9 +34,45 @@ function sample(): SettingsData {
   };
 }
 
+const LECHE_KEY = "leche entera 1 l";
+
+/** Settings with two products (one without category) and one «No agrupar» mark. */
+function sampleWithProducts(): SettingsData {
+  return {
+    ...sample(),
+    products: [
+      {
+        id: "prod_leche",
+        name: "Leche entera",
+        categoryId: CAFE,
+        members: [
+          { rfc: "EKU9003173C9", key: LECHE_KEY, description: "Leche entera 1 L", supplierName: "Proveedor uno" },
+          { rfc: "XAXX010101000", key: "leche ent 12 pz", description: "Leche ENT 12 pz", supplierName: "Público en general" },
+        ],
+      },
+      {
+        id: "prod_vasos",
+        name: "Vasos desechables",
+        categoryId: null,
+        members: [
+          { rfc: "EKU9003173C9", key: "vaso 12 oz", description: "Vaso 12 oz", supplierName: "Proveedor uno" },
+        ],
+      },
+    ],
+    ungroupedConcepts: [
+      { rfc: "XAXX010101000", key: "renta de salon", description: "Renta de salón", supplierName: "Público en general" },
+    ],
+  };
+}
+
 /** A version-1 file text built by hand, so these tests do not depend on buildBackupText. */
 function fileText(settings: unknown, header: Record<string, unknown> = {}): string {
   return JSON.stringify({ app: BACKUP_APP, version: 1, settings, ...header });
+}
+
+/** A version-2 file text built by hand, so these tests do not depend on buildBackupText. */
+function fileText2(settings: unknown, header: Record<string, unknown> = {}): string {
+  return JSON.stringify({ app: BACKUP_APP, version: 2, settings, ...header });
 }
 
 function failure(text: string): string | null {
@@ -45,9 +81,9 @@ function failure(text: string): string | null {
 }
 
 describe("backup file contract constants", () => {
-  it("publishes the app marker and file version 1", () => {
+  it("publishes the app marker and file version 2", () => {
     expect(BACKUP_APP).toBe("invoicechecker-settings");
-    expect(BACKUP_FILE_VERSION).toBe(1);
+    expect(BACKUP_FILE_VERSION).toBe(2);
   });
 });
 
@@ -58,10 +94,36 @@ describe("buildBackupText and parseBackupText round trip", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.settings).toEqual(settings);
-    expect(result.summary).toEqual({ categories: 2, suppliers: 2, concepts: 2 });
+    expect(result.summary).toEqual({
+      categories: 2,
+      suppliers: 2,
+      concepts: 2,
+      products: 0,
+      members: 0,
+    });
   });
 
-  it("writes only app, version and settings, and only the four settings fields", () => {
+  it("gives back equal settings with products and «No agrupar» marks, and counts them in the summary", () => {
+    const settings = sampleWithProducts();
+    const result = parseBackupText(buildBackupText(settings));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings).toEqual(settings);
+    expect(result.summary).toEqual({
+      categories: 2,
+      suppliers: 2,
+      concepts: 2,
+      products: 2,
+      members: 3,
+    });
+  });
+
+  it("writes file version 2", () => {
+    const parsed: unknown = JSON.parse(buildBackupText(sample()));
+    expect(parsed).toMatchObject({ app: BACKUP_APP, version: 2 });
+  });
+
+  it("writes only app, version and settings, and only the six settings fields (T-04-24)", () => {
     const parsed: unknown = JSON.parse(buildBackupText(sample()));
     expect(typeof parsed === "object" && parsed !== null).toBe(true);
     if (typeof parsed !== "object" || parsed === null) return;
@@ -73,8 +135,31 @@ describe("buildBackupText and parseBackupText round trip", () => {
       "categories",
       "conceptRules",
       "ivaMode",
+      "products",
       "supplierCategories",
+      "ungroupedConcepts",
     ]);
+  });
+
+  it("writes only the stored fields of each product, member and mark, even if the objects carry more", () => {
+    const settings = sampleWithProducts();
+    const noisy: SettingsData = {
+      ...settings,
+      products: settings.products.map((product) => ({
+        ...product,
+        monto: 123,
+        members: product.members.map((member) => ({ ...member, uuid: "no-debe-salir" })),
+      })),
+      ungroupedConcepts: settings.ungroupedConcepts.map((mark) => ({ ...mark, folio: "A-1" })),
+    };
+    const text = buildBackupText(noisy);
+    expect(text).not.toContain("monto");
+    expect(text).not.toContain("no-debe-salir");
+    expect(text).not.toContain("folio");
+    const parsed = parseBackupText(text);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.settings).toEqual(settings);
   });
 
   it("writes only the stored fields of each entry, even if the object carries more", () => {
@@ -104,7 +189,13 @@ describe("buildBackupText and parseBackupText round trip", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.settings).toEqual(empty);
-    expect(result.summary).toEqual({ categories: 0, suppliers: 0, concepts: 0 });
+    expect(result.summary).toEqual({
+      categories: 0,
+      suppliers: 0,
+      concepts: 0,
+      products: 0,
+      members: 0,
+    });
   });
 });
 
@@ -123,9 +214,13 @@ describe("backupFileName", () => {
 });
 
 describe("checkBackupSize (T-03-16)", () => {
-  it("accepts exactly 1 MB and rejects one byte more", () => {
-    expect(checkBackupSize(1048576)).toBeNull();
-    expect(checkBackupSize(1048577)).toBe("too-large");
+  it("accepts exactly 4 MB (4,194,304 bytes) and rejects one byte more (D-31)", () => {
+    expect(checkBackupSize(4194304)).toBeNull();
+    expect(checkBackupSize(4194305)).toBe("too-large");
+  });
+
+  it("no longer refuses a file between 1 MB and 4 MB", () => {
+    expect(checkBackupSize(1048577)).toBeNull();
   });
 
   it("accepts an empty file", () => {
@@ -171,8 +266,8 @@ describe("parseBackupText: not an InvoiceChecker settings file", () => {
 
 describe("parseBackupText: newer version", () => {
   it("reports a newer version whatever the rest contains", () => {
-    expect(failure(fileText(sample(), { version: 2 }))).toBe("newer");
-    expect(failure(fileText("cualquier cosa", { version: 2 }))).toBe("newer");
+    expect(failure(fileText(sample(), { version: 3 }))).toBe("newer");
+    expect(failure(fileText("cualquier cosa", { version: 3 }))).toBe("newer");
     expect(failure(JSON.stringify({ app: BACKUP_APP, version: 99 }))).toBe("newer");
   });
 });
@@ -359,7 +454,13 @@ describe("golden settings file of version 1 (published contract, D-07)", () => {
     const result = parseBackupText(text);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.summary).toEqual({ categories: 3, suppliers: 2, concepts: 2 });
+    expect(result.summary).toEqual({
+      categories: 3,
+      suppliers: 2,
+      concepts: 2,
+      products: 0,
+      members: 0,
+    });
     expect(result.settings.ivaMode).toBe("sin");
     expect(result.settings.categories.map((category) => category.id)).toEqual([
       "seed:insumos-cafeteria",
@@ -385,23 +486,283 @@ describe("golden settings file of version 1 (published contract, D-07)", () => {
     expect(result.settings.ungroupedConcepts).toEqual([]);
   });
 
-  it("still writes file version 1 with the four Phase 3 fields when the settings hold products", () => {
-    const text = buildBackupText({
-      ...sample(),
-      products: [
-        {
-          id: "prod_1",
-          name: "Leche entera",
-          categoryId: CAFE,
-          members: [{ rfc: "EKU9003173C9", key: "leche", description: "Leche", supplierName: "Uno" }],
-        },
-      ],
-      ungroupedConcepts: [
-        { rfc: "EKU9003173C9", key: "flete", description: "Flete", supplierName: "Uno" },
-      ],
+  it("loads a version-1 file written by the previous build even when this build writes version 2", () => {
+    const result = parseBackupText(fileText(sample()));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings).toEqual(sample());
+    expect(result.summary.products).toBe(0);
+    expect(result.summary.members).toBe(0);
+  });
+});
+
+describe("golden settings file of version 2 (published contract, D-13)", () => {
+  const goldenText = () =>
+    readFileSync(resolve(process.cwd(), "tests/fixtures/settings/ajustes-archivo-2.json"), "utf8");
+
+  it("keeps loading with its products, members and marks", () => {
+    const result = parseBackupText(goldenText());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.summary).toEqual({
+      categories: 3,
+      suppliers: 2,
+      concepts: 1,
+      products: 2,
+      members: 3,
     });
-    expect(text).not.toContain("prod_1");
-    expect(text).not.toContain("flete");
-    expect(JSON.parse(text)).toEqual(JSON.parse(buildBackupText(sample())));
+    expect(result.settings.ivaMode).toBe("con");
+    expect(result.settings.products.map((product) => product.name)).toEqual([
+      "Leche entera",
+      "Vasos desechables",
+    ]);
+    expect(result.settings.products.map((product) => product.categoryId)).toEqual([
+      "seed:insumos-cafeteria",
+      null,
+    ]);
+    expect(result.settings.products[0]?.members.map((member) => member.rfc)).toEqual([
+      "EKU9003173C9",
+      "XAXX010101000",
+    ]);
+    expect(result.settings.ungroupedConcepts.map((mark) => mark.key)).toEqual(["renta de salon"]);
+  });
+
+  it("is declared as file version 2 and survives writing and reading again", () => {
+    expect(JSON.parse(goldenText())).toMatchObject({ app: BACKUP_APP, version: 2 });
+    const first = parseBackupText(goldenText());
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const second = parseBackupText(buildBackupText(first.settings));
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.settings).toEqual(first.settings);
+  });
+});
+
+describe("parseBackupText: version-2 files that break a rule are damaged", () => {
+  const withSettings = (change: (settings: SettingsData) => Partial<SettingsData>): string =>
+    fileText2({ ...sampleWithProducts(), ...change(sampleWithProducts()) });
+
+  it("accepts the unchanged version-2 sample", () => {
+    expect(failure(withSettings(() => ({})))).toBeNull();
+  });
+
+  it("rejects a version-2 file without the products or the marks field", () => {
+    const { products: _products, ...withoutProducts } = sampleWithProducts();
+    const { ungroupedConcepts: _marks, ...withoutMarks } = sampleWithProducts();
+    expect(failure(fileText2(withoutProducts))).toBe("damaged");
+    expect(failure(fileText2(withoutMarks))).toBe("damaged");
+  });
+
+  it("rejects a product that points at a missing category", () => {
+    expect(
+      failure(
+        withSettings((settings) => ({
+          products: settings.products.map((product) => ({ ...product, categoryId: "cat_no-existe" })),
+        })),
+      ),
+    ).toBe("damaged");
+  });
+
+  it("rejects a repeated product name, ignoring case and edge spaces", () => {
+    expect(
+      failure(
+        withSettings((settings) => ({
+          products: settings.products.map((product) => ({ ...product, name: "  LECHE entera " })),
+        })),
+      ),
+    ).toBe("damaged");
+  });
+
+  it("rejects «Sin categoría» as a product name", () => {
+    expect(
+      failure(
+        withSettings((settings) => ({
+          products: settings.products.map((product, index) =>
+            index === 0 ? { ...product, name: "sin CATEGORÍA" } : product,
+          ),
+        })),
+      ),
+    ).toBe("damaged");
+  });
+
+  it("rejects a repeated product id", () => {
+    expect(
+      failure(
+        withSettings((settings) => ({
+          products: settings.products.map((product) => ({ ...product, id: "prod_igual" })),
+        })),
+      ),
+    ).toBe("damaged");
+  });
+
+  it("rejects a product without members", () => {
+    expect(
+      failure(
+        withSettings((settings) => ({
+          products: settings.products.map((product, index) =>
+            index === 0 ? { ...product, members: [] } : product,
+          ),
+        })),
+      ),
+    ).toBe("damaged");
+  });
+
+  it("rejects one member that sits in two products", () => {
+    expect(
+      failure(
+        withSettings((settings) => {
+          const shared = settings.products[0]?.members[0];
+          return {
+            products: settings.products.map((product, index) =>
+              index === 1 && shared !== undefined
+                ? { ...product, members: [...product.members, shared] }
+                : product,
+            ),
+          };
+        }),
+      ),
+    ).toBe("damaged");
+  });
+
+  it("rejects a «No agrupar» mark that is also a member", () => {
+    expect(
+      failure(
+        withSettings((settings) => {
+          const member = settings.products[0]?.members[0];
+          return {
+            ungroupedConcepts: member === undefined ? [] : [{ ...member }],
+          };
+        }),
+      ),
+    ).toBe("damaged");
+  });
+
+  it("rejects a repeated «No agrupar» mark", () => {
+    expect(
+      failure(
+        withSettings((settings) => ({
+          ungroupedConcepts: [...settings.ungroupedConcepts, ...settings.ungroupedConcepts],
+        })),
+      ),
+    ).toBe("damaged");
+  });
+
+  it("rejects a product name longer than 60 characters and accepts 60", () => {
+    const named = (name: string) =>
+      withSettings((settings) => ({
+        products: settings.products.map((product, index) =>
+          index === 0 ? { ...product, name } : product,
+        ),
+      }));
+    expect(failure(named("a".repeat(61)))).toBe("damaged");
+    expect(failure(named("a".repeat(60)))).toBeNull();
+  });
+});
+
+describe("parseBackupText: version-2 limits (D-13, T-04-22)", () => {
+  function product(index: number, memberCount: number): Product {
+    return {
+      id: `prod_${String(index)}`,
+      name: `Producto ${String(index)}`,
+      categoryId: null,
+      members: Array.from({ length: memberCount }, (_, member) => ({
+        rfc: "EKU9003173C9",
+        key: `concepto ${String(index)} ${String(member)}`,
+        description: `Concepto ${String(index)} ${String(member)}`,
+        supplierName: "Proveedor",
+      })),
+    };
+  }
+
+  function marks(count: number): UngroupedConcept[] {
+    return Array.from({ length: count }, (_, index) => ({
+      rfc: "EKU9003173C9",
+      key: `marca ${String(index)}`,
+      description: `Marca ${String(index)}`,
+      supplierName: "Proveedor",
+    }));
+  }
+
+  it("accepts exactly 2,000 products and rejects 2,001", () => {
+    const build = (count: number) =>
+      fileText2({
+        ...sample(),
+        products: Array.from({ length: count }, (_, index) => product(index, 1)),
+      });
+    expect(failure(build(LIMITS.products))).toBeNull();
+    expect(failure(build(LIMITS.products + 1))).toBe("damaged");
+  });
+
+  it("accepts exactly 5,000 members and rejects 5,001", () => {
+    const build = (total: number) => fileText2({ ...sample(), products: [product(0, total)] });
+    expect(failure(build(LIMITS.productMembers))).toBeNull();
+    expect(failure(build(LIMITS.productMembers + 1))).toBe("damaged");
+  });
+
+  it("accepts exactly 5,000 marks and rejects 5,001", () => {
+    const build = (count: number) => fileText2({ ...sample(), ungroupedConcepts: marks(count) });
+    expect(failure(build(LIMITS.ungroupedConcepts))).toBeNull();
+    expect(failure(build(LIMITS.ungroupedConcepts + 1))).toBe("damaged");
+  });
+
+  it("a settings value at the product limits with sample-sized texts fits under the 4 MB gate (D-31)", () => {
+    const categories = Array.from({ length: 9 }, (_, index) => ({
+      id: `cat_${String(index).padStart(36, "0")}`,
+      name: `Categoría ${String(index)}`,
+    }));
+    const firstCategoryId = categories[0]?.id ?? "";
+    const supplierCategories = Array.from({ length: 39 }, (_, index) => ({
+      rfc: `RFC${String(index).padStart(10, "0")}`,
+      name: "N".repeat(25),
+      categoryId: firstCategoryId,
+    }));
+    const text40 = (label: string, index: number) => `${label}${String(index)}`.padEnd(40, "x");
+    const base = Math.floor(LIMITS.productMembers / LIMITS.products);
+    const extra = LIMITS.productMembers - base * LIMITS.products;
+    const products: Product[] = Array.from({ length: LIMITS.products }, (_, index) => ({
+      id: `prod_${String(index).padStart(36, "0")}`,
+      name: `P${String(index)}`.padEnd(30, "p"),
+      categoryId: firstCategoryId,
+      members: Array.from({ length: base + (index < extra ? 1 : 0) }, (_, member) => ({
+        rfc: "R".repeat(13),
+        key: text40("k", index * 10 + member),
+        description: text40("d", index * 10 + member),
+        supplierName: "S".repeat(25),
+      })),
+    }));
+    const ungroupedConcepts: UngroupedConcept[] = Array.from(
+      { length: LIMITS.ungroupedConcepts },
+      (_, index) => ({
+        rfc: "R".repeat(13),
+        key: text40("m", index),
+        description: text40("n", index),
+        supplierName: "S".repeat(25),
+      }),
+    );
+    const settings: SettingsData = {
+      ivaMode: "con",
+      categories,
+      supplierCategories,
+      conceptRules: [],
+      products,
+      ungroupedConcepts,
+    };
+    const text = buildBackupText(settings);
+    const bytes = Buffer.byteLength(text, "utf8");
+    expect(products.reduce((sum, item) => sum + item.members.length, 0)).toBe(LIMITS.productMembers);
+    expect(bytes).toBeLessThan(4194304);
+    expect(checkBackupSize(bytes)).toBeNull();
+    const result = parseBackupText(text);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.summary.products).toBe(LIMITS.products);
+    expect(result.summary.members).toBe(LIMITS.productMembers);
+  });
+});
+
+describe("LIMITS.backupBytes (D-31)", () => {
+  it("is 4,194,304 bytes", () => {
+    expect(LIMITS.backupBytes).toBe(4194304);
   });
 });
