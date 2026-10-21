@@ -525,17 +525,25 @@ describe("Mis categorías copy (UI-SPEC)", () => {
   });
 
   it("builds the usage caption with singular forms and omits a zero part", () => {
-    expect(usageCaption(1, 1)).toBe("1 proveedor · 1 concepto");
-    expect(usageCaption(2, 3)).toBe("2 proveedores · 3 conceptos");
-    expect(usageCaption(1, 2)).toBe("1 proveedor · 2 conceptos");
-    expect(usageCaption(3, 0)).toBe("3 proveedores");
-    expect(usageCaption(0, 1)).toBe("1 concepto");
-    expect(usageCaption(0, 4)).toBe("4 conceptos");
+    expect(usageCaption(1, 0, 1)).toBe("1 proveedor · 1 concepto");
+    expect(usageCaption(2, 0, 3)).toBe("2 proveedores · 3 conceptos");
+    expect(usageCaption(1, 0, 2)).toBe("1 proveedor · 2 conceptos");
+    expect(usageCaption(3, 0, 0)).toBe("3 proveedores");
+    expect(usageCaption(0, 0, 1)).toBe("1 concepto");
+    expect(usageCaption(0, 0, 4)).toBe("4 conceptos");
   });
 
-  it("reads Sin uso when both parts are zero", () => {
-    expect(usageCaption(0, 0)).toBe("Sin uso");
-    expect(usageCaption(0, 0)).toBe(es.categories.list.unused);
+  it("D-13: counts the products between the suppliers and the concepts, with the singular for one", () => {
+    expect(usageCaption(1, 2, 0)).toBe("1 proveedor · 2 productos");
+    expect(usageCaption(0, 1, 0)).toBe("1 producto");
+    expect(usageCaption(0, 5, 0)).toBe("5 productos");
+    expect(usageCaption(2, 1, 3)).toBe("2 proveedores · 1 producto · 3 conceptos");
+    expect(usageCaption(0, 3, 4)).toBe("3 productos · 4 conceptos");
+  });
+
+  it("reads Sin uso when every part is zero", () => {
+    expect(usageCaption(0, 0, 0)).toBe("Sin uso");
+    expect(usageCaption(0, 0, 0)).toBe(es.categories.list.unused);
   });
 
   it("names the row actions and the rename input with the category", () => {
@@ -560,21 +568,30 @@ describe("Delete category dialog copy (D-05)", () => {
   });
 
   it("says nothing points at an unused category", () => {
-    expect(deleteCategoryBody(0, 0)).toBe("No está asignada a ningún proveedor ni concepto.");
-    expect(deleteCategoryBody(0, 0)).toBe(es.dialogs.deleteCategory.unusedBody);
+    expect(deleteCategoryBody(0, 0, 0)).toBe("No está asignada a ningún proveedor ni concepto.");
+    expect(deleteCategoryBody(0, 0, 0)).toBe(es.dialogs.deleteCategory.unusedBody);
   });
 
-  it("lists both parts with plurals and the singular for one", () => {
-    expect(deleteCategoryBody(2, 1)).toBe("La usan 2 proveedores y 1 concepto.");
-    expect(deleteCategoryBody(1, 3)).toBe("La usan 1 proveedor y 3 conceptos.");
-    expect(deleteCategoryBody(1, 1)).toBe("La usan 1 proveedor y 1 concepto.");
+  it("lists two parts with plurals, the singular for one, joined by «y»", () => {
+    expect(deleteCategoryBody(2, 0, 1)).toBe("La usan 2 proveedores y 1 concepto.");
+    expect(deleteCategoryBody(1, 0, 3)).toBe("La usan 1 proveedor y 3 conceptos.");
+    expect(deleteCategoryBody(1, 0, 1)).toBe("La usan 1 proveedor y 1 concepto.");
   });
 
   it("omits a zero part", () => {
-    expect(deleteCategoryBody(1, 0)).toBe("La usan 1 proveedor.");
-    expect(deleteCategoryBody(4, 0)).toBe("La usan 4 proveedores.");
-    expect(deleteCategoryBody(0, 1)).toBe("La usan 1 concepto.");
-    expect(deleteCategoryBody(0, 5)).toBe("La usan 5 conceptos.");
+    expect(deleteCategoryBody(1, 0, 0)).toBe("La usan 1 proveedor.");
+    expect(deleteCategoryBody(4, 0, 0)).toBe("La usan 4 proveedores.");
+    expect(deleteCategoryBody(0, 0, 1)).toBe("La usan 1 concepto.");
+    expect(deleteCategoryBody(0, 0, 5)).toBe("La usan 5 conceptos.");
+  });
+
+  it("D-13: counts the products, «a, b y c» for three parts", () => {
+    expect(deleteCategoryBody(2, 1, 3)).toBe("La usan 2 proveedores, 1 producto y 3 conceptos.");
+    expect(deleteCategoryBody(1, 2, 1)).toBe("La usan 1 proveedor, 2 productos y 1 concepto.");
+    expect(deleteCategoryBody(0, 2, 0)).toBe("La usan 2 productos.");
+    expect(deleteCategoryBody(0, 1, 0)).toBe("La usan 1 producto.");
+    expect(deleteCategoryBody(2, 3, 0)).toBe("La usan 2 proveedores y 3 productos.");
+    expect(deleteCategoryBody(0, 3, 4)).toBe("La usan 3 productos y 4 conceptos.");
   });
 });
 
