@@ -505,6 +505,15 @@ export const es = {
       dismiss: "No enviar",
       confirm: "Enviar a DeepSeek",
     },
+    /** Run card, stop button and result Alerts (UI-SPEC Run progress, cancel and result). */
+    run: {
+      stop: "Detener lotes",
+      stopping: "Deteniendo…",
+      progressLabel: "Progreso de los lotes",
+      captionWaiting: "Esperando la respuesta de DeepSeek. Puede tardar hasta un minuto.",
+      retry: "Reintentar",
+      review: "Revisar",
+    },
     /** One message per condition of the error taxonomy; each states the problem and the next step. */
     failures: {
       unauthorized: "Tu sesión terminó. Vuelve a iniciar sesión para continuar.",

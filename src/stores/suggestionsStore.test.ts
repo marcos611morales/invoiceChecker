@@ -236,7 +236,13 @@ describe("suggestionsStore persistence (D-24, D-30, ROADMAP criterion 2)", () =>
       })
       .mockResolvedValueOnce({ ok: false, error: "upstream_unavailable" });
     await useLlmRunStore.getState().startGroupRun(run);
-    expect(useLlmRunStore.getState().status).toMatchObject({ phase: "stopped", batch: 2 });
+    // A retryable failure of batch 2 does not stop the run (D-27): it ends partial and the cards stay.
+    expect(useLlmRunStore.getState().status).toMatchObject({
+      phase: "partial",
+      failed: 1,
+      lastError: "upstream_unavailable",
+      received: 1,
+    });
     expect(storedEnvelope()).toMatchObject({
       version: 1,
       state: { products: [{ name: "Leche entera" }], categories: [] },

@@ -409,7 +409,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
     await confirm();
     await screen.findByRole("heading", { name: "Leche entera", level: 3 });
     await waitFor(() => {
-      expect(useLlmRunStore.getState().status.phase).toBe("idle");
+      expect(useLlmRunStore.getState().status.phase).toBe("finished");
     });
     expect(useSuggestionsStore.getState().products).toHaveLength(4);
     expect(screen.getByText("No hay descripciones nuevas para agrupar")).toBeInTheDocument();
@@ -495,6 +495,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
         kind: "group",
         batch: 1,
         total: 1,
+        received: 0,
         error: "upstream_auth",
       });
     });
@@ -704,8 +705,7 @@ describe("Agrupar productos: a stopped run (UI-SPEC run failures)", () => {
   });
 });
 
-const INCOMPLETE_ALERT =
-  "Se detuvo el proceso en el lote 1 de 1. DeepSeek dejó descripciones sin agrupar. Pulsa «Reintentar». Las sugerencias que ya llegaron se conservaron.";
+const INCOMPLETE_REASON = "DeepSeek dejó descripciones sin agrupar. Pulsa «Reintentar».";
 
 describe("Agrupar productos: an answer that does not cover what was sent (D-11, OQ3)", () => {
   it.each([
@@ -731,13 +731,22 @@ describe("Agrupar productos: an answer that does not cover what was sent (D-11, 
       (body: GroupRequest) =>
         completion({ g: [{ n: "Leche", i: [...body.items.map((item) => item.id), "i99"], e: null }] }),
     ],
-  ])("stops the run and adds no card when the answer %s, and the descriptions stay free", async (_label, answer) => {
+  ])("fails the batch and adds no card when the answer %s, and the descriptions stay free", async (_label, answer) => {
     upstream = answer;
     render(<ProductsTab />);
     await openDialog();
     await confirm();
+    await waitFor(() => {
+      expect(useLlmRunStore.getState().status).toMatchObject({
+        phase: "partial",
+        failed: 1,
+        lastError: "incomplete_response",
+      });
+    });
     const alert = await screen.findByRole("alert");
-    expect(within(alert).getByText(INCOMPLETE_ALERT)).toBeInTheDocument();
+    expect(within(alert).getByText("1 lote falló")).toBeInTheDocument();
+    expect(within(alert).getByText(INCOMPLETE_REASON)).toBeInTheDocument();
+    expect(within(alert).getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
     expect(useSuggestionsStore.getState().products).toEqual([]);
     expect(screen.queryByRole("heading", { level: 3 })).toBeNull();
     expect(routeResponseTexts).toHaveLength(1);
@@ -745,7 +754,6 @@ describe("Agrupar productos: an answer that does not cover what was sent (D-11, 
       error: "incomplete_response",
       retryable: true,
     });
-    fireEvent.click(within(alert).getByRole("button", { name: "Cerrar aviso" }));
     expect(screen.getByText("5 descripciones sin agrupar")).toBeInTheDocument();
   });
 
@@ -770,8 +778,14 @@ describe("Agrupar productos: an answer that does not cover what was sent (D-11, 
     render(<ProductsTab />);
     await openDialog();
     await confirm();
+    await waitFor(() => {
+      expect(useLlmRunStore.getState().status).toMatchObject({
+        phase: "partial",
+        lastError: "incomplete_response",
+      });
+    });
     const alert = await screen.findByRole("alert");
-    expect(within(alert).getByText(INCOMPLETE_ALERT)).toBeInTheDocument();
+    expect(within(alert).getByText(INCOMPLETE_REASON)).toBeInTheDocument();
     expect(useSuggestionsStore.getState().products).toEqual([]);
     expect(upstreamCalls).toHaveLength(0);
   });

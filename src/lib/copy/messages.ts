@@ -647,6 +647,48 @@ export function runLine(kind: "group" | "categorize", k: number, total: number):
   return `${verb} · Lote ${String(k)} de ${String(total)}`;
 }
 
+/** Extra line of the send dialog when the run needs more than one batch: «Se enviarán en {M} lotes.» */
+export function batchesLine(total: number): string {
+  return `Se enviarán en ${String(total)} lotes.`;
+}
+
+/** Caption of the run card before any suggestion arrived. */
+export function runCaptionWaiting(): string {
+  return es.products.run.captionWaiting;
+}
+
+/** Caption of the run card once suggestions arrived; the singular is the grammatical form of the same sentence. */
+export function runCaptionReceived(n: number): string {
+  return n === 1
+    ? "1 sugerencia nueva en la cola. Ya puedes empezar a revisarla."
+    : `${String(n)} sugerencias nuevas en la cola. Ya puedes empezar a revisarlas.`;
+}
+
+/**
+ * Info Alert after «Detener lotes». The singular and the empty case are the grammatical forms
+ * of the same sentence; with nothing received it says so instead of «0 sugerencias … en la cola».
+ */
+export function canceledText(n: number): string {
+  const rest = "las descripciones de los lotes que faltaron siguen libres.";
+  if (n === 0) return `Proceso cancelado. No llegó ninguna sugerencia nueva; ${rest}`;
+  if (n === 1) {
+    return `Proceso cancelado. Llegó 1 sugerencia nueva y está en la cola; ${rest}`;
+  }
+  return `Proceso cancelado. Llegaron ${String(n)} sugerencias nuevas y están en la cola; ${rest}`;
+}
+
+/** Partial-failure Alert: «{n} lotes fallaron» or «1 lote falló»; «Reintentar» is a button beside it. */
+export function failedBatchesText(n: number): string {
+  return n === 1 ? "1 lote falló" : `${String(n)} lotes fallaron`;
+}
+
+/** End-of-run toast, also announced: «DeepSeek terminó: {n} sugerencias de productos por revisar». */
+export function runFinishedToast(kind: "group" | "categorize", n: number): string {
+  const noun = kind === "group" ? "de productos" : "de categoría";
+  const count = n === 1 ? "1 sugerencia" : `${String(n)} sugerencias`;
+  return `DeepSeek terminó: ${count} ${noun} por revisar`;
+}
+
 /** The message already ends with its own period; the Alert adds the sentence about kept suggestions. */
 export function stoppedText(k: number, total: number, message: string): string {
   return `Se detuvo el proceso en el lote ${String(k)} de ${String(total)}. ${message} Las sugerencias que ya llegaron se conservaron.`;
