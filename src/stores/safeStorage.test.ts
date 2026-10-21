@@ -61,28 +61,28 @@ describe("createSafeStorage", () => {
     const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("quota");
     });
-    await expect(storage.setItem(KEY, { state: {}, version: 1 })).resolves.toBeUndefined();
+    expect(() => storage.setItem(KEY, { state: {}, version: 1 })).not.toThrow();
     expect(spy.setWriteFailed).toHaveBeenLastCalledWith(true);
     blocked.mockRestore();
     await storage.setItem(KEY, { state: {}, version: 1 });
     expect(spy.setWriteFailed).toHaveBeenLastCalledWith(false);
   });
 
-  it("reports a write failure for a value that cannot be serialized", async () => {
+  it("reports a write failure for a value that cannot be serialized", () => {
     const spy = reporter();
     const storage = createSafeStorage(() => spy.reporter);
     const circular: { self?: unknown } = {};
     circular.self = circular;
-    await expect(storage.setItem(KEY, { state: circular, version: 1 })).resolves.toBeUndefined();
+    expect(() => storage.setItem(KEY, { state: circular, version: 1 })).not.toThrow();
     expect(spy.setWriteFailed).toHaveBeenLastCalledWith(true);
   });
 
-  it("does not throw when removeItem throws", async () => {
+  it("does not throw when removeItem throws", () => {
     const storage = createSafeStorage(() => reporter().reporter);
     vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
       throw new Error("blocked");
     });
-    await expect(storage.removeItem(KEY)).resolves.toBeUndefined();
+    expect(() => storage.removeItem(KEY)).not.toThrow();
   });
 
   it("asks for the reporter at the moment of each call, not when the adapter is created", async () => {

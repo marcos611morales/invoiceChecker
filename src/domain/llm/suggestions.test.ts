@@ -234,7 +234,9 @@ describe("resolvePendingQueue", () => {
       [
         "a member with a field the queue never stores",
         {
-          products: [card("sug_a", "Leche", [{ ...LECHE_UNO, total: "116.00" }])],
+          products: [
+            { id: "sug_a", name: "Leche", target: null, members: [{ ...LECHE_UNO, total: "116.00" }] },
+          ],
           categories: [],
         },
       ],

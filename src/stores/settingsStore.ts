@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import { persist, type PersistStorage } from "zustand/middleware";
-import { z } from "zod";
+import { persist } from "zustand/middleware";
 import type { IvaMode } from "@/domain/accounting/aggregate";
 import {
   removeConceptRule,
@@ -45,6 +44,7 @@ import {
   type SettingsData,
   type SupplierAssignment,
 } from "@/domain/settings/types";
+import { createSafeStorage } from "./safeStorage";
 import { useStorageStatusStore } from "./storageStatusStore";
 
 /**
@@ -60,17 +60,6 @@ import { useStorageStatusStore } from "./storageStatusStore";
  * Nothing about invoices is ever stored: no amounts, UUIDs, folios, dates or receptor.
  */
 const STORAGE_KEY = "invoicechecker:settings";
-
-/**
- * Only the envelope is checked here; the state stays `unknown` and is validated
- * by `resolvePersisted` in `migrate` and `merge`. Validating the state against
- * the new schema here would turn a stored version 1 into "nothing stored" and
- * lose the IVA mode (Pitfall 4).
- */
-const envelopeSchema = z.object({
-  state: z.unknown(),
-  version: z.number().optional(),
-});
 
 interface SettingsState extends SettingsData {
   setIvaMode: (mode: IvaMode) => void;
@@ -187,49 +176,10 @@ function dataOf(state: SettingsData): SettingsData {
 }
 
 /**
- * Every storage access is inside try/catch: blocked storage, private mode,
- * quota and the server (no window) all become "nothing stored" or a no-op.
- * The adapter never calls `set` on the settings store (Pitfall 6): persist calls
- * `setItem` after every `set`, so setting state from here would loop. It only reports
- * failures to the separate, non-persisted `useStorageStatusStore` (Q8): a stored value
- * that exists but is not usable (`getItem`) and a write that fails (`setItem`). A
- * `getItem` that itself throws is not a read failure: nothing is known to be stored.
+ * The shared never-throwing adapter (Pitfall 6), reporting to the settings' own status store
+ * (Q8): the pending queue has its own adapter and its own status.
  */
-const safeStorage: PersistStorage<unknown> = {
-  getItem: (name) => {
-    let raw: string | null;
-    try {
-      raw = window.localStorage.getItem(name);
-    } catch {
-      return null;
-    }
-    if (raw === null) return null;
-    try {
-      const parsed = envelopeSchema.safeParse(JSON.parse(raw));
-      if (parsed.success) return parsed.data;
-    } catch {
-      // Not JSON: reported below like a wrong envelope.
-    }
-    useStorageStatusStore.getState().markReadFailed();
-    return null;
-  },
-  setItem: (name, value) => {
-    try {
-      window.localStorage.setItem(name, JSON.stringify(value));
-      useStorageStatusStore.getState().setWriteFailed(false);
-    } catch {
-      // Quota or blocked storage: the settings still work for this session.
-      useStorageStatusStore.getState().setWriteFailed(true);
-    }
-  },
-  removeItem: (name) => {
-    try {
-      window.localStorage.removeItem(name);
-    } catch {
-      // Blocked storage: nothing to remove.
-    }
-  },
-};
+const safeStorage = createSafeStorage(() => useStorageStatusStore.getState());
 
 /**
  * Resolves a stored value into valid settings and reports an unusable one (Q8). Both

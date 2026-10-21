@@ -70,6 +70,18 @@ async function rehydrate(): Promise<void> {
   await useSuggestionsStore.persist.rehydrate();
 }
 
+/**
+ * A page reload: the stored value is kept, the memory is emptied and the store reads storage
+ * again. (`setState` writes too, so the stored value is put back before rehydrating.)
+ */
+async function reload(): Promise<void> {
+  const raw = window.localStorage.getItem(KEY);
+  useSuggestionsStore.setState({ products: [], categories: [] });
+  if (raw === null) window.localStorage.removeItem(KEY);
+  else window.localStorage.setItem(KEY, raw);
+  await rehydrate();
+}
+
 function snapshot(): PendingQueue {
   const { products, categories } = useSuggestionsStore.getState();
   return { products, categories };
@@ -165,9 +177,8 @@ describe("suggestionsStore persistence (D-24, D-30, ROADMAP criterion 2)", () =>
       state: { products: [queue().products[1]], categories: [] },
       version: 1,
     });
-    useSuggestionsStore.setState({ products: [] });
-    await rehydrate();
-    expect(snapshot().products).toEqual([]);
+    await reload();
+    expect(snapshot().products.map((entry) => entry.id)).toEqual(["sug_b"]);
   });
 
   it("writes nothing when removeProduct finds no such card", () => {
@@ -179,8 +190,7 @@ describe("suggestionsStore persistence (D-24, D-30, ROADMAP criterion 2)", () =>
 
   it("keeps the idempotence per member after a reload (D-25)", async () => {
     useSuggestionsStore.getState().enqueueProducts(queue().products);
-    useSuggestionsStore.setState({ products: [] });
-    await rehydrate();
+    await reload();
     useSuggestionsStore.getState().enqueueProducts([card("sug_late", "Otra vez", [LECHE_UNO])]);
     expect(snapshot().products.map((entry) => entry.id)).toEqual(["sug_a", "sug_b"]);
   });
@@ -227,16 +237,12 @@ describe("suggestionsStore persistence (D-24, D-30, ROADMAP criterion 2)", () =>
       .mockResolvedValueOnce({ ok: false, error: "upstream_unavailable" });
     await useLlmRunStore.getState().startGroupRun(run);
     expect(useLlmRunStore.getState().status).toMatchObject({ phase: "stopped", batch: 2 });
-    const stored = window.localStorage.getItem(KEY);
     expect(storedEnvelope()).toMatchObject({
       version: 1,
       state: { products: [{ name: "Leche entera" }], categories: [] },
     });
-    // A reload brings back what had landed: memory is emptied, then the stored value is read.
-    useSuggestionsStore.setState({ products: [] });
-    if (stored === null) throw new Error("nothing was stored");
-    window.localStorage.setItem(KEY, stored);
-    await rehydrate();
+    // A reload brings back what had landed.
+    await reload();
     expect(snapshot().products.map((entry) => entry.name)).toEqual(["Leche entera"]);
   });
 });
