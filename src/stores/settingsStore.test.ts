@@ -1231,3 +1231,59 @@ describe("settingsStore «No agrupar» actions (D-13, D-22)", () => {
     expect(setItem).not.toHaveBeenCalled();
   });
 });
+
+describe("settingsStore acceptMany (D-20, D-35)", () => {
+  const member = (rfc: string, key: string): ProductMember => ({
+    rfc,
+    key,
+    description: key.toUpperCase(),
+    supplierName: `Tienda ${rfc}`,
+  });
+  const cardOf = (id: string, name: string, members: ProductMember[], target: string | null = null) => ({
+    id,
+    name,
+    target,
+    members,
+  });
+
+  it("stores the accepted products in one write with fresh «prod_» ids and reports the refusals", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const result = useSettingsStore.getState().acceptMany([
+      cardOf("c1", "Leche", [member("AAA010101AAA", "leche")]),
+      cardOf("c2", "leche", [member("AAA010101AAA", "otra")]),
+      cardOf("c3", "Café", [member("BBB020202BBB", "cafe"), member("AAA010101AAA", "cafe molido")]),
+    ]);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(result.acceptedIds).toEqual(["c1", "c3"]);
+    expect(result.refused).toEqual([{ id: "c2", reason: "duplicate" }]);
+    const stored = snapshot().products;
+    expect(stored.map((product) => product.name)).toEqual(["Leche", "Café"]);
+    expect(stored.every((product) => /^prod_.+/.test(product.id))).toBe(true);
+    expect(new Set(stored.map((product) => product.id)).size).toBe(2);
+    expect(stored.every((product) => product.categoryId === null)).toBe(true);
+    expect(snapshot().categories).toEqual(defaultSettings().categories);
+  });
+
+  it("adds an «Agregar a» card to the product it targets and keeps its category", () => {
+    useSettingsStore.setState({
+      products: [{ id: "prod_a", name: "Aceite", categoryId: SEED_CATEGORIES[0]?.id ?? null, members: [member("AAA010101AAA", "aceite")] }],
+    });
+    const result = useSettingsStore.getState().acceptMany([
+      cardOf("add", "Aceite", [member("BBB020202BBB", "aceite vegetal")], "prod_a"),
+    ]);
+    expect(result.addedTo).toBe(1);
+    expect(snapshot().products[0]?.members.map((entry) => entry.key)).toEqual(["aceite", "aceite vegetal"]);
+    expect(snapshot().products[0]?.categoryId).toBe(SEED_CATEGORIES[0]?.id ?? null);
+  });
+
+  it("writes nothing when no card is accepted", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const result = useSettingsStore
+      .getState()
+      .acceptMany([cardOf("e", "  ", [member("AAA010101AAA", "x")]), cardOf("g", "A", [member("AAA010101AAA", "y")], "prod_gone")]);
+    expect(result.acceptedIds).toEqual([]);
+    expect(result.refused.map((entry) => entry.reason)).toEqual(["empty", "gone"]);
+    expect(setItem).not.toHaveBeenCalled();
+    expect(snapshot().products).toEqual([]);
+  });
+});

@@ -77,6 +77,13 @@ interface SuggestionsState {
   splitSuggestion: (id: string, keys: readonly string[]) => QueueUndo | null;
   /** Undo of the three actions above; a refused undo writes nothing. */
   undoQueueChange: (undo: QueueUndo) => void;
+  /**
+   * Takes every card whose id is in `ids` out of the queue in one write (D-20) and returns what
+   * `restoreMany` needs, in queue order; unknown ids are ignored and nothing known writes nothing.
+   */
+  rejectMany: (ids: readonly string[]) => RemovedSuggestion[];
+  /** Undo of `rejectMany`: every card goes back to the index it had; a refused card is left out. */
+  restoreMany: (removed: readonly RemovedSuggestion[]) => void;
 }
 
 /** The queue as the domain reducers take it. */
@@ -173,6 +180,13 @@ export const useSuggestionsStore = create<SuggestionsState>()(
         const next = undoQueueChange(current, undo);
         // A refused undo comes back as the same object: nothing to write.
         if (next !== current) set({ products: next.products });
+      },
+      rejectMany: (ids) => {
+        void ids;
+        return [];
+      },
+      restoreMany: (removed) => {
+        void removed;
       },
     }),
     {

@@ -19,6 +19,8 @@ import {
   type DeleteSnapshot,
   type NameError,
 } from "@/domain/settings/categories";
+import { acceptMany, type BulkAcceptResult } from "@/domain/llm/queueView";
+import type { ProductSuggestion } from "@/domain/llm/suggestions";
 import { resolvePersisted } from "@/domain/settings/migrate";
 import {
   acceptProduct,
@@ -125,6 +127,12 @@ interface SettingsState extends SettingsData {
     name: string;
     members: readonly ProductMember[];
   }) => { ok: true; product: Product } | { ok: false; reason: AcceptProductError };
+  /**
+   * Accepts many cards in the order given (D-20, D-35), each one by the rules of a single card, in
+   * one `set` of `products`: the products that were accepted are stored, the refused cards are
+   * reported and change nothing. Nothing accepted writes nothing.
+   */
+  acceptMany: (cards: readonly ProductSuggestion[]) => BulkAcceptResult;
   /**
    * Adds new members to an accepted product, keeping its other members and its category
    * (D-21, the «Agregar a» card). Only an ok result is applied, in one `set` of `products`; a
@@ -299,6 +307,13 @@ export const useSettingsStore = create<SettingsState>()(
         if (!result.ok) return result;
         set({ products: result.next.products });
         return { ok: true, product: result.product };
+      },
+      acceptMany: (cards) => {
+        const current = dataOf(get());
+        const result = acceptMany(current, cards, () => `prod_${crypto.randomUUID()}`);
+        // Nothing accepted comes back as the same object: nothing to write.
+        if (result.next !== current) set({ products: result.next.products });
+        return result;
       },
       addMembersToProduct: (productId, members) => {
         const result = addMembersToProduct(dataOf(get()), productId, members);
