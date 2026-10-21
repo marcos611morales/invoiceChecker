@@ -12,6 +12,7 @@ import {
   SIN_CATEGORIA,
   type Category,
   type ConceptRule,
+  type Product,
   type SettingsData,
   type SupplierAssignment,
 } from "./types";
@@ -111,15 +112,20 @@ export function renameCategory(
   };
 }
 
-/** How many supplier assignments and concept rules point at the category (loaded or not). */
-export function categoryUsage(
-  settings: SettingsData,
-  id: string,
-): { suppliers: number; concepts: number } {
+/** What points at a category: supplier assignments, concept rules and products (D-13). */
+export interface CategoryUsage {
+  suppliers: number;
+  concepts: number;
+  products: number;
+}
+
+/** How many supplier assignments, concept rules and products point at the category (loaded or not). */
+export function categoryUsage(settings: SettingsData, id: string): CategoryUsage {
   return {
     suppliers: settings.supplierCategories.filter((assignment) => assignment.categoryId === id)
       .length,
     concepts: settings.conceptRules.filter((rule) => rule.categoryId === id).length,
+    products: settings.products.filter((product) => product.categoryId === id).length,
   };
 }
 
@@ -127,12 +133,10 @@ export function categoryUsage(
  * `categoryUsage` of every category in one pass (the list shows all rows at once).
  * Only ids that something points at have an entry; read a missing id as zero.
  */
-export function usageByCategory(
-  settings: SettingsData,
-): Map<string, { suppliers: number; concepts: number }> {
-  const usage = new Map<string, { suppliers: number; concepts: number }>();
-  const entry = (id: string): { suppliers: number; concepts: number } => {
-    const found = usage.get(id) ?? { suppliers: 0, concepts: 0 };
+export function usageByCategory(settings: SettingsData): Map<string, CategoryUsage> {
+  const usage = new Map<string, CategoryUsage>();
+  const entry = (id: string): CategoryUsage => {
+    const found = usage.get(id) ?? { suppliers: 0, concepts: 0, products: 0 };
     usage.set(id, found);
     return found;
   };
@@ -140,7 +144,20 @@ export function usageByCategory(
   for (const rule of settings.conceptRules) {
     if (rule.categoryId !== null) entry(rule.categoryId).concepts += 1;
   }
+  for (const product of settings.products) {
+    if (product.categoryId !== null) entry(product.categoryId).products += 1;
+  }
   return usage;
+}
+
+/** A copy that shares nothing with the original, so a snapshot never aliases the settings. */
+function copyProduct(product: Product): Product {
+  return {
+    id: product.id,
+    name: product.name,
+    categoryId: product.categoryId,
+    members: product.members.map((member) => ({ ...member })),
+  };
 }
 
 /** What a delete took away, enough to put it back exactly (D-05, undo). */
@@ -152,13 +169,17 @@ export interface DeleteSnapshot {
   suppliers: SupplierAssignment[];
   /** Copies of the concept rules the category had, as they were. */
   rules: ConceptRule[];
+  /** Copies of the products that had the category, as they were (D-13). */
+  products: Product[];
 }
 
 /**
- * Deletes a category and moves what pointed at it (D-05, Q4).
- * - `target` null is «Sin categoría»: its supplier assignments are removed and each of
- *   its concept rules becomes an explicit null rule.
- * - `target` an id moves both to that category.
+ * Deletes a category and moves what pointed at it (D-05, Q4, D-13).
+ * - `target` null is «Sin categoría»: its supplier assignments are removed, each of its
+ *   concept rules becomes an explicit null rule, and its products lose their category.
+ * - `target` an id moves the three to that category.
+ * No stored product ever points at a deleted category: that would fail the stored-settings
+ * validation on the next load and reset everything.
  * Returns null when the category does not exist, or the target is the category itself
  * or is not a category.
  */
@@ -175,6 +196,7 @@ export function deleteCategory(
   }
   const suppliers = settings.supplierCategories.filter((assignment) => assignment.categoryId === id);
   const rules = settings.conceptRules.filter((rule) => rule.categoryId === id);
+  const products = settings.products.filter((product) => product.categoryId === id);
   const next: SettingsData = {
     ...settings,
     categories: settings.categories.filter((candidate) => candidate.id !== id),
@@ -187,6 +209,9 @@ export function deleteCategory(
     conceptRules: settings.conceptRules.map((rule) =>
       rule.categoryId === id ? { ...rule, categoryId: target } : rule,
     ),
+    products: settings.products.map((product) =>
+      product.categoryId === id ? { ...product, categoryId: target } : product,
+    ),
   };
   return {
     next,
@@ -195,6 +220,7 @@ export function deleteCategory(
       index,
       suppliers: suppliers.map((assignment) => ({ ...assignment })),
       rules: rules.map((rule) => ({ ...rule })),
+      products: products.map(copyProduct),
     },
   };
 }
@@ -202,7 +228,8 @@ export function deleteCategory(
 /**
  * Puts a deleted category back at min(index, length) with its id, and sets each
  * snapshot assignment (by rfc) and rule (by rfc and key) back, replacing the current
- * one or re-adding it. Everything else stays. When the result would not pass the stored
+ * one or re-adding it, and gives each snapshot product that still exists (by id) its category
+ * back; a product deleted in the meantime stays deleted. Everything else stays. When the result would not pass the stored
  * validation (the id or the name is taken again, or a list would pass its limit) the
  * settings come back unchanged, the very same object.
  */
@@ -242,11 +269,19 @@ export function restoreCategory(settings: SettingsData, snapshot: DeleteSnapshot
   });
   for (const back of restoredRules.values()) conceptRules.push({ ...back });
 
+  // Products deleted in the meantime stay deleted; the others get their category back by id.
+  const restoredProducts = new Map(snapshot.products.map((product) => [product.id, product.categoryId]));
+  const products = settings.products.map((product) =>
+    restoredProducts.has(product.id)
+      ? { ...product, categoryId: restoredProducts.get(product.id) ?? null }
+      : product,
+  );
+
   if (
     supplierCategories.length > LIMITS.supplierCategories ||
     conceptRules.length > LIMITS.conceptRules
   ) {
     return settings;
   }
-  return { ...settings, categories, supplierCategories, conceptRules };
+  return { ...settings, categories, supplierCategories, conceptRules, products };
 }

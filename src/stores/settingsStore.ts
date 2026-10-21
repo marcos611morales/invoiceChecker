@@ -98,12 +98,12 @@ interface SettingsState extends SettingsData {
   /** Renames keeping the id (D-04); a refused name changes and writes nothing. */
   renameCategory: (id: string, name: string) => { ok: true } | { ok: false; reason: NameError };
   /**
-   * Deletes a category and moves its supplier assignments and concept rules to `target`
-   * (an id) or to «Sin categoría» (null), in one `set` (CAT-05, D-05). Returns the snapshot
-   * that `restoreCategory` needs, or null when nothing was deleted.
+   * Deletes a category and moves its supplier assignments, concept rules and products to
+   * `target` (an id) or to «Sin categoría» (null), in one `set` (CAT-05, D-05, D-13). Returns
+   * the snapshot that `restoreCategory` needs, or null when nothing was deleted.
    */
   deleteCategory: (id: string, target: string | null) => DeleteSnapshot | null;
-  /** Undo of `deleteCategory`: puts back the category, its assignments and its rules. */
+  /** Undo of `deleteCategory`: puts back the category, its assignments, its rules and its products' category. */
   restoreCategory: (snapshot: DeleteSnapshot) => void;
   /**
    * Stores the category of one concept description of one supplier (CAT-03, D-09):
@@ -284,6 +284,7 @@ export const useSettingsStore = create<SettingsState>()(
           categories: result.next.categories,
           supplierCategories: result.next.supplierCategories,
           conceptRules: result.next.conceptRules,
+          products: result.next.products,
         });
         return result.snapshot;
       },
@@ -296,6 +297,7 @@ export const useSettingsStore = create<SettingsState>()(
           categories: next.categories,
           supplierCategories: next.supplierCategories,
           conceptRules: next.conceptRules,
+          products: next.products,
         });
       },
       setConceptRule: (rfc, description, categoryId) => {
