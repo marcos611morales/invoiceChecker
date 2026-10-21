@@ -238,6 +238,19 @@ describe("session generation (Pitfall 6, T-04-28)", () => {
   });
 });
 
+describe("the result of an ended run", () => {
+  it("is dismissed when the invoices are cleared, so an old Alert never outlives them", async () => {
+    const batch = controlled();
+    const done = useLlmRunStore.getState().startRun("group", [batch.batch]);
+    await started(batch);
+    batch.fail("upstream_timeout");
+    await done;
+    expect(useLlmRunStore.getState().status.phase).toBe("partial");
+    useSessionStore.getState().clearAll();
+    expect(useLlmRunStore.getState().status).toEqual({ phase: "idle" });
+  });
+});
+
 describe("failure policy (D-27, T-04-29)", () => {
   it("lets the run go on after a retryable failure and ends partial with the count and the last reason", async () => {
     const [one, two, three] = [controlled(), controlled(), controlled()];

@@ -21,7 +21,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { GroupRun } from "@/domain/llm/candidates";
 import { es } from "@/lib/copy/es";
-import { groupSendSummary, itemsGroupHeading } from "@/lib/copy/messages";
+import { batchesLine, groupSendSummary, itemsGroupHeading } from "@/lib/copy/messages";
+import { RUN_STOP_SELECTOR } from "./focusTargets";
 
 /**
  * Privacy dialog shown before every send (D-08, LLM-06). The rows are rendered from
@@ -42,11 +43,20 @@ export function SendDialog({
   onConfirm: () => void;
 }) {
   const dismissRef = useRef<HTMLButtonElement>(null);
+  // Set by the confirm button: once the run is started, closing the dialog hands focus to the
+  // run card's stop button instead of the entry button (UI-SPEC send flow, step 3).
+  const confirmed = useRef(false);
   const sent = run.batches.reduce((sum, batch) => sum + batch.body.items.length, 0);
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent
         initialFocus={dismissRef}
+        finalFocus={() => {
+          if (!confirmed.current) return true;
+          confirmed.current = false;
+          // The default (the entry button) when the card is not there.
+          return document.querySelector<HTMLElement>(RUN_STOP_SELECTOR) ?? true;
+        }}
         className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100vh-2rem)] data-[size=default]:sm:max-w-[560px]"
       >
         <AlertDialogHeader>
@@ -54,6 +64,9 @@ export function SendDialog({
             {es.products.dialog.title}
           </AlertDialogTitle>
           <AlertDialogDescription>{groupSendSummary(sent, run.suppliers)}</AlertDialogDescription>
+          {run.batches.length > 1 ? (
+            <p className="text-sm text-muted-foreground">{batchesLine(run.batches.length)}</p>
+          ) : null}
           <p className="text-sm text-muted-foreground">{es.products.dialog.peopleLine}</p>
         </AlertDialogHeader>
         <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
@@ -94,7 +107,13 @@ export function SendDialog({
           <AlertDialogCancel ref={dismissRef} className="max-sm:h-11">
             {es.products.dialog.dismiss}
           </AlertDialogCancel>
-          <AlertDialogAction className="max-sm:h-11" onClick={onConfirm}>
+          <AlertDialogAction
+            className="max-sm:h-11"
+            onClick={() => {
+              confirmed.current = true;
+              onConfirm();
+            }}
+          >
             {es.products.dialog.confirm}
           </AlertDialogAction>
         </AlertDialogFooter>

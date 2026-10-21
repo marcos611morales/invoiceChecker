@@ -705,6 +705,8 @@ describe("Agrupar productos: a stopped run (UI-SPEC run failures)", () => {
   });
 });
 
+const INCOMPLETE_REASON = "DeepSeek dejó descripciones sin agrupar. Pulsa «Reintentar».";
+
 describe("Agrupar productos: an answer that does not cover what was sent (D-11, OQ3)", () => {
   it.each([
     [
@@ -741,6 +743,10 @@ describe("Agrupar productos: an answer that does not cover what was sent (D-11, 
         lastError: "incomplete_response",
       });
     });
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText("1 lote falló")).toBeInTheDocument();
+    expect(within(alert).getByText(INCOMPLETE_REASON)).toBeInTheDocument();
+    expect(within(alert).getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
     expect(useSuggestionsStore.getState().products).toEqual([]);
     expect(screen.queryByRole("heading", { level: 3 })).toBeNull();
     expect(routeResponseTexts).toHaveLength(1);
@@ -778,6 +784,8 @@ describe("Agrupar productos: an answer that does not cover what was sent (D-11, 
         lastError: "incomplete_response",
       });
     });
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText(INCOMPLETE_REASON)).toBeInTheDocument();
     expect(useSuggestionsStore.getState().products).toEqual([]);
     expect(upstreamCalls).toHaveLength(0);
   });

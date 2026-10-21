@@ -94,6 +94,12 @@ import {
   renameProductAria,
   renameProductInputAria,
   suppliersCell,
+  batchesLine,
+  canceledText,
+  failedBatchesText,
+  runCaptionReceived,
+  runCaptionWaiting,
+  runFinishedToast,
 } from "./messages";
 
 describe("rejectReasonText", () => {
@@ -860,5 +866,62 @@ describe("«Mis productos» copy (Plan 04-07, UI-SPEC 296-318)", () => {
 
   it("says nothing matches the typed text", () => {
     expect(noProductMatches("queso")).toBe("Ningún producto coincide con «queso».");
+  });
+});
+
+describe("Run card, cancel and result copy (Plan 04-12, UI-SPEC Run progress, cancel and result)", () => {
+  it("announces the batches in the send dialog", () => {
+    expect(batchesLine(2)).toBe("Se enviarán en 2 lotes.");
+  });
+
+  it("captions the run card while waiting and after suggestions arrived", () => {
+    expect(runCaptionWaiting()).toBe(
+      "Esperando la respuesta de DeepSeek. Puede tardar hasta un minuto.",
+    );
+    expect(runCaptionReceived(61)).toBe(
+      "61 sugerencias nuevas en la cola. Ya puedes empezar a revisarlas.",
+    );
+    expect(runCaptionReceived(1)).toBe(
+      "1 sugerencia nueva en la cola. Ya puedes empezar a revisarla.",
+    );
+  });
+
+  it("states what a canceled process kept, with the singular and the empty case", () => {
+    const rest = "las descripciones de los lotes que faltaron siguen libres.";
+    expect(canceledText(61)).toBe(
+      `Proceso cancelado. Llegaron 61 sugerencias nuevas y están en la cola; ${rest}`,
+    );
+    expect(canceledText(1)).toBe(
+      `Proceso cancelado. Llegó 1 sugerencia nueva y está en la cola; ${rest}`,
+    );
+    expect(canceledText(0)).toBe(`Proceso cancelado. No llegó ninguna sugerencia nueva; ${rest}`);
+  });
+
+  it("counts the failed batches: «1 lote falló», «{n} lotes fallaron»", () => {
+    expect(failedBatchesText(1)).toBe("1 lote falló");
+    expect(failedBatchesText(3)).toBe("3 lotes fallaron");
+  });
+
+  it("toasts the end of a run per kind, singular for one", () => {
+    expect(runFinishedToast("group", 12)).toBe(
+      "DeepSeek terminó: 12 sugerencias de productos por revisar",
+    );
+    expect(runFinishedToast("group", 1)).toBe(
+      "DeepSeek terminó: 1 sugerencia de productos por revisar",
+    );
+    expect(runFinishedToast("categorize", 5)).toBe(
+      "DeepSeek terminó: 5 sugerencias de categoría por revisar",
+    );
+    expect(runFinishedToast("categorize", 1)).toBe(
+      "DeepSeek terminó: 1 sugerencia de categoría por revisar",
+    );
+  });
+
+  it("keeps the stop button labels from the copy table", () => {
+    expect(es.products.run.stop).toBe("Detener lotes");
+    expect(es.products.run.stopping).toBe("Deteniendo…");
+    expect(es.products.run.progressLabel).toBe("Progreso de los lotes");
+    expect(es.products.run.retry).toBe("Reintentar");
+    expect(es.products.run.review).toBe("Revisar");
   });
 });

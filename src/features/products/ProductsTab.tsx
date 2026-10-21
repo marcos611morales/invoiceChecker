@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { CircleAlert, Info, Layers, X } from "lucide-react";
-import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Info, Layers } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Spinner } from "@/components/ui/spinner";
 import {
   buildGroupRun,
   collectItems,
@@ -17,19 +16,16 @@ import { ruleMapKey } from "@/domain/settings/normalize";
 import { productMemberKeys } from "@/domain/settings/products";
 import { useLedger } from "@/features/dashboard/useLedger";
 import { es } from "@/lib/copy/es";
-import {
-  failureText,
-  freeDescriptionsCaption,
-  productQueueHeading,
-  runLine,
-  stoppedText,
-} from "@/lib/copy/messages";
+import { freeDescriptionsCaption, productQueueHeading } from "@/lib/copy/messages";
 import { useLlmRunStore } from "@/stores/llmRunStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useStorageStatusStore, useSuggestionsStatusStore } from "@/stores/storageStatusStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
+import { PRODUCTS_QUEUE_HEADING_ID, PRODUCTS_TITLE_ID } from "./focusTargets";
 import { ProductList } from "./ProductList";
 import { ReviewQueue } from "./ReviewQueue";
+import { RunProgress } from "./RunProgress";
+import { RunResult } from "./RunResult";
 import { SendDialog } from "./SendDialog";
 
 /**
@@ -48,7 +44,6 @@ export function ProductsTab() {
   const queue = useSuggestionsStore((s) => s.products);
   const status = useLlmRunStore((s) => s.status);
   const startGroupRun = useLlmRunStore((s) => s.startGroupRun);
-  const dismissResult = useLlmRunStore((s) => s.dismissResult);
   const products = useSettingsStore((s) => s.products);
   const marks = useSettingsStore((s) => s.ungroupedConcepts);
   // The two storage conditions that make this tab's data volatile (Q8): the settings and the
@@ -72,9 +67,17 @@ export function ProductsTab() {
     (queueEmpty ? titleHeading.current : queueHeading.current)?.focus();
   }, []);
 
-  const running = status.phase === "running";
+  // One run slot: the entry button is inert while a run is in flight or being stopped.
+  const running = status.phase === "running" || status.phase === "cancelling";
   // aria-disabled, never `disabled`: the press is ignored when nothing is free or a run is active.
   const blocked = free.length === 0 || running;
+  // The entry button and «Reintentar» do the same thing: build the run from what is still free
+  // and open the send dialog first, so nothing is sent without the user's confirmation.
+  const openGroupDialog = () => {
+    if (blocked) return;
+    setRun(buildGroupRun(free, []));
+    setOpen(true);
+  };
   const caption = running
     ? es.products.runActive
     : free.length === 0
@@ -85,7 +88,12 @@ export function ProductsTab() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 ref={titleHeading} tabIndex={-1} className="text-xl leading-[1.2] font-semibold">
+          <h2
+            ref={titleHeading}
+            id={PRODUCTS_TITLE_ID}
+            tabIndex={-1}
+            className="text-xl leading-[1.2] font-semibold"
+          >
             {es.products.heading}
           </h2>
           <p className="text-xs text-muted-foreground">{es.products.intro1}</p>
@@ -99,11 +107,7 @@ export function ProductsTab() {
             aria-disabled={blocked}
             aria-describedby={captionId}
             className="max-sm:h-11 max-sm:w-full aria-disabled:opacity-50"
-            onClick={() => {
-              if (blocked) return;
-              setRun(buildGroupRun(free, []));
-              setOpen(true);
-            }}
+            onClick={openGroupDialog}
           >
             <Layers aria-hidden="true" />
             {es.products.groupButton}
@@ -130,41 +134,8 @@ export function ProductsTab() {
           </AlertDescription>
         </Alert>
       ) : null}
-      <div aria-live="polite" aria-atomic="true" className="empty:hidden">
-        {status.phase === "running" ? (
-          <p className="flex items-center gap-2 text-sm tabular-nums">
-            <Spinner aria-hidden="true" role="presentation" />
-            {runLine(status.kind, status.batch, status.total)}
-          </p>
-        ) : null}
-      </div>
-      {status.phase === "stopped" ? (
-        <Alert>
-          <CircleAlert aria-hidden="true" className="text-destructive!" />
-          <AlertDescription className="text-foreground break-words">
-            {stoppedText(status.batch, status.total, failureText(status.error))}
-          </AlertDescription>
-          {status.error === "unauthorized" ? (
-            <div className="col-start-2 mt-2">
-              <a href="/login" className={buttonVariants({ variant: "outline" })}>
-                {es.products.signIn}
-              </a>
-            </div>
-          ) : null}
-          <AlertAction>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={es.products.closeAlert}
-              onClick={dismissResult}
-              className="max-sm:size-11"
-            >
-              <X aria-hidden="true" />
-            </Button>
-          </AlertAction>
-        </Alert>
-      ) : null}
+      <RunResult onRetry={openGroupDialog} />
+      <RunProgress />
       {products.length === 0 && queue.length === 0 && marks.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>
@@ -178,6 +149,7 @@ export function ProductsTab() {
           <div className="flex flex-col gap-1">
             <h2
               ref={queueHeading}
+              id={PRODUCTS_QUEUE_HEADING_ID}
               tabIndex={-1}
               className="text-xl leading-[1.2] font-semibold"
             >

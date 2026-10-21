@@ -12,6 +12,7 @@ import { DashboardTab } from "@/features/dashboard/DashboardTab";
 import { useLedger } from "@/features/dashboard/useLedger";
 import { ExportButton } from "@/features/export/ExportButton";
 import { ProductsTab } from "@/features/products/ProductsTab";
+import { RunWatcher } from "@/features/products/RunWatcher";
 import { QualityTab } from "@/features/quality/QualityTab";
 import { ImportReport } from "@/features/report/ImportReport";
 import { EmptyDropzone } from "@/features/upload/EmptyDropzone";
@@ -107,6 +108,8 @@ function LoadedTabs() {
       }}
       className="gap-8"
     >
+      {/* Renders nothing; always mounted with the loaded tabs so the end-of-run toast fires from any tab. */}
+      <RunWatcher />
       <TabsList
         ref={listRef}
         variant="line"

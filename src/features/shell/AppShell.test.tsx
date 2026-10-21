@@ -13,6 +13,7 @@ import {
 import type { ParsedInvoice } from "@/domain/cfdi/types";
 import type { CategorySuggestion, ProductSuggestion } from "@/domain/llm/suggestions";
 import { defaultSettings } from "@/domain/settings/types";
+import { useLlmRunStore } from "@/stores/llmRunStore";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
@@ -22,7 +23,7 @@ import { resetSettingsStore } from "../../../tests/support/settingsStorage";
 import { resetSuggestionsStore, storeQueue } from "../../../tests/support/suggestionsStorage";
 import { AppShell } from "./AppShell";
 
-const toastMock = vi.hoisted(() => vi.fn<(message: string) => void>());
+const toastMock = vi.hoisted(() => vi.fn<(message: string, options?: unknown) => void>());
 vi.mock("sonner", () => ({ toast: toastMock }));
 
 const READ_FAILED_TOAST =
@@ -481,5 +482,58 @@ describe("AppShell export button (D-19, UI-SPEC Shell and top bar)", () => {
       exportButton.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(exportButton.closest("header")).not.toBeNull();
+  });
+});
+
+describe("AppShell end-of-run toast (RunWatcher, UI-SPEC finished toast)", () => {
+  afterEach(() => {
+    act(() => {
+      useLlmRunStore.setState({ status: { phase: "idle" }, controller: null });
+    });
+  });
+
+  function finishRun(): void {
+    act(() => {
+      useLlmRunStore.setState({
+        status: { phase: "finished", kind: "group", total: 1, received: 2 },
+      });
+    });
+  }
+
+  it("toasts from a tab other than Productos with «Revisar», which opens Productos", () => {
+    seed([inv("OK-1")]);
+    render(<AppShell />);
+    expect(useSessionStore.getState().activeTab).toBe("dashboard");
+    finishRun();
+    const call = toastMock.mock.calls.find(
+      ([message]) => message === "DeepSeek terminó: 2 sugerencias de productos por revisar",
+    );
+    expect(call).toBeDefined();
+    const options = call?.[1];
+    expect(options).toMatchObject({ action: { label: "Revisar" } });
+    if (typeof options !== "object" || options === null || !("action" in options)) return;
+    const action = options.action;
+    if (typeof action !== "object" || action === null || !("onClick" in action)) return;
+    const onClick: unknown = action.onClick;
+    act(() => {
+      if (typeof onClick === "function") onClick();
+    });
+    expect(useSessionStore.getState().activeTab).toBe("productos");
+  });
+
+  it("toasts without «Revisar» when Productos is the active tab", () => {
+    seed([inv("OK-1")]);
+    render(<AppShell />);
+    fireEvent.click(screen.getByRole("tab", { name: "Productos" }));
+    finishRun();
+    expect(toastMock).toHaveBeenCalledWith(
+      "DeepSeek terminó: 2 sugerencias de productos por revisar",
+    );
+  });
+
+  it("does not toast on the empty screen, where no tab is mounted", () => {
+    render(<AppShell />);
+    finishRun();
+    expect(toastMock).not.toHaveBeenCalled();
   });
 });

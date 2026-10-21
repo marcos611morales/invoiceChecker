@@ -233,3 +233,12 @@ export const useLlmRunStore = create<LlmRunState>()((set, get) => ({
   },
   dismissResult: () => set({ status: { phase: "idle" } }),
 }));
+
+// The result of an ended run (canceled, partial, stopped) belongs to the invoices it ran on:
+// clearing them dismisses it, so a later load never shows an old Alert or offers its «Reintentar».
+useSessionStore.subscribe((session, previous) => {
+  if (session.generation === previous.generation) return;
+  const { phase } = useLlmRunStore.getState().status;
+  if (phase === "running" || phase === "cancelling" || phase === "idle") return;
+  useLlmRunStore.setState({ status: { phase: "idle" } });
+});
