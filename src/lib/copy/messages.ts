@@ -459,18 +459,27 @@ export function categoryCountLabel(n: number): string {
   return n === 1 ? "1 categoría" : `${String(n)} categorías`;
 }
 
-/**
- * Usage caption of one category row (UI-SPEC): «{n} proveedores · {m} conceptos» with
- * the singular forms, a zero part omitted and «Sin uso» when both are zero.
- */
-export function usageCaption(suppliers: number, concepts: number): string {
+/** «1 proveedor» / «{n} proveedores», «1 producto» / «{n} productos», «1 concepto» / «{n} conceptos», zero parts left out. */
+function usageParts(suppliers: number, products: number, concepts: number): string[] {
   const parts: string[] = [];
   if (suppliers > 0) {
     parts.push(suppliers === 1 ? "1 proveedor" : `${String(suppliers)} proveedores`);
   }
+  if (products > 0) {
+    parts.push(products === 1 ? "1 producto" : `${String(products)} productos`);
+  }
   if (concepts > 0) {
     parts.push(concepts === 1 ? "1 concepto" : `${String(concepts)} conceptos`);
   }
+  return parts;
+}
+
+/**
+ * Usage caption of one category row (UI-SPEC): «{n} proveedores · {p} productos · {m} conceptos»
+ * with the singular forms, a zero part omitted and «Sin uso» when all are zero.
+ */
+export function usageCaption(suppliers: number, products: number, concepts: number): string {
+  const parts = usageParts(suppliers, products, concepts);
   return parts.length === 0 ? es.categories.list.unused : parts.join(" · ");
 }
 
@@ -505,19 +514,15 @@ export function deleteCategoryTitle(name: string): string {
 }
 
 /**
- * Body of the delete-category dialog (D-05): what still points at the category, a zero
- * part omitted and the singular for one; the unused body when nothing does.
+ * Body of the delete-category dialog (D-05, D-13): what still points at the category, a zero
+ * part omitted and the singular for one, «a y b» for two parts and «a, b y c» for three; the
+ * unused body when nothing does.
  */
-export function deleteCategoryBody(suppliers: number, concepts: number): string {
-  const parts: string[] = [];
-  if (suppliers > 0) {
-    parts.push(suppliers === 1 ? "1 proveedor" : `${String(suppliers)} proveedores`);
-  }
-  if (concepts > 0) {
-    parts.push(concepts === 1 ? "1 concepto" : `${String(concepts)} conceptos`);
-  }
-  if (parts.length === 0) return es.dialogs.deleteCategory.unusedBody;
-  return `La usan ${parts.join(" y ")}.`;
+export function deleteCategoryBody(suppliers: number, products: number, concepts: number): string {
+  const parts = usageParts(suppliers, products, concepts);
+  const last = parts.pop();
+  if (last === undefined) return es.dialogs.deleteCategory.unusedBody;
+  return `La usan ${parts.length === 0 ? last : `${parts.join(", ")} y ${last}`}.`;
 }
 
 // Settings file: download toast, invalid-file Alert, replace dialog (D-07, D-08, UI-SPEC E3 and E4).
