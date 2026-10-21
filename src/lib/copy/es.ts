@@ -131,6 +131,9 @@ export const es = {
       category: "Categoría",
     },
     fromSupplier: "· del proveedor",
+    fromProduct: "· del producto",
+    /** First line of the open popup of a product-derived concept, before the product name. */
+    productOrigin: "del producto",
     conceptLimit: "Llegaste al máximo de 20,000 conceptos ajustados.",
     adjustmentRemoved: "Ajuste quitado",
     removeAdjustment: "Quitar ajuste",

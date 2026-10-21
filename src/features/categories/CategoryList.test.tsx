@@ -140,6 +140,41 @@ describe("CategoryList: the list", () => {
     expect(within(row("Otros")).getByText("Sin uso")).toBeInTheDocument();
   });
 
+  it("D-13: counts the products of a category in its caption, between suppliers and concepts", () => {
+    useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "A", SERVICIOS);
+    useSettingsStore.setState({
+      conceptRules: [{ rfc: "AAA010101AAA", key: "luz", description: "Luz", categoryId: SERVICIOS }],
+      products: [
+        {
+          id: "prod_cloro",
+          name: "Cloro",
+          categoryId: LIMPIEZA,
+          members: [{ rfc: "AAA010101AAA", key: "cloro", description: "Cloro", supplierName: "A" }],
+        },
+        {
+          id: "prod_luz",
+          name: "Luz",
+          categoryId: SERVICIOS,
+          members: [{ rfc: "AAA010101AAA", key: "luz", description: "Luz", supplierName: "A" }],
+        },
+        {
+          id: "prod_agua",
+          name: "Agua",
+          categoryId: SERVICIOS,
+          members: [{ rfc: "AAA010101AAA", key: "agua", description: "Agua", supplierName: "A" }],
+        },
+      ],
+    });
+    render(<CategoryList />);
+    expect(
+      within(row("Servicios (luz, agua, internet, teléfono)")).getByText(
+        "1 proveedor · 2 productos · 1 concepto",
+      ),
+    ).toBeInTheDocument();
+    expect(within(row("Limpieza e higiene")).getByText("1 producto")).toBeInTheDocument();
+    expect(within(row("Otros")).getByText("Sin uso")).toBeInTheDocument();
+  });
+
   it("uses plurals and the singular for suppliers", () => {
     const store = useSettingsStore.getState();
     store.setSupplierCategory("AAA010101AAA", "A", LIMPIEZA);
@@ -586,6 +621,58 @@ describe("CategoryList: delete dialog", () => {
     state = useSettingsStore.getState();
     expect(state.categories.some((category) => category.id === SERVICIOS)).toBe(true);
     expect(state.products).toEqual([product]);
+  });
+
+  it("D-13: says how many products use a category, in all three parts and with zero parts omitted", async () => {
+    seedUsage();
+    useSettingsStore.setState({
+      products: [
+        {
+          id: "prod_luz",
+          name: "Luz",
+          categoryId: SERVICIOS,
+          members: [{ rfc: "AAA010101AAA", key: "luz", description: "Luz", supplierName: "A" }],
+        },
+      ],
+    });
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    expect(
+      within(dialog()).getByText("La usan 2 proveedores, 1 producto y 1 concepto."),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(dialog(), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    cleanup();
+    useSettingsStore.setState({ supplierCategories: [], conceptRules: [] });
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    expect(within(dialog()).getByText("La usan 1 producto.")).toBeInTheDocument();
+  });
+
+  it("D-13: a category used only by products offers Pasarlos a, and the products go to the chosen category", () => {
+    const product = {
+      id: "prod_cloro",
+      name: "Cloro",
+      categoryId: SERVICIOS,
+      members: [{ rfc: "AAA010101AAA", key: "cloro", description: "Cloro", supplierName: "A" }],
+    };
+    useSettingsStore.setState({ products: [product] });
+    render(<CategoryList />);
+    fireEvent.click(trash(SERVICIOS_NAME));
+    expect(target()).toHaveTextContent("Sin categoría");
+    chooseTarget("Otros");
+    confirmDelete();
+    const state = useSettingsStore.getState();
+    expect(state.categories.some((category) => category.id === SERVICIOS)).toBe(false);
+    expect(state.products.map((entry) => entry.categoryId)).toEqual(["seed:otros"]);
+    expect(within(row("Otros")).getByText("1 producto")).toBeInTheDocument();
+    const [, options] = toastMock.mock.calls[0] ?? [];
+    const undo = options?.action?.onClick;
+    if (undo === undefined) throw new Error("the toast must offer Deshacer");
+    act(() => {
+      undo();
+    });
+    expect(useSettingsStore.getState().products).toEqual([product]);
   });
 
   it("takes a deleted category out of the category filter and keeps the others (T-03-38)", () => {

@@ -57,7 +57,7 @@ function DeleteBody({
     const usage = categoryUsage(settings, category.id);
     return {
       usage,
-      used: usage.suppliers > 0 || usage.concepts > 0,
+      used: usage.suppliers > 0 || usage.products > 0 || usage.concepts > 0,
       items: [
         { value: SIN_CATEGORIA, label: es.categories.none },
         ...orderedCategories(settings.categories)
@@ -75,7 +75,7 @@ function DeleteBody({
           {deleteCategoryTitle(category.name)}
         </AlertDialogTitle>
         <AlertDialogDescription>
-          {deleteCategoryBody(usage.suppliers, usage.concepts)}
+          {deleteCategoryBody(usage.suppliers, usage.products, usage.concepts)}
         </AlertDialogDescription>
       </AlertDialogHeader>
       {used ? (
@@ -127,7 +127,7 @@ function DeleteBody({
 /**
  * Delete confirmation of one category (CAT-05, D-05, UI-SPEC Q4 and Q10). Focus starts on
  * «Conservar categoría»; Esc dismisses with no change (overlay click does not, user decision 2026-10-17). Confirming moves
- * the category's supplier assignments and concept adjustments to the chosen category (or
+ * the category's supplier assignments, products and concept adjustments to the chosen category (or
  * to «Sin categoría»), shows «Categoría borrada» with «Deshacer» for six seconds, and
  * moves focus to `finalFocusRef` (the row is gone). A dismissal returns focus the usual way.
  * The category name is user text and is only rendered as React text (T-03-06).

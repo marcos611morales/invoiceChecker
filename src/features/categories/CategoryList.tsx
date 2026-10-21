@@ -278,7 +278,7 @@ export function CategoryList() {
 
       <ul className="flex flex-col divide-y divide-border">
         {ordered.map((category) => {
-          const used = usage.get(category.id) ?? { suppliers: 0, concepts: 0 };
+          const used = usage.get(category.id) ?? { suppliers: 0, products: 0, concepts: 0 };
           return (
             <li key={category.id} className="flex min-h-14 items-center gap-3 py-2">
               {editingId === category.id ? (
@@ -294,7 +294,7 @@ export function CategoryList() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold break-words">{category.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {usageCaption(used.suppliers, used.concepts)}
+                      {usageCaption(used.suppliers, used.products, used.concepts)}
                     </p>
                   </div>
                   <IconAction

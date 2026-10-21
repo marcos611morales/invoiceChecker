@@ -125,10 +125,12 @@ export interface ConceptRow {
   precioUnitario: Big | null;
   /** Amount of the active mode, signed like the invoice; null when unusable. */
   monto: Big | null;
-  /** Category id of the line (rule, then supplier), or the reserved «Sin categoría» key (D-09, D-11). */
+  /** Category id of the line (rule, then product, then supplier), or the reserved «Sin categoría» key (D-09, D-11). */
   category: string;
-  /** Where that category came from: a rule of the line, its supplier, or nothing. */
+  /** Where that category came from: a rule of the line, its product, its supplier, or nothing. */
   source: CategorySource;
+  /** Name of the product that gives the category, only when `source` is "producto" (D-16). */
+  productName: string | null;
   /** Normalized description: the key of the rule that a change on this line stores (D-10). */
   ruleKey: string;
 }
@@ -143,7 +145,7 @@ export function conceptRows(
     const amounts = conceptAmounts(concepto, entry.invoice);
     const unidadText = concepto.unidad === null ? "" : concepto.unidad.trim();
     const unidadIsClave = unidadText === "";
-    const { category, source } = resolver.explain(entry.supplierRfc, concepto.descripcion);
+    const { category, source, product } = resolver.explain(entry.supplierRfc, concepto.descripcion);
     return {
       key: String(index),
       descripcion: concepto.descripcion,
@@ -154,6 +156,7 @@ export function conceptRows(
       monto: mode === "con" ? amounts.conIva : amounts.sinIva,
       category,
       source,
+      productName: source === "producto" && product !== null ? product.name : null,
       ruleKey: normalizeDescription(concepto.descripcion),
     };
   });

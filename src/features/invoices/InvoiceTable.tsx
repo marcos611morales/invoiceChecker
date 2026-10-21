@@ -256,6 +256,7 @@ function ConceptsPanel({
                   lineCount={lineCounts.get(ruleMapKey(entry.supplierRfc, concept.ruleKey)) ?? 0}
                   category={concept.category}
                   source={concept.source}
+                  productName={concept.productName}
                   categories={categories}
                   nameOf={nameOf}
                 />
