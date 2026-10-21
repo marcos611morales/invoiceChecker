@@ -23,12 +23,14 @@ import { resolvePersisted } from "@/domain/settings/migrate";
 import {
   acceptProduct,
   deleteProduct,
+  markUngrouped,
   moveProductMember,
   removeProductMember,
   renameProduct,
   restoreProduct,
   setProductCategory,
   undoMemberChange,
+  unmarkUngrouped,
   type AcceptProductError,
   type MemberUndo,
   type ProductNameError,
@@ -43,6 +45,7 @@ import {
   type ProductMember,
   type SettingsData,
   type SupplierAssignment,
+  type UngroupedConcept,
 } from "@/domain/settings/types";
 import { createSafeStorage } from "./safeStorage";
 import { useStorageStatusStore } from "./storageStatusStore";
@@ -155,6 +158,19 @@ interface SettingsState extends SettingsData {
   moveProductMember: (fromId: string, key: string, toId: string) => MemberUndo | null;
   /** Undo of `removeProductMember` and `moveProductMember`. A refused undo writes nothing. */
   undoMemberChange: (undo: MemberUndo) => void;
+  /**
+   * Marks one description «No agrupar» so it is never sent again (D-22). Only a new mark is
+   * written, in one `set` of `ungroupedConcepts`; marking what is already marked writes nothing,
+   * and a description of a product ("taken") or the 5,001st mark ("limit") is refused.
+   */
+  markUngrouped: (
+    member: UngroupedConcept,
+  ) => { ok: true } | { ok: false; reason: "limit" | "taken" };
+  /**
+   * Removes the mark with this `ruleMapKey(rfc, key)` and returns it, or null when there was none
+   * (nothing is written then).
+   */
+  unmarkUngrouped: (key: string) => UngroupedConcept | null;
   /**
    * Replaces all six stored fields with an already validated settings value, in one `set`
    * (AJUS-02, D-08), so persist writes once and a reader never sees a half-replaced state.
@@ -320,6 +336,20 @@ export const useSettingsStore = create<SettingsState>()(
         // A refused undo comes back as the same object: nothing to write.
         if (next === current) return;
         set({ products: next.products });
+      },
+      markUngrouped: (member) => {
+        const current = dataOf(get());
+        const result = markUngrouped(current, member);
+        if (!result.ok) return result;
+        // An already marked description comes back as the same object: nothing to write.
+        if (result.next !== current) set({ ungroupedConcepts: result.next.ungroupedConcepts });
+        return { ok: true };
+      },
+      unmarkUngrouped: (key) => {
+        const result = unmarkUngrouped(dataOf(get()), key);
+        if (result === null) return null;
+        set({ ungroupedConcepts: result.next.ungroupedConcepts });
+        return result.removed;
       },
       replaceAll: (data) => {
         set({

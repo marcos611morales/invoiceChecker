@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
-import type { ProductSuggestion } from "@/domain/llm/suggestions";
+import { z } from "zod";
+import { pendingQueueSchema, type ProductSuggestion } from "@/domain/llm/suggestions";
 import { normalizeDescription } from "@/domain/settings/normalize";
 import { LIMITS, defaultSettings, type Product, type ProductMember } from "@/domain/settings/types";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -10,7 +11,9 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
 import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
+import { nameInput, nameInputs } from "../../../tests/support/reviewQueue";
 import { resetSettingsStore } from "../../../tests/support/settingsStorage";
+import { readStoredQueue, resetSuggestionsStore } from "../../../tests/support/suggestionsStorage";
 import { ProductsTab } from "./ProductsTab";
 
 const toastMock = vi.hoisted(() => vi.fn<(message: string, options?: unknown) => void>());
@@ -127,6 +130,7 @@ beforeEach(() => {
   toastMock.mockReset();
   window.localStorage.clear();
   resetSettingsStore();
+  resetSuggestionsStore();
   seedInvoices();
 });
 
@@ -138,6 +142,7 @@ afterEach(() => {
   });
   window.localStorage.clear();
   resetSettingsStore();
+  resetSuggestionsStore();
 });
 
 describe("«Aceptar» creates the product (LLM-04, D-06, D-09)", () => {
@@ -168,7 +173,7 @@ describe("«Aceptar» creates the product (LLM-04, D-06, D-09)", () => {
       "sug_b",
       "sug_c",
     ]);
-    expect(screen.queryByRole("heading", { name: "Leche entera", level: 3 })).toBeNull();
+    expect(nameInputs().map((input) => input.value)).toEqual(["Café molido", "Azúcar"]);
     expect(screen.getByRole("heading", { name: "Sugerencias de productos · 2" })).toBeInTheDocument();
   });
 
@@ -216,7 +221,7 @@ describe("focus after an accept (UI-SPEC accessibility)", () => {
     enqueue(threeCards());
     render(<ProductsTab />);
     press("Leche entera");
-    expect(screen.getByRole("heading", { name: "Café molido", level: 3 })).toHaveFocus();
+    expect(nameInput("Café molido")).toHaveFocus();
   });
 
   it("moves to the queue heading when the accepted card was the last of the list", () => {
@@ -265,13 +270,6 @@ describe("E4: a refused accept keeps the card and says why", () => {
       name: "   ",
       members: [LECHE_UNO],
       text: "Escribe un nombre para el producto.",
-    },
-    {
-      title: "a name over 60 characters",
-      prepare: () => undefined,
-      name: "n".repeat(61),
-      members: [LECHE_UNO],
-      text: "El nombre puede tener hasta 60 caracteres.",
     },
     {
       title: "the product limit",
@@ -408,5 +406,529 @@ describe("accepted descriptions are no longer free (D-04, D-13, ROADMAP criterio
   it("does not keep a product that was never accepted: without it all five are free", () => {
     render(<ProductsTab />);
     expect(caption()).toBe("5 descripciones sin agrupar");
+  });
+});
+
+const NAME_LABEL = "Nombre del producto sugerido";
+const QUEUE_KEY = "invoicechecker:suggestions";
+const SAL = member(DOS, "Sal");
+const MENSAJE_VACIO = "Escribe un nombre para el producto.";
+
+const undoToastSchema = z.object({
+  duration: z.number(),
+  action: z.object({
+    label: z.string(),
+    onClick: z.custom<() => void>((value) => typeof value === "function"),
+  }),
+});
+
+/** The toast at `index` of the mock: its message and the «Deshacer» action it offers. */
+function undoToast(index: number): {
+  message: string;
+  duration: number;
+  label: string;
+  undo: () => void;
+} {
+  const call = toastMock.mock.calls[index];
+  if (call === undefined) throw new Error(`there is no toast number ${String(index)}`);
+  const [message, options] = call;
+  const parsed = undoToastSchema.parse(options);
+  return {
+    message,
+    duration: parsed.duration,
+    label: parsed.action.label,
+    undo: parsed.action.onClick,
+  };
+}
+
+function freeCaption(): string {
+  const button = screen.getByRole("button", { name: "Agrupar productos" });
+  const id = button.getAttribute("aria-describedby");
+  return (id === null ? null : document.getElementById(id)?.textContent) ?? "";
+}
+
+function queueNames(): string[] {
+  return useSuggestionsStore.getState().products.map((entry) => entry.name);
+}
+
+function typeName(name: string, value: string): HTMLInputElement {
+  const input = nameInput(name);
+  fireEvent.change(input, { target: { value } });
+  return input;
+}
+
+function cardOf(name: string): HTMLElement {
+  const item = nameInput(name).closest("li");
+  if (item === null) throw new Error(`the card «${name}» has no list item`);
+  return item;
+}
+
+function banButtons(item: HTMLElement): HTMLElement[] {
+  return within(item).getAllByRole("button", { name: "No agrupar esta descripción" });
+}
+
+function banButton(item: HTMLElement, index: number): HTMLElement {
+  const button = banButtons(item)[index];
+  if (button === undefined) throw new Error(`the card has no Ban button number ${String(index)}`);
+  return button;
+}
+
+const storedEnvelopeSchema = z.object({ state: pendingQueueSchema });
+
+async function storedNames(): Promise<string[]> {
+  const envelope = storedEnvelopeSchema.parse(await readStoredQueue());
+  return envelope.state.products.map((entry) => entry.name);
+}
+
+describe("the proposed name is an editable Input (D-12, D-19)", () => {
+  it("shows one Input per card with the proposed name, at most 60 characters", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    const inputs = nameInputs();
+    expect(inputs.map((input) => input.value)).toEqual(["Leche entera", "Café molido", "Azúcar"]);
+    for (const input of inputs) {
+      expect(input.getAttribute("maxlength")).toBe("60");
+      expect(input).toHaveAccessibleName(NAME_LABEL);
+      expect(input.getAttribute("aria-invalid")).toBeNull();
+    }
+  });
+
+  it("stores the typed name only on Enter, keeps the focus in the field, and writes it to storage", async () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    const input = nameInput("Café molido");
+    input.focus();
+    fireEvent.change(input, { target: { value: "Café tostado" } });
+    expect(input.value).toBe("Café tostado");
+    // Typing alone changes nothing in the queue.
+    expect(queueNames()).toEqual(["Leche entera", "Café molido", "Azúcar"]);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(queueNames()).toEqual(["Leche entera", "Café tostado", "Azúcar"]);
+    expect(input).toHaveFocus();
+    expect(await storedNames()).toEqual(["Leche entera", "Café tostado", "Azúcar"]);
+    // The card keeps its id, target and members.
+    const stored = useSuggestionsStore.getState().products[1];
+    expect(stored?.id).toBe("sug_b");
+    expect(stored?.members).toEqual([CAFE]);
+  });
+
+  it("stores the typed name when the field loses the focus", async () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    const input = typeName("Azúcar", "Azúcar refinada");
+    fireEvent.blur(input);
+    expect(queueNames()).toEqual(["Leche entera", "Café molido", "Azúcar refinada"]);
+    expect(await storedNames()).toEqual(["Leche entera", "Café molido", "Azúcar refinada"]);
+  });
+
+  it("survives a reload of the queue", async () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    fireEvent.keyDown(typeName("Café molido", "Café tostado"), { key: "Enter" });
+    const raw = window.localStorage.getItem(QUEUE_KEY);
+    expect(raw).not.toBeNull();
+    cleanup();
+    // The reload: the memory is emptied (that writes too), the stored value is put back and read.
+    act(() => {
+      useSuggestionsStore.setState({ products: [] });
+    });
+    window.localStorage.setItem(QUEUE_KEY, raw ?? "");
+    await act(async () => {
+      await useSuggestionsStore.persist.rehydrate();
+    });
+    render(<ProductsTab />);
+    expect(nameInputs().map((input) => input.value)).toEqual([
+      "Leche entera",
+      "Café tostado",
+      "Azúcar",
+    ]);
+  });
+
+  it("accepts the product with the typed name even when the field never lost the focus", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    typeName("Café molido", "Café tostado");
+    press("Café molido");
+    expect(storedProducts().map((entry) => entry.name)).toEqual(["Café tostado"]);
+    expect(queueNames()).toEqual(["Leche entera", "Azúcar"]);
+  });
+
+  it("shows an empty name under the Input and refuses «Aceptar» with the same text; typing clears it", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    const input = typeName("Café molido", "");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    const describedBy = input.getAttribute("aria-describedby");
+    expect(describedBy).not.toBeNull();
+    expect(document.getElementById(describedBy ?? "")?.textContent).toBe(MENSAJE_VACIO);
+    expect(describedText(input)).toBe(MENSAJE_VACIO);
+    // «Aceptar» of that card points at the same text, and refuses.
+    const item = cardOf("");
+    const button = within(item).getByRole("button", { name: /^Aceptar la sugerencia/ });
+    expect(describedText(button)).toBe(MENSAJE_VACIO);
+    fireEvent.click(button);
+    expect(storedProducts()).toEqual([]);
+    expect(queueNames()).toEqual(["Leche entera", "", "Azúcar"]);
+    expect(screen.getAllByText(MENSAJE_VACIO)).toHaveLength(1);
+    // Typing clears the error.
+    fireEvent.change(nameInput(""), { target: { value: "C" } });
+    expect(screen.queryByText(MENSAJE_VACIO)).toBeNull();
+    expect(nameInput("C").getAttribute("aria-invalid")).toBeNull();
+    expect(nameInput("C").getAttribute("aria-describedby")).toBeNull();
+  });
+
+  it("refuses the name of an accepted product ignoring case and edge spaces", () => {
+    useSettingsStore.setState({ products: [productWith("prod_x", "Leche ENTERA", [AZUCAR])] });
+    enqueue([card("sug_a", "Otro", [LECHE_UNO])]);
+    render(<ProductsTab />);
+    const input = typeName("Otro", "  leche entera ");
+    fireEvent.keyDown(input, { key: "Enter" });
+    const text = "Ya existe un producto con ese nombre. Cambia el nombre o usa «Unir con…».";
+    expect(describedText(input)).toBe(text);
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    fireEvent.click(firstAcceptButton());
+    expect(storedProducts().map((entry) => entry.name)).toEqual(["Leche ENTERA"]);
+  });
+
+  it("refuses «Sin categoría» as a name", () => {
+    enqueue([card("sug_a", "Otro", [LECHE_UNO])]);
+    render(<ProductsTab />);
+    const input = typeName("Otro", "sin categoría");
+    fireEvent.blur(input);
+    expect(describedText(input)).toBe("«Sin categoría» es un nombre reservado.");
+    fireEvent.click(firstAcceptButton());
+    expect(storedProducts()).toEqual([]);
+  });
+
+  it("never accepts a product with more than 60 characters", () => {
+    enqueue([card("sug_a", "n".repeat(61), [LECHE_UNO])]);
+    render(<ProductsTab />);
+    fireEvent.click(firstAcceptButton());
+    expect(storedProducts().map((entry) => entry.name)).toEqual(["n".repeat(60)]);
+  });
+});
+
+describe("«Rechazar» (D-22)", () => {
+  function rejectButton(name: string): HTMLElement {
+    return screen.getByRole("button", { name: `Rechazar la sugerencia «${name}»` });
+  }
+
+  it("is a neutral ghost button that names the card", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    expect(screen.getAllByRole("button", { name: /^Rechazar la sugerencia/ })).toHaveLength(3);
+    expect(rejectButton("Café molido")).toHaveTextContent("Rechazar");
+  });
+
+  it("removes the card, leaves its descriptions free, and offers «Deshacer» for 6 seconds", async () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    expect(freeCaption()).toBe("1 descripción sin agrupar");
+    fireEvent.click(rejectButton("Café molido"));
+    expect(queueNames()).toEqual(["Leche entera", "Azúcar"]);
+    expect(storedProducts()).toEqual([]);
+    expect(await storedNames()).toEqual(["Leche entera", "Azúcar"]);
+    // «Café Molido 1kg» is free again for the next «Agrupar productos».
+    expect(freeCaption()).toBe("2 descripciones sin agrupar");
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    const rejected = undoToast(0);
+    expect(rejected.message).toBe("Sugerencia «Café molido» rechazada");
+    expect(rejected.duration).toBe(6000);
+    expect(rejected.label).toBe("Deshacer");
+    expect(
+      screen.getByText("Sugerencia rechazada. Quedan 2 sugerencias."),
+    ).toBeInTheDocument();
+  });
+
+  it("puts the card back where it was when «Deshacer» is pressed", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    fireEvent.click(rejectButton("Café molido"));
+    act(() => {
+      undoToast(0).undo();
+    });
+    expect(queueNames()).toEqual(["Leche entera", "Café molido", "Azúcar"]);
+    expect(useSuggestionsStore.getState().products[1]?.members).toEqual([CAFE]);
+    expect(freeCaption()).toBe("1 descripción sin agrupar");
+    expect(nameInput("Café molido")).toBeInTheDocument();
+  });
+
+  it("rejects the card with the name the user typed, and undo restores that name", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    typeName("Café molido", "Café tostado");
+    fireEvent.click(rejectButton("Café molido"));
+    expect(undoToast(0).message).toBe("Sugerencia «Café tostado» rechazada");
+    act(() => {
+      undoToast(0).undo();
+    });
+    expect(queueNames()).toEqual(["Leche entera", "Café tostado", "Azúcar"]);
+  });
+
+  it("moves the focus to the name of the next card", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    fireEvent.click(rejectButton("Leche entera"));
+    expect(nameInput("Café molido")).toHaveFocus();
+  });
+
+  it("moves the focus to the queue heading when the last card of several was rejected", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    fireEvent.click(rejectButton("Azúcar"));
+    expect(screen.getByRole("heading", { name: "Sugerencias de productos · 2" })).toHaveFocus();
+  });
+
+  it("moves the focus to the tab heading when the queue empties, and announces it", () => {
+    enqueue([card("sug_a", "Leche entera", [LECHE_UNO])]);
+    render(<ProductsTab />);
+    fireEvent.click(rejectButton("Leche entera"));
+    expect(screen.getByRole("heading", { name: "Productos", level: 2 })).toHaveFocus();
+    expect(screen.getByText("Sugerencia rechazada. No quedan sugerencias.")).toBeInTheDocument();
+  });
+
+  it("announces the singular when one suggestion remains", () => {
+    enqueue([card("sug_a", "Leche entera", [LECHE_UNO]), card("sug_b", "Café molido", [CAFE])]);
+    render(<ProductsTab />);
+    fireEvent.click(rejectButton("Leche entera"));
+    expect(screen.getByText("Sugerencia rechazada. Queda 1 sugerencia.")).toBeInTheDocument();
+  });
+
+  it("cuts a long name at 40 characters in the toast and keeps the whole name in the button label", () => {
+    const long = "x".repeat(50);
+    enqueue([card("sug_a", long, [LECHE_UNO])]);
+    render(<ProductsTab />);
+    fireEvent.click(rejectButton(long));
+    expect(undoToast(0).message).toBe(`Sugerencia «${"x".repeat(39)}…» rechazada`);
+  });
+});
+
+describe("«No agrupar esta descripción» on a member (D-19, D-22, D-13)", () => {
+  it("is an icon button per member that names the description it acts on", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    const item = cardOf("Leche entera");
+    const buttons = banButtons(item);
+    expect(buttons).toHaveLength(2);
+    expect(buttons.map((button) => describedText(button))).toEqual([
+      "Leche entera 1L",
+      "LECHE ENTERA 1L",
+    ]);
+    // A card with one member has one too.
+    expect(banButtons(cardOf("Azúcar"))).toHaveLength(1);
+  });
+
+  it("takes the member out of a two-member card, marks it in the settings, and offers «Deshacer»", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    fireEvent.click(banButton(cardOf("Leche entera"), 1));
+    expect(useSuggestionsStore.getState().products[0]?.members).toEqual([LECHE_UNO]);
+    expect(within(cardOf("Leche entera")).queryByText("LECHE ENTERA 1L")).toBeNull();
+    expect(useSettingsStore.getState().ungroupedConcepts).toEqual([LECHE_DOS]);
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    const marked = undoToast(0);
+    expect(marked.message).toBe("«LECHE ENTERA 1L» no se volverá a enviar");
+    expect(marked.duration).toBe(6000);
+    expect(marked.label).toBe("Deshacer");
+    // The card stays and the focus goes to its name.
+    expect(nameInput("Leche entera")).toHaveFocus();
+  });
+
+  it("«Deshacer» removes the mark and puts the member back at its place", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    fireEvent.click(banButton(cardOf("Leche entera"), 0));
+    expect(useSuggestionsStore.getState().products[0]?.members).toEqual([LECHE_DOS]);
+    act(() => {
+      undoToast(0).undo();
+    });
+    expect(useSettingsStore.getState().ungroupedConcepts).toEqual([]);
+    expect(useSuggestionsStore.getState().products[0]?.members).toEqual([LECHE_UNO, LECHE_DOS]);
+    expect(within(cardOf("Leche entera")).getByText("Leche entera 1L")).toBeInTheDocument();
+  });
+
+  it("makes the card disappear when the member was its only one, and «Deshacer» brings the card back", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    fireEvent.click(banButton(cardOf("Café molido"), 0));
+    expect(queueNames()).toEqual(["Leche entera", "Azúcar"]);
+    expect(useSettingsStore.getState().ungroupedConcepts).toEqual([CAFE]);
+    // The focus goes to the next card.
+    expect(nameInput("Azúcar")).toHaveFocus();
+    act(() => {
+      undoToast(0).undo();
+    });
+    expect(queueNames()).toEqual(["Leche entera", "Café molido", "Azúcar"]);
+    expect(useSettingsStore.getState().ungroupedConcepts).toEqual([]);
+  });
+
+  it("moves the focus to the queue heading when the only member of the last card was marked", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    fireEvent.click(banButton(cardOf("Azúcar"), 0));
+    expect(screen.getByRole("heading", { name: "Sugerencias de productos · 2" })).toHaveFocus();
+  });
+
+  it("keeps the marked description out of the free ones, and puts it back with «Quitar marca»", () => {
+    enqueue([card("sug_a", "Leche entera", [LECHE_UNO, LECHE_DOS])]);
+    render(<ProductsTab />);
+    // Three free: Café, Azúcar and Sal.
+    expect(freeCaption()).toBe("3 descripciones sin agrupar");
+    fireEvent.click(banButton(cardOf("Leche entera"), 1));
+    // The marked description is neither pending nor free.
+    expect(freeCaption()).toBe("3 descripciones sin agrupar");
+    // A rejected card would free its members; the mark keeps its own out.
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar la sugerencia «Leche entera»" }));
+    expect(freeCaption()).toBe("4 descripciones sin agrupar");
+  });
+
+  it("refuses the mark beyond 5,000 with a toast and changes nothing", () => {
+    const marks = Array.from({ length: LIMITS.ungroupedConcepts }, (_unused, index) =>
+      member(UNO, `Marca ${String(index)}`),
+    );
+    useSettingsStore.setState({ ungroupedConcepts: marks });
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    const before = useSettingsStore.getState().ungroupedConcepts;
+    fireEvent.click(banButton(cardOf("Leche entera"), 0));
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(toastMock.mock.calls[0]?.[0]).toBe("Llegaste al máximo de 5,000 descripciones marcadas.");
+    expect(useSettingsStore.getState().ungroupedConcepts).toBe(before);
+    expect(useSuggestionsStore.getState().products[0]?.members).toEqual([LECHE_UNO, LECHE_DOS]);
+  });
+
+  it("refuses to mark a description that is already in a product and says why", () => {
+    useSettingsStore.setState({ products: [productWith("prod_x", "Otro", [LECHE_UNO])] });
+    enqueue([card("sug_a", "Leche", [LECHE_UNO, LECHE_DOS])]);
+    render(<ProductsTab />);
+    fireEvent.click(banButton(cardOf("Leche"), 0));
+    expect(useSettingsStore.getState().ungroupedConcepts).toEqual([]);
+    expect(useSuggestionsStore.getState().products[0]?.members).toEqual([LECHE_UNO, LECHE_DOS]);
+    expect(
+      screen.getByText(
+        "Algunas descripciones de esta sugerencia ya están en otro producto. Revisa «Mis productos».",
+      ),
+    ).toBeInTheDocument();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("Descripciones marcadas «No agrupar» (E7, D-22)", () => {
+  function triggerButton(): HTMLElement {
+    return screen.getByRole("button", { name: /^Descripciones marcadas «No agrupar»/ });
+  }
+
+  function open(): void {
+    fireEvent.click(triggerButton());
+  }
+
+  it("is not rendered when there is no mark", () => {
+    enqueue(threeCards());
+    render(<ProductsTab />);
+    expect(screen.queryByRole("button", { name: /Descripciones marcadas/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Quitar marca" })).toBeNull();
+  });
+
+  it("shows the count in a trigger that starts closed, and keeps the tab out of the empty state", () => {
+    useSettingsStore.setState({ ungroupedConcepts: [SAL] });
+    render(<ProductsTab />);
+    expect(triggerButton()).toHaveTextContent("Descripciones marcadas «No agrupar» (1)");
+    expect(triggerButton().getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("Todavía no hay productos agrupados")).toBeNull();
+    expect(screen.queryByText("Sal")).toBeNull();
+  });
+
+  it("lists each mark with its supplier and «Quitar marca» once opened", () => {
+    useSettingsStore.setState({ ungroupedConcepts: [SAL, CAFE] });
+    render(<ProductsTab />);
+    expect(triggerButton()).toHaveTextContent("(2)");
+    open();
+    expect(triggerButton().getAttribute("aria-expanded")).toBe("true");
+    expect(
+      screen.getByText(
+        "DeepSeek no vuelve a recibir estas descripciones. Quita la marca si quieres que se consideren de nuevo.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Sal")).toBeInTheDocument();
+    expect(screen.getByText("Tienda Dos")).toBeInTheDocument();
+    expect(screen.getByText("Café Molido 1kg")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Quitar la marca «No agrupar» de «Sal»" }),
+    ).toHaveTextContent("Quitar marca");
+  });
+
+  it("is placed after «Mis productos»", () => {
+    useSettingsStore.setState({
+      products: [productWith("prod_x", "Leche", [LECHE_UNO])],
+      ungroupedConcepts: [SAL],
+    });
+    render(<ProductsTab />);
+    const list = screen.getByRole("heading", { name: /^Mis productos/ });
+    expect(
+      list.compareDocumentPosition(triggerButton()) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("counts the marks out of the free descriptions", () => {
+    useSettingsStore.setState({ ungroupedConcepts: [SAL] });
+    render(<ProductsTab />);
+    expect(freeCaption()).toBe("4 descripciones sin agrupar");
+  });
+
+  it("«Quitar marca» removes the row, the mark and the count, announces it and shows no toast", () => {
+    useSettingsStore.setState({ ungroupedConcepts: [SAL, CAFE] });
+    render(<ProductsTab />);
+    expect(freeCaption()).toBe("3 descripciones sin agrupar");
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Quitar la marca «No agrupar» de «Sal»" }));
+    expect(useSettingsStore.getState().ungroupedConcepts).toEqual([CAFE]);
+    expect(screen.queryByText("Sal")).toBeNull();
+    expect(triggerButton()).toHaveTextContent("(1)");
+    expect(freeCaption()).toBe("4 descripciones sin agrupar");
+    expect(
+      screen.getByText("Marca quitada. La descripción se enviará en el próximo «Agrupar productos»."),
+    ).toBeInTheDocument();
+    expect(toastMock).not.toHaveBeenCalled();
+    // The focus goes to the button of the row that is left.
+    expect(
+      screen.getByRole("button", { name: "Quitar la marca «No agrupar» de «Café Molido 1kg»" }),
+    ).toHaveFocus();
+  });
+
+  it("goes away with its last mark and hands the focus to the tab heading", () => {
+    useSettingsStore.setState({ ungroupedConcepts: [SAL] });
+    render(<ProductsTab />);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Quitar la marca «No agrupar» de «Sal»" }));
+    expect(screen.queryByRole("button", { name: /Descripciones marcadas/ })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Productos", level: 2 })).toHaveFocus();
+    expect(screen.getByText("Todavía no hay productos agrupados")).toBeInTheDocument();
+  });
+
+  it("keeps a long description whole in the list and cuts it at 60 characters in the label", () => {
+    const long = "d".repeat(70);
+    useSettingsStore.setState({ ungroupedConcepts: [member(UNO, long)] });
+    render(<ProductsTab />);
+    open();
+    expect(screen.getByText(long)).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: /^Quitar la marca/ });
+    expect(button.getAttribute("aria-label")).toBe(
+      `Quitar la marca «No agrupar» de «${"d".repeat(59)}…»`,
+    );
+  });
+
+  it("scrolls inside a ScrollArea of at most 288px with 100 or more marks", () => {
+    const marks = Array.from({ length: 120 }, (_unused, index) =>
+      member(UNO, `Marca ${String(index)}`),
+    );
+    useSettingsStore.setState({ ungroupedConcepts: marks });
+    const view = render(<ProductsTab />);
+    open();
+    expect(triggerButton()).toHaveTextContent("(120)");
+    expect(screen.getAllByRole("button", { name: /^Quitar la marca/ })).toHaveLength(120);
+    const area = view.container.querySelector("[data-slot='scroll-area']");
+    expect(area).not.toBeNull();
+    expect(area?.className).toContain("max-h-72");
   });
 });

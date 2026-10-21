@@ -13,11 +13,14 @@ export function IconAction({
   label,
   onClick,
   buttonRef,
+  describedBy,
   children,
 }: {
   label: string;
   onClick: () => void;
   buttonRef?: Ref<HTMLButtonElement>;
+  /** Id of the element whose text names what the button acts on, announced after the label. */
+  describedBy?: string;
   children: ReactNode;
 }) {
   return (
@@ -30,6 +33,7 @@ export function IconAction({
             variant="ghost"
             size="icon"
             aria-label={label}
+            aria-describedby={describedBy}
             onClick={onClick}
             className="size-9 max-sm:size-11"
           />

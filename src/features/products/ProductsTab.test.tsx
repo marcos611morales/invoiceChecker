@@ -22,6 +22,7 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
 import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
+import { cardOf, findNameInput, nameInput, nameInputs } from "../../../tests/support/reviewQueue";
 import { resetSettingsStore } from "../../../tests/support/settingsStorage";
 import {
   readStoredQueue,
@@ -336,10 +337,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
     render(<ProductsTab />);
     await openDialog();
     await confirm();
-    const heading = await screen.findByRole("heading", { name: "Leche entera", level: 3 });
-    const card = heading.closest("li");
-    expect(card).not.toBeNull();
-    if (card === null) return;
+    const card = cardOf(await findNameInput("Leche entera"));
     expect(within(card).getAllByRole("listitem")).toHaveLength(2);
     expect(within(card).getByText("MM LECHE ENT")).toBeInTheDocument();
     // The supplier name opens the line caption («Tienda Uno · 2 líneas»).
@@ -352,7 +350,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
     render(<ProductsTab />);
     await openDialog();
     await confirm();
-    await screen.findByRole("heading", { name: "Leche entera" });
+    await findNameInput("Leche entera");
     expect(upstreamCalls).toHaveLength(1);
     const call = upstreamCalls[0];
     if (call === undefined) return;
@@ -374,7 +372,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
     render(<ProductsTab />);
     await openDialog();
     await confirm();
-    await screen.findByRole("heading", { name: "Leche entera" });
+    await findNameInput("Leche entera");
     const body = lastBody();
     expect(Object.keys(body).sort()).toEqual(["existing", "items"]);
     for (const item of body.items) {
@@ -407,7 +405,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
     render(<ProductsTab />);
     await openDialog();
     await confirm();
-    await screen.findByRole("heading", { name: "Leche entera", level: 3 });
+    await findNameInput("Leche entera");
     await waitFor(() => {
       expect(useLlmRunStore.getState().status.phase).toBe("finished");
     });
@@ -454,7 +452,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
       ["Azúcar", "Café Molido 1kg", "Pago"].sort(),
     );
     await confirm();
-    await screen.findByRole("heading", { name: "Azúcar blanca" });
+    await findNameInput("Azúcar blanca");
     expect(lastBody().items).toHaveLength(3);
     const all = useSuggestionsStore.getState().products;
     expect(all).toHaveLength(4);
@@ -481,7 +479,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
       expect(useSuggestionsStore.getState().products).toHaveLength(4);
     });
     render(<ProductsTab />);
-    expect(screen.getByRole("heading", { name: "Leche entera", level: 3 })).toBeInTheDocument();
+    expect(nameInput("Leche entera")).toBeInTheDocument();
   });
 
   it("stops the run with upstream_auth on a DeepSeek 401, adds no card and never shows the key", async () => {
@@ -508,7 +506,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
     render(<ProductsTab />);
     await openDialog();
     await confirm();
-    await screen.findByRole("heading", { name: "Leche entera" });
+    await findNameInput("Leche entera");
     expect(routeResponseTexts.join("\n")).not.toContain(KEY);
     const parsed = z
       .object({ groups: z.array(z.unknown()), meta: z.object({ attempts: z.literal(1) }) })
@@ -588,7 +586,7 @@ describe("Agrupar productos: the free count (D-03, D-04, D-05, OQ2)", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(routeBodies).toHaveLength(1);
     release();
-    await screen.findByRole("heading", { name: "Leche entera" });
+    await findNameInput("Leche entera");
     await waitFor(() => {
       expect(screen.queryByText("Hay un proceso en curso")).toBeNull();
     });
@@ -624,7 +622,7 @@ describe("Agrupar productos: the queue (D-19)", () => {
     render(<ProductsTab />);
     await openDialog();
     await confirm();
-    await screen.findByRole("heading", { name: "Leche entera", level: 3 });
+    await findNameInput("Leche entera");
     expect(
       screen.getByRole("heading", { name: "Sugerencias de productos · 4", level: 2 }),
     ).toBeInTheDocument();
@@ -633,9 +631,7 @@ describe("Agrupar productos: the queue (D-19)", () => {
         "Revisa cada grupo. Puedes cambiar el nombre, separar descripciones o unir grupos antes de aceptar.",
       ),
     ).toBeInTheDocument();
-    const card = screen.getByRole("heading", { name: "Leche entera", level: 3 }).closest("li");
-    expect(card).not.toBeNull();
-    if (card === null) return;
+    const card = cardOf(nameInput("Leche entera"));
     expect(within(card).getByText("Tienda Uno · 2 líneas")).toBeInTheDocument();
     expect(within(card).getByText("Tienda Dos · 1 línea")).toBeInTheDocument();
   });
@@ -659,9 +655,7 @@ describe("Agrupar productos: the queue (D-19)", () => {
       ]);
     });
     render(<ProductsTab />);
-    const card = screen.getByRole("heading", { name: "Aceite", level: 3 }).closest("li");
-    expect(card).not.toBeNull();
-    if (card === null) return;
+    const card = cardOf(nameInput("Aceite"));
     expect(within(card).getByText("Sin líneas cargadas")).toBeInTheDocument();
     expect(within(card).getByText("Tienda Tres")).toBeInTheDocument();
   });
@@ -748,7 +742,7 @@ describe("Agrupar productos: an answer that does not cover what was sent (D-11, 
     expect(within(alert).getByText(INCOMPLETE_REASON)).toBeInTheDocument();
     expect(within(alert).getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
     expect(useSuggestionsStore.getState().products).toEqual([]);
-    expect(screen.queryByRole("heading", { level: 3 })).toBeNull();
+    expect(nameInputs()).toEqual([]);
     expect(routeResponseTexts).toHaveLength(1);
     expect(JSON.parse(routeResponseTexts[0] ?? "null")).toEqual({
       error: "incomplete_response",
@@ -839,10 +833,7 @@ describe("Pending suggestions after a reload (D-24, D-30, E4 partial)", () => {
       await useSuggestionsStore.persist.rehydrate();
     });
     render(<ProductsTab />);
-    const heading = screen.getByRole("heading", { name: "Leche entera", level: 3 });
-    const card = heading.closest("li");
-    if (card === null) throw new Error("the card has no list item");
-    return card;
+    return cardOf(nameInput("Leche entera"));
   }
 
   it("shows the stored card, marks the member of the supplier without loaded lines and counts the free descriptions without it", async () => {
@@ -908,7 +899,7 @@ describe("Storage notices of the Productos tab (Q8 pattern)", () => {
     expect(within(alert).queryByRole("button")).toBeNull();
     expect(screen.queryByText(SETTINGS_ALERT)).toBeNull();
     // The card is still there for this session.
-    expect(screen.getByRole("heading", { name: "Leche entera", level: 3 })).toBeInTheDocument();
+    expect(nameInput("Leche entera")).toBeInTheDocument();
   });
 
   it("shows the settings Alert first and the queue Alert second when neither can be written, and each goes after a later write works", () => {

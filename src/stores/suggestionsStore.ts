@@ -2,11 +2,18 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
   SUGGESTIONS_VERSION,
+  dropMember,
   enqueueProductSuggestions,
+  removeSuggestion,
+  renameSuggestion,
   resolvePendingQueue,
+  restoreMember,
+  restoreSuggestion,
   type CategorySuggestion,
+  type DroppedMember,
   type PendingQueue,
   type ProductSuggestion,
+  type RemovedSuggestion,
 } from "@/domain/llm/suggestions";
 import { createSafeStorage } from "./safeStorage";
 import { useSuggestionsStatusStore } from "./storageStatusStore";
@@ -30,6 +37,24 @@ interface SuggestionsState {
   enqueueProducts: (incoming: readonly ProductSuggestion[]) => void;
   /** Takes one card out of the queue and returns it, or null when there is no such card (nothing changes then). */
   removeProduct: (id: string) => ProductSuggestion | null;
+  /** Stores the name typed on a card, cut to 60 (D-12); an unknown id or the same name writes nothing. */
+  renameSuggestion: (id: string, name: string) => void;
+  /** Takes a rejected card out (D-22) and returns what `restoreSuggestion` needs, or null for an unknown id. */
+  rejectSuggestion: (id: string) => RemovedSuggestion | null;
+  /** Undo of `rejectSuggestion`; a refused restore (members pending elsewhere, a limit) writes nothing. */
+  restoreSuggestion: (removed: RemovedSuggestion) => void;
+  /**
+   * Takes one member (`key` is `memberKey`) out of a card (D-22); the only member takes the card
+   * with it. Returns what `restoreMember` needs, or null for an unknown card or member.
+   */
+  dropMember: (cardId: string, key: string) => DroppedMember | null;
+  /** Undo of `dropMember`; a refused restore writes nothing. */
+  restoreMember: (dropped: DroppedMember) => void;
+}
+
+/** The queue as the domain reducers take it. */
+function queueOf(state: PendingQueue): PendingQueue {
+  return { products: state.products, categories: state.categories };
 }
 
 /**
@@ -56,6 +81,36 @@ export const useSuggestionsStore = create<SuggestionsState>()(
         if (removed === undefined) return null;
         set((current) => ({ products: current.products.filter((card) => card.id !== id) }));
         return removed;
+      },
+      renameSuggestion: (id, name) => {
+        const current = queueOf(get());
+        const next = renameSuggestion(current, id, name);
+        // An unknown id or an unchanged name comes back as the same object: nothing to write.
+        if (next !== current) set({ products: next.products });
+      },
+      rejectSuggestion: (id) => {
+        const result = removeSuggestion(queueOf(get()), id);
+        if (result === null) return null;
+        set({ products: result.next.products });
+        return result.removed;
+      },
+      restoreSuggestion: (removed) => {
+        const current = queueOf(get());
+        const next = restoreSuggestion(current, removed);
+        // A refused restore comes back as the same object: nothing to write.
+        if (next !== current) set({ products: next.products });
+      },
+      dropMember: (cardId, key) => {
+        const result = dropMember(queueOf(get()), cardId, key);
+        if (result === null) return null;
+        set({ products: result.next.products });
+        return result.dropped;
+      },
+      restoreMember: (dropped) => {
+        const current = queueOf(get());
+        const next = restoreMember(current, dropped);
+        // A refused restore comes back as the same object: nothing to write.
+        if (next !== current) set({ products: next.products });
       },
     }),
     {

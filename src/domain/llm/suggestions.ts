@@ -148,6 +148,188 @@ export function enqueueProductSuggestions(
 }
 
 // ---------------------------------------------------------------------------------------
+// Review actions over the queue (D-12, D-19, D-22). Each one is a pure reducer over the whole
+// queue that never mutates its input and never produces a value `pendingQueueSchema` would
+// reject, because the queue is written to the browser after every change. A refused or
+// useless change returns the very same queue object, so the store can tell that nothing
+// needs to be written. The «Deshacer» of each action gets back exactly what it removed.
+
+/** `text` cut to at most `max` UTF-16 units without splitting a surrogate pair (the schema counts units). */
+function cutName(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let cut = "";
+  for (const character of text) {
+    if (cut.length + character.length > max) break;
+    cut += character;
+  }
+  return cut;
+}
+
+/** A copy that shares nothing with the original, so an undo value never aliases the queue. */
+function copyCard(card: ProductSuggestion): ProductSuggestion {
+  return {
+    id: card.id,
+    name: card.name,
+    target: card.target,
+    members: card.members.map(copyMember),
+  };
+}
+
+function copyMember(member: SuggestionMember): SuggestionMember {
+  return {
+    rfc: member.rfc,
+    key: member.key,
+    description: member.description,
+    supplierName: member.supplierName,
+  };
+}
+
+function withCards(queue: PendingQueue, products: ProductSuggestion[]): PendingQueue {
+  return { ...queue, products };
+}
+
+function memberTotal(cards: readonly ProductSuggestion[]): number {
+  return cards.reduce((sum, card) => sum + card.members.length, 0);
+}
+
+/** `items` with `item` inserted at `index`, clamped to the list. */
+function insertAt<T>(items: readonly T[], index: number, item: T): T[] {
+  const position = Math.min(Math.max(index, 0), items.length);
+  return [...items.slice(0, position), item, ...items.slice(position)];
+}
+
+/**
+ * Stores the name the user typed on a card, cut to 60 (D-12). The name is kept as typed: it is
+ * trimmed and checked when the card is accepted, and an empty name is allowed while editing.
+ * An unknown id, or the very same name, is no change: the same queue comes back.
+ */
+export function renameSuggestion(queue: PendingQueue, id: string, name: string): PendingQueue {
+  const current = queue.products.find((card) => card.id === id);
+  if (current === undefined) return queue;
+  const cut = cutName(name, NAME_MAX);
+  if (cut === current.name) return queue;
+  return withCards(
+    queue,
+    queue.products.map((card) => (card.id === id ? { ...card, name: cut } : card)),
+  );
+}
+
+/** A rejected card and the position it had, which is all `restoreSuggestion` needs (D-22). */
+export interface RemovedSuggestion {
+  card: ProductSuggestion;
+  index: number;
+}
+
+/**
+ * Takes a card out of the queue (D-22). Its descriptions are free again, because they are no
+ * longer pending. Returns the value for «Deshacer», or null when the id is unknown.
+ */
+export function removeSuggestion(
+  queue: PendingQueue,
+  id: string,
+): { next: PendingQueue; removed: RemovedSuggestion } | null {
+  const index = queue.products.findIndex((card) => card.id === id);
+  const card = queue.products[index];
+  if (card === undefined) return null;
+  return {
+    next: withCards(
+      queue,
+      queue.products.filter((candidate) => candidate.id !== id),
+    ),
+    removed: { card: copyCard(card), index },
+  };
+}
+
+/**
+ * Puts a removed card back at min(index, length) (D-22). A member that is pending in another
+ * card now is left out, and a card left with no member is not restored; so is a card whose id
+ * is already in the queue or that would pass `PENDING_LIMITS`. In every refusal the same queue
+ * comes back.
+ */
+export function restoreSuggestion(queue: PendingQueue, removed: RemovedSuggestion): PendingQueue {
+  const taken = pendingMemberKeys(queue.products);
+  const members = removed.card.members.filter((member) => !taken.has(memberKey(member)));
+  if (members.length === 0) return queue;
+  if (queue.products.some((card) => card.id === removed.card.id)) return queue;
+  if (
+    queue.products.length >= PENDING_LIMITS.productCards ||
+    memberTotal(queue.products) + members.length > PENDING_LIMITS.members
+  ) {
+    return queue;
+  }
+  const card: ProductSuggestion = { ...copyCard(removed.card), members: members.map(copyMember) };
+  return withCards(queue, insertAt(queue.products, removed.index, card));
+}
+
+/**
+ * A member taken out of a card (D-19, D-22). `card` is set when the member was the only one, so
+ * the whole card went with it and `restoreMember` brings the card back; otherwise `index` is the
+ * position the member had inside the card.
+ */
+export interface DroppedMember {
+  cardId: string;
+  member: SuggestionMember;
+  index: number;
+  card: RemovedSuggestion | null;
+}
+
+/**
+ * Takes one member (`key` is `memberKey`) out of a card (D-22). The only member of a card cannot
+ * stay alone in an empty card: the card is removed too. Returns null when the card or the member
+ * is unknown.
+ */
+export function dropMember(
+  queue: PendingQueue,
+  cardId: string,
+  key: string,
+): { next: PendingQueue; dropped: DroppedMember } | null {
+  const card = queue.products.find((candidate) => candidate.id === cardId);
+  if (card === undefined) return null;
+  const index = card.members.findIndex((member) => memberKey(member) === key);
+  const member = card.members[index];
+  if (member === undefined) return null;
+  if (card.members.length === 1) {
+    const removal = removeSuggestion(queue, cardId);
+    if (removal === null) return null;
+    return {
+      next: removal.next,
+      dropped: { cardId, member: copyMember(member), index, card: removal.removed },
+    };
+  }
+  return {
+    next: withCards(
+      queue,
+      queue.products.map((candidate) =>
+        candidate.id === cardId
+          ? { ...candidate, members: candidate.members.filter((_, at) => at !== index) }
+          : candidate,
+      ),
+    ),
+    dropped: { cardId, member: copyMember(member), index, card: null },
+  };
+}
+
+/**
+ * Reverses `dropMember` (D-22): a deleted card comes back whole, a member goes back to its index
+ * in its card. When the card is gone, the member is pending somewhere now, or a limit would
+ * break, the same queue comes back.
+ */
+export function restoreMember(queue: PendingQueue, dropped: DroppedMember): PendingQueue {
+  if (dropped.card !== null) return restoreSuggestion(queue, dropped.card);
+  if (!queue.products.some((card) => card.id === dropped.cardId)) return queue;
+  if (pendingMemberKeys(queue.products).has(memberKey(dropped.member))) return queue;
+  if (memberTotal(queue.products) + 1 > PENDING_LIMITS.members) return queue;
+  return withCards(
+    queue,
+    queue.products.map((card) =>
+      card.id === dropped.cardId
+        ? { ...card, members: insertAt(card.members, dropped.index, copyMember(dropped.member)) }
+        : card,
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------------------
 // The stored queue (D-24, D-30). Everything read from browser storage is untrusted: shape,
 // limits and integrity are all checked here, and a failure is a plain `safeParse` failure
 // that the caller turns into an empty queue plus a notice. No length bound on rfc, key,

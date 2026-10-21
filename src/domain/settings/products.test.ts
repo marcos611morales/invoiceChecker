@@ -3,6 +3,7 @@ import { ruleMapKey } from "./normalize";
 import {
   acceptProduct,
   deleteProduct,
+  markUngrouped,
   moveProductMember,
   productMemberKeys,
   removeProductMember,
@@ -10,6 +11,8 @@ import {
   restoreProduct,
   setProductCategory,
   undoMemberChange,
+  ungroupedKeys,
+  unmarkUngrouped,
   validateProductName,
 } from "./products";
 import { settingsDataSchema } from "./schema";
@@ -683,6 +686,85 @@ describe("setProductCategory (CAT-04, D-16)", () => {
     expect(() => {
       setProductCategory(frozen, "prod_leche", INSUMOS);
       setProductCategory(frozen, "prod_cafe", null);
+    }).not.toThrow();
+  });
+});
+
+describe("«No agrupar» marks (D-13, D-22)", () => {
+  const FLETE = member(UNO, "flete", "Flete", "Tienda Uno");
+  const SAL = member(DOS, "sal", "Sal", "Tienda Dos");
+
+  it("adds the mark at the end with its four fields, without touching anything else", () => {
+    const base = withProducts([product("prod_leche", "Leche", LECHE)], [SAL]);
+    const result = markUngrouped(base, FLETE);
+    if (!result.ok) throw new Error("expected an ok result");
+    expect(result.next.ungroupedConcepts).toEqual([SAL, FLETE]);
+    expect(result.next.products).toBe(base.products);
+    expect(result.next.categories).toBe(base.categories);
+    expect(settingsDataSchema.safeParse(result.next).success).toBe(true);
+  });
+
+  it("stores a copy, so the mark never aliases the member that was passed", () => {
+    const result = markUngrouped(defaultSettings(), FLETE);
+    if (!result.ok) throw new Error("expected an ok result");
+    expect(result.next.ungroupedConcepts[0]).toEqual(FLETE);
+    expect(result.next.ungroupedConcepts[0]).not.toBe(FLETE);
+  });
+
+  it("marking twice is a no-op that returns the same settings object", () => {
+    const base = withProducts([], [FLETE]);
+    const again = markUngrouped(base, { ...FLETE, description: "FLETE" });
+    if (!again.ok) throw new Error("expected an ok result");
+    expect(again.next).toBe(base);
+  });
+
+  it("refuses a member that already belongs to a product", () => {
+    const base = withProducts([product("prod_leche", "Leche", LECHE)]);
+    const [inProduct] = LECHE;
+    if (inProduct === undefined) throw new Error("fixture");
+    expect(markUngrouped(base, inProduct)).toEqual({ ok: false, reason: "taken" });
+  });
+
+  it("accepts the 5,000th mark and refuses the 5,001st", () => {
+    const marks = Array.from({ length: LIMITS.ungroupedConcepts - 1 }, (_unused, index) =>
+      member(UNO, `k${String(index)}`),
+    );
+    const almost = withProducts([], marks);
+    const last = markUngrouped(almost, FLETE);
+    if (!last.ok) throw new Error("expected an ok result");
+    expect(last.next.ungroupedConcepts).toHaveLength(LIMITS.ungroupedConcepts);
+    expect(markUngrouped(last.next, SAL)).toEqual({ ok: false, reason: "limit" });
+  });
+
+  it("unmarkUngrouped returns the removed mark and the settings without it", () => {
+    const base = withProducts([], [SAL, FLETE]);
+    const result = unmarkUngrouped(base, ruleMapKey(UNO, "flete"));
+    if (result === null) throw new Error("expected a removal");
+    expect(result.removed).toEqual(FLETE);
+    expect(result.next.ungroupedConcepts).toEqual([SAL]);
+    expect(base.ungroupedConcepts).toEqual([SAL, FLETE]);
+  });
+
+  it("unmarkUngrouped returns null for a key that is not marked", () => {
+    expect(unmarkUngrouped(withProducts([], [SAL]), ruleMapKey(UNO, "flete"))).toBeNull();
+    // The same key under another supplier is another description.
+    expect(unmarkUngrouped(withProducts([], [SAL]), ruleMapKey(UNO, "sal"))).toBeNull();
+  });
+
+  it("ungroupedKeys lists the ruleMapKey of every mark", () => {
+    expect(ungroupedKeys(withProducts([], [SAL, FLETE]))).toEqual(
+      new Set([ruleMapKey(DOS, "sal"), ruleMapKey(UNO, "flete")]),
+    );
+    expect(ungroupedKeys(defaultSettings())).toEqual(new Set());
+  });
+
+  it("does not mutate frozen settings", () => {
+    const frozen = deepFreeze(withProducts([product("prod_leche", "Leche", LECHE)], [SAL]));
+    expect(() => {
+      markUngrouped(frozen, FLETE);
+      markUngrouped(frozen, SAL);
+      unmarkUngrouped(frozen, ruleMapKey(DOS, "sal"));
+      ungroupedKeys(frozen);
     }).not.toThrow();
   });
 });

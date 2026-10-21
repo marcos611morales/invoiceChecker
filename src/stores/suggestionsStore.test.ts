@@ -6,6 +6,7 @@ import { buildGroupRun, collectItems } from "@/domain/llm/candidates";
 import {
   PENDING_LIMITS,
   SUGGESTIONS_VERSION,
+  memberKey,
   toProductSuggestions,
   type CategorySuggestion,
   type PendingQueue,
@@ -496,6 +497,73 @@ describe("what the stored queue holds (D-24 amended by D-30, T-04-26)", () => {
     expect([...keys].sort()).toEqual(
       ["categories", "description", "id", "key", "members", "name", "products", "rfc", "state", "supplierName", "target", "version"].sort(),
     );
+  });
+});
+
+describe("review actions of the queue store (D-12, D-19, D-22)", () => {
+  it("renameSuggestion stores the new name, cut to 60, and it survives a reload", async () => {
+    useSuggestionsStore.getState().enqueueProducts(queue().products);
+    useSuggestionsStore.getState().renameSuggestion("sug_b", "n".repeat(61));
+    expect(snapshot().products[1]?.name).toBe("n".repeat(60));
+    await reload();
+    expect(snapshot().products[1]?.name).toBe("n".repeat(60));
+    expect(queueStatus()).toEqual({ readFailed: false, writeFailed: false });
+  });
+
+  it("renameSuggestion with an unknown id or the same name writes nothing", () => {
+    useSuggestionsStore.getState().enqueueProducts(queue().products);
+    const before = window.localStorage.getItem(KEY);
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSuggestionsStore.getState().renameSuggestion("sug_x", "Otro");
+    useSuggestionsStore.getState().renameSuggestion("sug_a", "Leche entera");
+    expect(setItem).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(KEY)).toBe(before);
+  });
+
+  it("rejectSuggestion returns what restoreSuggestion needs, and the pair gives back the stored queue", () => {
+    useSuggestionsStore.getState().enqueueProducts(queue().products);
+    const before = storedEnvelope();
+    const removed = useSuggestionsStore.getState().rejectSuggestion("sug_a");
+    if (removed === null) throw new Error("expected a card");
+    expect(removed.card.id).toBe("sug_a");
+    expect(snapshot().products.map((entry) => entry.id)).toEqual(["sug_b"]);
+    useSuggestionsStore.getState().restoreSuggestion(removed);
+    expect(storedEnvelope()).toEqual(before);
+  });
+
+  it("rejectSuggestion of an unknown id returns null and changes nothing", () => {
+    useSuggestionsStore.getState().enqueueProducts(queue().products);
+    expect(useSuggestionsStore.getState().rejectSuggestion("sug_x")).toBeNull();
+    expect(snapshot().products).toHaveLength(2);
+  });
+
+  it("dropMember and restoreMember work on a card with several members and on a single one", () => {
+    useSuggestionsStore.getState().enqueueProducts(queue().products);
+    const before = storedEnvelope();
+    const part = useSuggestionsStore.getState().dropMember("sug_a", memberKey(LECHE_DOS));
+    expect(part?.card).toBeNull();
+    expect(snapshot().products[0]?.members).toEqual([LECHE_UNO]);
+    if (part !== null) useSuggestionsStore.getState().restoreMember(part);
+    expect(storedEnvelope()).toEqual(before);
+
+    const lone = useSuggestionsStore.getState().dropMember("sug_b", memberKey(CAFE));
+    expect(lone?.card?.index).toBe(1);
+    expect(snapshot().products.map((entry) => entry.id)).toEqual(["sug_a"]);
+    if (lone !== null) useSuggestionsStore.getState().restoreMember(lone);
+    expect(storedEnvelope()).toEqual(before);
+  });
+
+  it("dropMember of an unknown card or member returns null", () => {
+    useSuggestionsStore.getState().enqueueProducts(queue().products);
+    expect(useSuggestionsStore.getState().dropMember("sug_x", "k")).toBeNull();
+    expect(useSuggestionsStore.getState().dropMember("sug_a", "nope")).toBeNull();
+  });
+
+  it("only sets the products: the category rows are left alone", () => {
+    storeQueue(queue());
+    useSuggestionsStore.setState({ products: queue().products, categories: queue().categories });
+    useSuggestionsStore.getState().rejectSuggestion("sug_a");
+    expect(snapshot().categories).toEqual(queue().categories);
   });
 });
 

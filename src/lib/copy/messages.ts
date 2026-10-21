@@ -849,6 +849,46 @@ export function productCreatedAnnouncement(name: string, remaining: number): str
   return `Producto «${name}» creado. ${left}`;
 }
 
+/** Accessible name of «Rechazar» inside a card, like «Aceptar» (UI-SPEC accessibility). */
+export function rejectSuggestionAria(name: string): string {
+  return `Rechazar la sugerencia «${name}»`;
+}
+
+/** Toast after «Rechazar»: the name is cut at 40 characters in total, the last one being «…». */
+export function rejectedToast(name: string): string {
+  return `Sugerencia «${capCodePoints(name, PRODUCT_TOAST_MAX)}» rechazada`;
+}
+
+/**
+ * Polite announcement after «Rechazar»: «Sugerencia rechazada. Quedan {n} sugerencias.»
+ * The singular («Queda 1 sugerencia.») and the empty queue («No quedan sugerencias.») are
+ * the grammatical forms of the same sentence.
+ */
+export function rejectedAnnouncement(remaining: number): string {
+  const left =
+    remaining === 0
+      ? "No quedan sugerencias."
+      : remaining === 1
+        ? "Queda 1 sugerencia."
+        : `Quedan ${String(remaining)} sugerencias.`;
+  return `Sugerencia rechazada. ${left}`;
+}
+
+/** Toast after «No agrupar esta descripción» (D-22): the description is cut at 40 characters. */
+export function ungroupedToast(description: string): string {
+  return `«${capCodePoints(description, PRODUCT_TOAST_MAX)}» no se volverá a enviar`;
+}
+
+/** Trigger of the «No agrupar» collapsible: «Descripciones marcadas «No agrupar» ({n})». */
+export function ungroupedTrigger(n: number): string {
+  return `Descripciones marcadas «No agrupar» (${String(n)})`;
+}
+
+/** `aria-label` of «Quitar marca»: the description is cut at 60 characters, «…» included. */
+export function unmarkAria(description: string): string {
+  return `Quitar la marca «No agrupar» de «${capCodePoints(description, MEMBER_ARIA_MAX)}»`;
+}
+
 /** Text under a card's buttons when «Aceptar» is refused (UI-SPEC lines 264-268, E4). */
 export function acceptErrorText(reason: AcceptProductError): string {
   const errors = es.products.queue.errors;
