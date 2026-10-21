@@ -976,6 +976,35 @@ describe("settingsStore product actions (D-14, D-15)", () => {
     expect(setItem).not.toHaveBeenCalled();
   });
 
+  it("adds members to a product in one write that touches only the products, and a refusal writes nothing (D-21)", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const before = snapshot();
+    expect(useSettingsStore.getState().addMembersToProduct("prod_a", [uno("a3"), uno("a4")])).toEqual({
+      ok: true,
+      added: 2,
+    });
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().products[0]?.members.map((member) => member.key)).toEqual(["a1", "a2", "a3", "a4"]);
+    expect(snapshot().products[1]).toEqual(before.products[1]);
+    expect(snapshot().categories).toBe(before.categories);
+
+    setItem.mockClear();
+    expect(useSettingsStore.getState().addMembersToProduct("prod_x", [uno("z1")])).toEqual({
+      ok: false,
+      reason: "gone",
+    });
+    expect(useSettingsStore.getState().addMembersToProduct("prod_a", [uno("b1")])).toEqual({
+      ok: false,
+      reason: "members-taken",
+    });
+    expect(useSettingsStore.getState().addMembersToProduct("prod_a", [])).toEqual({
+      ok: false,
+      reason: "no-members",
+    });
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
   it("deletes and restores a product, each in one write, and a refused restore writes nothing", () => {
     seed();
     const original = snapshot().products;

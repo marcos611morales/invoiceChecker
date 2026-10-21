@@ -99,13 +99,20 @@ export function cutText(text: string, max: number): string {
   return `${head.trimEnd()}…`;
 }
 
+/**
+ * What a context id (p1..pK) of a request stands for, kept in the browser only (D-21, D-33).
+ * Today it is an accepted product; Plan 04-15 adds the `{ kind: "pending"; suggestionId }` member
+ * for the names proposed by earlier batches of one run.
+ */
+export type ContextTarget = { kind: "product"; productId: string };
+
 /** One request: the body that is sent and the browser-only maps behind its ids. */
 export interface GroupBatch {
   body: GroupRequest;
   /** Item id (i1..iK) to the member it stands for. Never leaves the browser. */
   idMap: Map<string, SuggestionMember>;
-  /** Context id (p1..pK) to the id of the accepted product it stands for. */
-  targets: Map<string, string>;
+  /** Context id (p1..pK) to the accepted product it stands for. Never leaves the browser. */
+  targets: Map<string, ContextTarget>;
 }
 
 export interface GroupRun {
@@ -124,13 +131,19 @@ export interface GroupRun {
  * so every supplier is spread across the batches instead of one big supplier filling one of
  * them. Each batch keeps the sorted order; its ids are i1..iK in that order, the description and
  * the supplier are cut to their limits, and the context names are p1..pK.
+ *
+ * `existing` are the accepted products (D-04, D-33): their names go on every batch body as
+ * context, sorted by name with the es collator, and only the first `LLM_LIMITS.contextNames` of
+ * them. The names of the cards still pending from earlier runs are never passed here (D-33).
  */
 export function buildGroupRun(
   free: readonly LlmItem[],
   existing: readonly { productId: string; name: string }[],
   max: number = LLM_LIMITS.groupItems,
 ): GroupRun {
-  const context = existing.slice(0, LLM_LIMITS.contextNames);
+  const context = [...existing]
+    .sort((a, b) => COLLATOR.compare(a.name, b.name) || comparePlain(a.productId, b.productId))
+    .slice(0, LLM_LIMITS.contextNames);
   const total = free.length;
   const count = total === 0 ? 0 : Math.ceil(total / max);
   const sorted = [...free].sort(compareItems);
@@ -158,10 +171,10 @@ export function buildGroupRun(
         supplier,
       };
     });
-    const targets = new Map<string, string>();
+    const targets = new Map<string, ContextTarget>();
     const names = context.map((product, index) => {
       const id = `p${String(index + 1)}`;
-      targets.set(id, product.productId);
+      targets.set(id, { kind: "product", productId: product.productId });
       return { id, name: cutText(product.name, LLM_LIMITS.productName) };
     });
     batches.push({ body: { items, existing: names }, idMap, targets });

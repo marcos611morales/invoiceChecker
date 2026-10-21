@@ -22,6 +22,7 @@ import {
 import { resolvePersisted } from "@/domain/settings/migrate";
 import {
   acceptProduct,
+  addMembersToProduct,
   deleteProduct,
   markUngrouped,
   moveProductMember,
@@ -32,6 +33,7 @@ import {
   undoMemberChange,
   unmarkUngrouped,
   type AcceptProductError,
+  type AddMembersError,
   type MemberUndo,
   type ProductNameError,
   type ProductSnapshot,
@@ -123,6 +125,15 @@ interface SettingsState extends SettingsData {
     name: string;
     members: readonly ProductMember[];
   }) => { ok: true; product: Product } | { ok: false; reason: AcceptProductError };
+  /**
+   * Adds new members to an accepted product, keeping its other members and its category
+   * (D-21, the «Agregar a» card). Only an ok result is applied, in one `set` of `products`; a
+   * refusal ("gone", "no-members", "members-taken", "limit") changes and writes nothing.
+   */
+  addMembersToProduct: (
+    productId: string,
+    members: readonly ProductMember[],
+  ) => { ok: true; added: number } | { ok: false; reason: AddMembersError };
   /**
    * Renames a product keeping its id, category and members (D-14). A refused name (empty,
    * reserved, repeated, too long) changes and writes nothing, and so does an unchanged name.
@@ -288,6 +299,12 @@ export const useSettingsStore = create<SettingsState>()(
         if (!result.ok) return result;
         set({ products: result.next.products });
         return { ok: true, product: result.product };
+      },
+      addMembersToProduct: (productId, members) => {
+        const result = addMembersToProduct(dataOf(get()), productId, members);
+        if (!result.ok) return result;
+        set({ products: result.next.products });
+        return { ok: true, added: result.added };
       },
       renameProduct: (id, name) => {
         const current = dataOf(get());

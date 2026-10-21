@@ -9,6 +9,7 @@
  */
 import { z } from "zod";
 import { ruleMapKey } from "../settings/normalize";
+import type { ContextTarget } from "./candidates";
 import type { GroupResponse } from "./contract";
 
 export interface SuggestionMember {
@@ -69,36 +70,60 @@ export function memberKey(member: SuggestionMember): string {
   return ruleMapKey(member.rfc, member.key);
 }
 
+/** The accepted product a context target points at, or null for a group that is a new product. */
+function targetProductId(target: ContextTarget | undefined): string | null {
+  if (target === undefined) return null;
+  switch (target.kind) {
+    case "product":
+      return target.productId;
+  }
+}
+
 /**
  * Turns the groups of one answer into cards. A group id that the browser never
  * sent is skipped (it has no entry in `idMap`), so an id the model invents can
  * never become a member. A card that ends with no member is kept here and
  * dropped by `enqueueProductSuggestions`.
+ *
+ * A group placed with an accepted product (`existing` resolves to a product target) becomes an
+ * «Agregar a» card whose `target` is that product's id (D-21). Two groups of one answer that
+ * point at the same product become one card, at the position of the first, with the members in
+ * answer order and none repeated; a context id the browser never sent leaves a new product.
  */
 export function toProductSuggestions(
   groups: GroupResponse["groups"],
   idMap: ReadonlyMap<string, SuggestionMember>,
-  targets: ReadonlyMap<string, string>,
+  targets: ReadonlyMap<string, ContextTarget>,
   newId: () => string,
 ): ProductSuggestion[] {
-  return groups.map((group) => {
-    const members: SuggestionMember[] = [];
-    const seen = new Set<string>();
+  const cards: ProductSuggestion[] = [];
+  const byProduct = new Map<string, { card: ProductSuggestion; seen: Set<string> }>();
+  for (const group of groups) {
+    const target = targetProductId(
+      group.existing === null ? undefined : targets.get(group.existing),
+    );
+    const shared = target === null ? undefined : byProduct.get(target);
+    const card: ProductSuggestion = shared?.card ?? {
+      id: newId(),
+      name: group.name,
+      target,
+      members: [],
+    };
+    const seen = shared?.seen ?? new Set<string>();
     for (const id of group.ids) {
       const member = idMap.get(id);
       if (member === undefined) continue;
       const key = memberKey(member);
       if (seen.has(key)) continue;
       seen.add(key);
-      members.push(member);
+      card.members.push(member);
     }
-    return {
-      id: newId(),
-      name: group.name,
-      target: group.existing === null ? null : (targets.get(group.existing) ?? null),
-      members,
-    };
-  });
+    if (shared === undefined) {
+      cards.push(card);
+      if (target !== null) byProduct.set(target, { card, seen });
+    }
+  }
+  return cards;
 }
 
 /** Keys of every member of every pending card. */
