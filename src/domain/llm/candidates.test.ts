@@ -264,6 +264,77 @@ describe("buildGroupRun (D-28, LLM-03)", () => {
   });
 });
 
+describe("buildGroupRun context: the accepted products (D-04, D-21, D-33)", () => {
+  const accepted = [
+    { productId: "prod_c", name: "Café molido" },
+    { productId: "prod_a", name: "Azúcar" },
+    { productId: "prod_l", name: "Leche entera" },
+  ];
+
+  it("puts the names of the accepted products on every batch body as p1..pK, sorted by name", () => {
+    const run = buildGroupRun(items(121), accepted);
+    expect(run.batches).toHaveLength(2);
+    for (const batch of run.batches) {
+      expect(batch.body.existing).toEqual([
+        { id: "p1", name: "Azúcar" },
+        { id: "p2", name: "Café molido" },
+        { id: "p3", name: "Leche entera" },
+      ]);
+      expect(groupRequestSchema.safeParse(batch.body).success).toBe(true);
+    }
+    expect(run.contextNames).toBe(3);
+  });
+
+  it("maps each context id to a product target in the browser only", () => {
+    const run = buildGroupRun(items(2), accepted);
+    const batch = run.batches[0];
+    if (batch === undefined) throw new Error("fixture");
+    expect([...batch.targets.entries()]).toEqual([
+      ["p1", { kind: "product", productId: "prod_a" }],
+      ["p2", { kind: "product", productId: "prod_c" }],
+      ["p3", { kind: "product", productId: "prod_l" }],
+    ]);
+    expect(JSON.stringify(batch.body)).not.toContain("prod_");
+  });
+
+  it("sorts with the Spanish collator, so an accented initial is not sent last", () => {
+    const run = buildGroupRun(items(1), [
+      { productId: "prod_z", name: "Zanahoria" },
+      { productId: "prod_a", name: "Ámbar" },
+      { productId: "prod_u", name: "Azúcar" },
+    ]);
+    expect(run.batches[0]?.body.existing.map((context) => context.name)).toEqual([
+      "Ámbar",
+      "Azúcar",
+      "Zanahoria",
+    ]);
+  });
+
+  it("keeps the first 400 by name when there are more accepted products", () => {
+    const many = Array.from({ length: 450 }, (_unused, index) => ({
+      productId: `prod_${String(index)}`,
+      name: `Producto ${String(index).padStart(3, "0")}`,
+    }));
+    // The first ones by name come last in the input: the cut must follow the name, not the input.
+    const run = buildGroupRun(items(1), [...many].reverse());
+    const batch = run.batches[0];
+    if (batch === undefined) throw new Error("fixture");
+    expect(batch.body.existing).toHaveLength(LLM_LIMITS.contextNames);
+    expect(batch.body.existing[0]).toEqual({ id: "p1", name: "Producto 000" });
+    expect(batch.body.existing[399]).toEqual({ id: "p400", name: "Producto 399" });
+    expect(batch.targets.size).toBe(400);
+    expect(run.contextNames).toBe(400);
+    expect(groupRequestSchema.safeParse(batch.body).success).toBe(true);
+  });
+
+  it("sends no context when there is no accepted product", () => {
+    const run = buildGroupRun(items(3), []);
+    expect(run.batches[0]?.body.existing).toEqual([]);
+    expect(run.batches[0]?.targets.size).toBe(0);
+    expect(run.contextNames).toBe(0);
+  });
+});
+
 describe("groupRequestSchema (LLM-03)", () => {
   const valid = {
     items: [{ id: "i1", description: "Leche", supplier: "Tienda Uno" }],
