@@ -9,7 +9,7 @@ import {
   validateCategoryName,
 } from "./categories";
 import { settingsDataSchema } from "./schema";
-import { LIMITS, SIN_CATEGORIA, defaultSettings, type SettingsData } from "./types";
+import { LIMITS, SIN_CATEGORIA, defaultSettings, type Product, type SettingsData } from "./types";
 
 const LIMPIEZA = "seed:limpieza-higiene";
 const SERVICIOS = "seed:servicios";
@@ -40,6 +40,28 @@ function used(): SettingsData {
       { rfc: "AAA010101AAA", key: "cloro", description: "Cloro", categoryId: SERVICIOS },
       { rfc: "CCC010101CCC", key: "jabon", description: "Jabón", categoryId: LIMPIEZA },
       { rfc: "CCC010101CCC", key: "otro", description: "Otro", categoryId: null },
+    ],
+  };
+}
+
+function productOf(id: string, categoryId: string | null, key: string): Product {
+  return {
+    id,
+    name: `Producto ${id}`,
+    categoryId,
+    members: [{ rfc: "AAA010101AAA", key, description: key.toUpperCase(), supplierName: "A" }],
+  };
+}
+
+/** `used()` plus three products on LIMPIEZA, SERVICIOS and none, so a category can carry products. */
+function usedWithProducts(): SettingsData {
+  return {
+    ...used(),
+    products: [
+      productOf("prod_cloro", LIMPIEZA, "cloro 1l"),
+      productOf("prod_luz", SERVICIOS, "luz"),
+      productOf("prod_papel", LIMPIEZA, "papel"),
+      productOf("prod_sal", null, "sal"),
     ],
   };
 }
@@ -222,17 +244,34 @@ describe("renameCategory", () => {
 
 describe("categoryUsage", () => {
   it("counts supplier assignments and concept rules that point at the id", () => {
-    expect(categoryUsage(used(), LIMPIEZA)).toEqual({ suppliers: 2, concepts: 2 });
-    expect(categoryUsage(used(), SERVICIOS)).toEqual({ suppliers: 1, concepts: 1 });
+    expect(categoryUsage(used(), LIMPIEZA)).toEqual({ suppliers: 2, concepts: 2, products: 0 });
+    expect(categoryUsage(used(), SERVICIOS)).toEqual({ suppliers: 1, concepts: 1, products: 0 });
+  });
+
+  it("counts the products that point at the id", () => {
+    expect(categoryUsage(usedWithProducts(), LIMPIEZA)).toEqual({
+      suppliers: 2,
+      concepts: 2,
+      products: 2,
+    });
+    expect(categoryUsage(usedWithProducts(), SERVICIOS)).toEqual({
+      suppliers: 1,
+      concepts: 1,
+      products: 1,
+    });
   });
 
   it("is zero for an unused category and for an unknown id", () => {
-    expect(categoryUsage(used(), OTROS)).toEqual({ suppliers: 0, concepts: 0 });
-    expect(categoryUsage(used(), "cat_missing")).toEqual({ suppliers: 0, concepts: 0 });
+    expect(categoryUsage(used(), OTROS)).toEqual({ suppliers: 0, concepts: 0, products: 0 });
+    expect(categoryUsage(used(), "cat_missing")).toEqual({ suppliers: 0, concepts: 0, products: 0 });
   });
 
-  it("does not count explicit Sin categoría rules", () => {
-    expect(categoryUsage(used(), SIN_CATEGORIA)).toEqual({ suppliers: 0, concepts: 0 });
+  it("does not count explicit Sin categoría rules or products without category", () => {
+    expect(categoryUsage(usedWithProducts(), SIN_CATEGORIA)).toEqual({
+      suppliers: 0,
+      concepts: 0,
+      products: 0,
+    });
   });
 });
 
@@ -240,10 +279,29 @@ describe("usageByCategory", () => {
   it("gives the same counts as categoryUsage for every category in one pass", () => {
     const usage = usageByCategory(used());
     for (const category of used().categories) {
-      expect(usage.get(category.id) ?? { suppliers: 0, concepts: 0 }).toEqual(
+      expect(usage.get(category.id) ?? { suppliers: 0, concepts: 0, products: 0 }).toEqual(
         categoryUsage(used(), category.id),
       );
     }
+  });
+
+  it("counts the products in the same pass", () => {
+    const settings = usedWithProducts();
+    const usage = usageByCategory(settings);
+    for (const category of settings.categories) {
+      expect(usage.get(category.id) ?? { suppliers: 0, concepts: 0, products: 0 }).toEqual(
+        categoryUsage(settings, category.id),
+      );
+    }
+    expect(usage.get(LIMPIEZA)?.products).toBe(2);
+  });
+
+  it("gives an entry to a category that only products point at", () => {
+    const settings: SettingsData = {
+      ...defaultSettings(),
+      products: [productOf("prod_a", OTROS, "a")],
+    };
+    expect(usageByCategory(settings).get(OTROS)).toEqual({ suppliers: 0, concepts: 0, products: 1 });
   });
 
   it("does not count explicit Sin categoría rules", () => {
@@ -315,6 +373,86 @@ describe("deleteCategory", () => {
         { rfc: "BBB010101BBB", key: "luz", description: "Luz", categoryId: LIMPIEZA },
         { rfc: "CCC010101CCC", key: "jabon", description: "Jabón", categoryId: LIMPIEZA },
       ],
+      products: [],
+    });
+  });
+
+  describe("with products (CAT-05 ripple, D-13)", () => {
+    it("with a null target clears the category of the products that had it and leaves the others", () => {
+      const result = deleteCategory(usedWithProducts(), LIMPIEZA, null);
+      if (result === null) throw new Error("the delete must be accepted");
+      expect(result.next.products.map((product) => [product.id, product.categoryId])).toEqual([
+        ["prod_cloro", null],
+        ["prod_luz", SERVICIOS],
+        ["prod_papel", null],
+        ["prod_sal", null],
+      ]);
+    });
+
+    it("with a target moves the products that had the category there", () => {
+      const result = deleteCategory(usedWithProducts(), LIMPIEZA, OTROS);
+      if (result === null) throw new Error("the delete must be accepted");
+      expect(result.next.products.map((product) => product.categoryId)).toEqual([
+        OTROS,
+        SERVICIOS,
+        OTROS,
+        null,
+      ]);
+    });
+
+    it("keeps names, members and order of the products", () => {
+      const before = usedWithProducts();
+      const result = deleteCategory(before, LIMPIEZA, OTROS);
+      if (result === null) throw new Error("the delete must be accepted");
+      expect(result.next.products.map((product) => product.id)).toEqual(
+        before.products.map((product) => product.id),
+      );
+      expect(result.next.products.map((product) => product.members)).toEqual(
+        before.products.map((product) => product.members),
+      );
+      expect(result.next.products.map((product) => product.name)).toEqual(
+        before.products.map((product) => product.name),
+      );
+    });
+
+    it("keeps in the snapshot copies of the products that had the category", () => {
+      const result = deleteCategory(usedWithProducts(), LIMPIEZA, OTROS);
+      if (result === null) throw new Error("the delete must be accepted");
+      expect(result.snapshot.products).toEqual([
+        productOf("prod_cloro", LIMPIEZA, "cloro 1l"),
+        productOf("prod_papel", LIMPIEZA, "papel"),
+      ]);
+      const first = result.next.products[0];
+      if (first === undefined) throw new Error("expected a product");
+      first.categoryId = SERVICIOS;
+      first.members.push({ rfc: "X", key: "x", description: "X", supplierName: "X" });
+      expect(result.snapshot.products[0]?.categoryId).toBe(LIMPIEZA);
+      expect(result.snapshot.products[0]?.members).toHaveLength(1);
+    });
+
+    it("returns settings that the stored schema accepts for both kinds of target", () => {
+      for (const target of [null, OTROS]) {
+        const result = deleteCategory(usedWithProducts(), LIMPIEZA, target);
+        if (result === null) throw new Error("the delete must be accepted");
+        expect(settingsDataSchema.safeParse(result.next).success).toBe(true);
+      }
+    });
+
+    it("leaves no product pointing at the deleted category", () => {
+      const result = deleteCategory(usedWithProducts(), SERVICIOS, null);
+      if (result === null) throw new Error("the delete must be accepted");
+      expect(result.next.products.some((product) => product.categoryId === SERVICIOS)).toBe(false);
+    });
+
+    it("does not mutate frozen products", () => {
+      const frozen = deepFreeze(usedWithProducts());
+      for (const product of frozen.products) {
+        Object.freeze(product.members);
+        Object.freeze(product);
+      }
+      Object.freeze(frozen.products);
+      expect(() => deleteCategory(frozen, LIMPIEZA, null)).not.toThrow();
+      expect(() => deleteCategory(frozen, LIMPIEZA, OTROS)).not.toThrow();
     });
   });
 
@@ -385,6 +523,7 @@ describe("restoreCategory", () => {
       index: 10,
       suppliers: [],
       rules: [],
+      products: [],
     };
     const restored = restoreCategory(base, snapshot);
     expect(restored.categories.at(-1)).toEqual({ id: "cat_back", name: "Vuelve" });
@@ -393,19 +532,37 @@ describe("restoreCategory", () => {
 
   it("returns the settings unchanged when the id already exists", () => {
     const settings = defaultSettings();
-    const snapshot = { category: { id: LIMPIEZA, name: "Otra" }, index: 0, suppliers: [], rules: [] };
+    const snapshot = {
+      category: { id: LIMPIEZA, name: "Otra" },
+      index: 0,
+      suppliers: [],
+      rules: [],
+      products: [],
+    };
     expect(restoreCategory(settings, snapshot)).toBe(settings);
   });
 
   it("returns the settings unchanged when the name now belongs to another category", () => {
     const settings = defaultSettings();
-    const snapshot = { category: { id: "cat_back", name: "otros" }, index: 0, suppliers: [], rules: [] };
+    const snapshot = {
+      category: { id: "cat_back", name: "otros" },
+      index: 0,
+      suppliers: [],
+      rules: [],
+      products: [],
+    };
     expect(restoreCategory(settings, snapshot)).toBe(settings);
   });
 
   it("returns the settings unchanged when the category limit would be exceeded", () => {
     const settings = withCategories(LIMITS.categories);
-    const snapshot = { category: { id: "cat_back", name: "Vuelve" }, index: 0, suppliers: [], rules: [] };
+    const snapshot = {
+      category: { id: "cat_back", name: "Vuelve" },
+      index: 0,
+      suppliers: [],
+      rules: [],
+      products: [],
+    };
     expect(restoreCategory(settings, snapshot)).toBe(settings);
   });
 
@@ -423,6 +580,7 @@ describe("restoreCategory", () => {
       index: 0,
       suppliers: [{ rfc: "NUEVO", name: "N", categoryId: "cat_back" }],
       rules: [],
+      products: [],
     };
     expect(restoreCategory(settings, snapshot)).toBe(settings);
   });
@@ -433,6 +591,59 @@ describe("restoreCategory", () => {
     expect(settingsDataSchema.safeParse(restoreCategory(deleted.next, deleted.snapshot)).success).toBe(
       true,
     );
+  });
+
+  describe("with products (CAT-05 ripple, D-13)", () => {
+    it("puts the category of the products back after a move to a target", () => {
+      const before = usedWithProducts();
+      const deleted = deleteCategory(before, LIMPIEZA, OTROS);
+      if (deleted === null) throw new Error("the delete must be accepted");
+      expect(restoreCategory(deleted.next, deleted.snapshot)).toEqual(before);
+    });
+
+    it("puts the category of the products back after a move to Sin categoría", () => {
+      const before = usedWithProducts();
+      const deleted = deleteCategory(before, LIMPIEZA, null);
+      if (deleted === null) throw new Error("the delete must be accepted");
+      const restored = restoreCategory(deleted.next, deleted.snapshot);
+      expect(restored.products).toEqual(before.products);
+      expect(settingsDataSchema.safeParse(restored).success).toBe(true);
+    });
+
+    it("leaves a product deleted in the meantime deleted and keeps the others", () => {
+      const before = usedWithProducts();
+      const deleted = deleteCategory(before, LIMPIEZA, OTROS);
+      if (deleted === null) throw new Error("the delete must be accepted");
+      const changed: SettingsData = {
+        ...deleted.next,
+        products: deleted.next.products.filter((product) => product.id !== "prod_cloro"),
+      };
+      const restored = restoreCategory(changed, deleted.snapshot);
+      expect(restored.products.map((product) => [product.id, product.categoryId])).toEqual([
+        ["prod_luz", SERVICIOS],
+        ["prod_papel", LIMPIEZA],
+        ["prod_sal", null],
+      ]);
+      expect(settingsDataSchema.safeParse(restored).success).toBe(true);
+    });
+
+    it("does not touch products that the delete did not move", () => {
+      const deleted = deleteCategory(usedWithProducts(), LIMPIEZA, null);
+      if (deleted === null) throw new Error("the delete must be accepted");
+      const luz = deleted.next.products.find((product) => product.id === "prod_luz");
+      const restored = restoreCategory(deleted.next, deleted.snapshot);
+      expect(restored.products.find((product) => product.id === "prod_luz")).toBe(luz);
+    });
+
+    it("returns the settings unchanged, products included, when the id is taken again", () => {
+      const deleted = deleteCategory(usedWithProducts(), LIMPIEZA, null);
+      if (deleted === null) throw new Error("the delete must be accepted");
+      const taken: SettingsData = {
+        ...deleted.next,
+        categories: [...deleted.next.categories, { id: LIMPIEZA, name: "Otra cosa" }],
+      };
+      expect(restoreCategory(taken, deleted.snapshot)).toBe(taken);
+    });
   });
 });
 
