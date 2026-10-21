@@ -14,11 +14,20 @@ import { z } from "zod";
 import { POST } from "@/app/api/llm/group/route";
 import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
 import { groupRequestSchema, type GroupRequest } from "@/domain/llm/contract";
+import type { SuggestionMember } from "@/domain/llm/suggestions";
+import { normalizeDescription } from "@/domain/settings/normalize";
 import { useLlmRunStore } from "@/stores/llmRunStore";
 import { useSessionStore } from "@/stores/sessionStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
 import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
+import { resetSettingsStore } from "../../../tests/support/settingsStorage";
+import {
+  readStoredQueue,
+  resetSuggestionsStore,
+  storeQueue,
+} from "../../../tests/support/suggestionsStorage";
 import { ProductsTab } from "./ProductsTab";
 
 const { TEST_SESSION } = vi.hoisted(() => ({ TEST_SESSION: "test-session-token" }));
@@ -252,6 +261,9 @@ beforeEach(() => {
   sessionToken = TEST_SESSION;
   fetchMock.mockClear();
   vi.stubGlobal("fetch", fetchMock);
+  window.localStorage.clear();
+  resetSuggestionsStore();
+  resetSettingsStore();
   seed(sample());
 });
 
@@ -259,11 +271,14 @@ afterEach(() => {
   cleanup();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   act(() => {
     useSessionStore.getState().clearAll();
-    useSuggestionsStore.setState({ products: [] });
     useLlmRunStore.setState({ status: { phase: "idle" }, controller: null });
   });
+  window.localStorage.clear();
+  resetSuggestionsStore();
+  resetSettingsStore();
 });
 
 describe("Agrupar productos: the send dialog (D-03, D-08, LLM-06)", () => {
@@ -781,5 +796,128 @@ describe("Agrupar productos: the session during a run (ACC-03)", () => {
     expect(upstreamCalls).toHaveLength(0);
     expect(useSuggestionsStore.getState().products).toEqual([]);
     expect(JSON.parse(routeResponseTexts[0] ?? "null")).toEqual({ error: "unauthorized" });
+  });
+});
+
+describe("Pending suggestions after a reload (D-24, D-30, E4 partial)", () => {
+  function stored(supplier: { rfc: string; nombre: string }, description: string): SuggestionMember {
+    return {
+      rfc: supplier.rfc,
+      key: normalizeDescription(description),
+      description,
+      supplierName: supplier.nombre,
+    };
+  }
+
+  const LECHE_UNO = stored(UNO, "MM LECHE ENT");
+  const LECHE_DOS = stored(DOS, "LECHE ENTERA 1L");
+
+  async function reloadWithOnlyUnoLoaded(): Promise<HTMLElement> {
+    act(() => {
+      useSessionStore.getState().clearAll();
+    });
+    seed([invoice(0, UNO, ["MM LECHE ENT", "Café Molido 1kg"])]);
+    storeQueue({
+      products: [{ id: "sug_stored", name: "Leche entera", target: null, members: [LECHE_UNO, LECHE_DOS] }],
+      categories: [],
+    });
+    await act(async () => {
+      await useSuggestionsStore.persist.rehydrate();
+    });
+    render(<ProductsTab />);
+    const heading = screen.getByRole("heading", { name: "Leche entera", level: 3 });
+    const card = heading.closest("li");
+    if (card === null) throw new Error("the card has no list item");
+    return card;
+  }
+
+  it("shows the stored card, marks the member of the supplier without loaded lines and counts the free descriptions without it", async () => {
+    const card = await reloadWithOnlyUnoLoaded();
+    expect(within(card).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(card).getAllByText("Sin líneas cargadas")).toHaveLength(1);
+    expect(within(card).getByText("Tienda Uno · 1 línea")).toBeInTheDocument();
+    expect(within(card).getByText("Tienda Dos")).toBeInTheDocument();
+    // MM LECHE ENT is waiting in the card, so only «Café Molido 1kg» is still free.
+    expect(screen.getByText("1 descripción sin agrupar")).toBeInTheDocument();
+  });
+
+  it("accepts that card: the product holds both RFC, the card leaves the stored queue", async () => {
+    const card = await reloadWithOnlyUnoLoaded();
+    fireEvent.click(within(card).getByRole("button", { name: "Aceptar la sugerencia «Leche entera»" }));
+    const { products } = useSettingsStore.getState();
+    expect(products).toHaveLength(1);
+    expect(products[0]?.name).toBe("Leche entera");
+    expect(products[0]?.members.map((member) => member.rfc).sort()).toEqual([DOS.rfc, UNO.rfc].sort());
+    expect(useSuggestionsStore.getState().products).toEqual([]);
+    expect(await readStoredQueue()).toEqual({ state: { products: [], categories: [] }, version: 1 });
+  });
+});
+
+describe("Storage notices of the Productos tab (Q8 pattern)", () => {
+  const QUEUE_ALERT =
+    "Este navegador no permite guardar las sugerencias pendientes. Se perderán al recargar la página; revísalas antes.";
+  const SETTINGS_ALERT =
+    "Este navegador no permite guardar tus ajustes. Los cambios se perderán al cerrar la página; descarga tus ajustes para no perderlos.";
+
+  const PENDING = {
+    id: "sug_a",
+    name: "Leche entera",
+    target: null,
+    members: [
+      {
+        rfc: UNO.rfc,
+        key: normalizeDescription("MM LECHE ENT"),
+        description: "MM LECHE ENT",
+        supplierName: UNO.nombre,
+      },
+    ],
+  };
+
+  it("shows no storage Alert while everything can be written", () => {
+    render(<ProductsTab />);
+    act(() => {
+      useSuggestionsStore.getState().enqueueProducts([PENDING]);
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("shows the non-dismissible Alert for the queue, and not the settings one, when only the queue cannot be written", () => {
+    render(<ProductsTab />);
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota");
+    });
+    act(() => {
+      useSuggestionsStore.getState().enqueueProducts([PENDING]);
+    });
+    const alert = screen.getByRole("alert");
+    expect(within(alert).getByText(QUEUE_ALERT)).toBeInTheDocument();
+    expect(within(alert).queryByRole("button")).toBeNull();
+    expect(screen.queryByText(SETTINGS_ALERT)).toBeNull();
+    // The card is still there for this session.
+    expect(screen.getByRole("heading", { name: "Leche entera", level: 3 })).toBeInTheDocument();
+  });
+
+  it("shows the settings Alert first and the queue Alert second when neither can be written, and each goes after a later write works", () => {
+    render(<ProductsTab />);
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota");
+    });
+    act(() => {
+      useSettingsStore.getState().setIvaMode("sin");
+      useSuggestionsStore.getState().enqueueProducts([PENDING]);
+    });
+    expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual([
+      SETTINGS_ALERT,
+      QUEUE_ALERT,
+    ]);
+    blocked.mockRestore();
+    act(() => {
+      useSettingsStore.getState().setIvaMode("con");
+    });
+    expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual([QUEUE_ALERT]);
+    act(() => {
+      useSuggestionsStore.getState().removeProduct("sug_a");
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

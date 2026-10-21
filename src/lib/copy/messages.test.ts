@@ -58,6 +58,8 @@ import {
   paginationRangeText,
   hiddenInvoiceNotice,
   processingText,
+  productsTabAria,
+  productsTabLabel,
   qualityTabAria,
   qualityTabLabel,
   receptorDistintoText,
@@ -497,6 +499,26 @@ describe("Calidad de datos tab texts (D-04, A-7)", () => {
   it("builds the label from the same words as the tab copy", () => {
     expect(qualityTabLabel(0)).toBe(es.tabs.quality);
     expect(qualityTabAria(0)).toBe(es.tabs.quality);
+  });
+});
+
+describe("Productos tab texts (UI-SPEC Shell and tab)", () => {
+  it("shows the counter only above zero", () => {
+    expect(productsTabLabel(0)).toBe("Productos");
+    expect(productsTabLabel(1)).toBe("Productos · 1");
+    expect(productsTabLabel(3)).toBe("Productos · 3");
+    expect(productsTabLabel(120)).toBe("Productos · 120");
+  });
+
+  it("uses the singular for one pending suggestion in the accessible name", () => {
+    expect(productsTabAria(0)).toBe("Productos");
+    expect(productsTabAria(1)).toBe("Productos, 1 sugerencia por revisar");
+    expect(productsTabAria(3)).toBe("Productos, 3 sugerencias por revisar");
+  });
+
+  it("builds the label from the same word as the tab copy", () => {
+    expect(productsTabLabel(0)).toBe(es.tabs.products);
+    expect(productsTabAria(0)).toBe(es.tabs.products);
   });
 });
 
