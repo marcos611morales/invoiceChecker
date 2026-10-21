@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
   SUGGESTIONS_VERSION,
+  appendSuggestionMembers,
   dropMember,
   enqueueProductSuggestions,
   removeSuggestion,
@@ -14,6 +15,7 @@ import {
   type PendingQueue,
   type ProductSuggestion,
   type RemovedSuggestion,
+  type SuggestionMember,
 } from "@/domain/llm/suggestions";
 import { createSafeStorage } from "./safeStorage";
 import { useSuggestionsStatusStore } from "./storageStatusStore";
@@ -35,6 +37,11 @@ interface SuggestionsState {
   categories: CategorySuggestion[];
   /** Adds the cards, skipping every member already pending (idempotent per member, D-25). */
   enqueueProducts: (incoming: readonly ProductSuggestion[]) => void;
+  /**
+   * Adds members at the end of a pending card (D-33), skipping every member already pending in any
+   * card (idempotent per member); an unknown card or nothing new writes nothing.
+   */
+  appendMembers: (cardId: string, members: readonly SuggestionMember[]) => void;
   /** Takes one card out of the queue and returns it, or null when there is no such card (nothing changes then). */
   removeProduct: (id: string) => ProductSuggestion | null;
   /** Stores the name typed on a card, cut to 60 (D-12); an unknown id or the same name writes nothing. */
@@ -76,6 +83,12 @@ export const useSuggestionsStore = create<SuggestionsState>()(
         set((current) => ({
           products: enqueueProductSuggestions(current.products, incoming),
         })),
+      appendMembers: (cardId, members) => {
+        const current = queueOf(get());
+        const next = appendSuggestionMembers(current, cardId, members);
+        // An unknown card or no new member comes back as the same object: nothing to write.
+        if (next !== current) set({ products: next.products });
+      },
       removeProduct: (id) => {
         const removed = get().products.find((card) => card.id === id);
         if (removed === undefined) return null;
