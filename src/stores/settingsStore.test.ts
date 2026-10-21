@@ -1134,3 +1134,71 @@ describe("settingsStore deleteCategory and restoreCategory carry the products (C
     expect(useStorageStatusStore.getState().readFailed).toBe(false);
   });
 });
+
+describe("settingsStore «No agrupar» actions (D-13, D-22)", () => {
+  const uno = (key: string): ProductMember => ({
+    rfc: "AAA010101AAA",
+    key,
+    description: key.toUpperCase(),
+    supplierName: "Tienda Uno",
+  });
+  const keyOf = (member: ProductMember): string => ruleMapKey(member.rfc, member.key);
+
+  it("markUngrouped stores the mark in one write that touches only ungroupedConcepts, and survives a reload", async () => {
+    useSettingsStore.setState({
+      products: [{ id: "prod_a", name: "Leche", categoryId: null, members: [uno("a1")] }],
+    });
+    const before = snapshot();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().markUngrouped(uno("flete"))).toEqual({ ok: true });
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().ungroupedConcepts).toEqual([uno("flete")]);
+    expect(snapshot().products).toBe(before.products);
+
+    const written = window.localStorage.getItem(KEY);
+    useSettingsStore.setState(defaultSettings());
+    window.localStorage.setItem(KEY, written ?? "");
+    await rehydrate();
+    expect(snapshot().ungroupedConcepts).toEqual([uno("flete")]);
+    expect(useStorageStatusStore.getState().readFailed).toBe(false);
+  });
+
+  it("markUngrouped twice, or on a member of a product, writes nothing more", () => {
+    useSettingsStore.setState({
+      products: [{ id: "prod_a", name: "Leche", categoryId: null, members: [uno("a1")] }],
+    });
+    useSettingsStore.getState().markUngrouped(uno("flete"));
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().markUngrouped(uno("flete"))).toEqual({ ok: true });
+    expect(useSettingsStore.getState().markUngrouped(uno("a1"))).toEqual({
+      ok: false,
+      reason: "taken",
+    });
+    expect(setItem).not.toHaveBeenCalled();
+    expect(snapshot().ungroupedConcepts).toHaveLength(1);
+  });
+
+  it("refuses the 5,001st mark and writes nothing", () => {
+    useSettingsStore.setState({
+      ungroupedConcepts: Array.from({ length: 5000 }, (_unused, index) => uno(`k${String(index)}`)),
+    });
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().markUngrouped(uno("uno-mas"))).toEqual({
+      ok: false,
+      reason: "limit",
+    });
+    expect(setItem).not.toHaveBeenCalled();
+    expect(snapshot().ungroupedConcepts).toHaveLength(5000);
+  });
+
+  it("unmarkUngrouped returns the removed mark, and null for an unknown key without writing", () => {
+    useSettingsStore.setState({ ungroupedConcepts: [uno("flete"), uno("sal")] });
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().unmarkUngrouped(keyOf(uno("flete")))).toEqual(uno("flete"));
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().ungroupedConcepts).toEqual([uno("sal")]);
+    setItem.mockClear();
+    expect(useSettingsStore.getState().unmarkUngrouped(keyOf(uno("flete")))).toBeNull();
+    expect(setItem).not.toHaveBeenCalled();
+  });
+});

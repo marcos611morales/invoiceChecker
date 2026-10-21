@@ -2,9 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   PENDING_LIMITS,
   SUGGESTIONS_VERSION,
+  dropMember,
   enqueueProductSuggestions,
+  memberKey,
   pendingQueueSchema,
+  removeSuggestion,
+  renameSuggestion,
   resolvePendingQueue,
+  restoreMember,
+  restoreSuggestion,
   type CategorySuggestion,
   type PendingQueue,
   type ProductSuggestion,
@@ -372,5 +378,234 @@ describe("enqueueProductSuggestions caps (D-24)", () => {
       ["leche entera 1l"],
       ["cafe molido 1kg"],
     ]);
+  });
+});
+
+/** Freezes the queue deeply so any mutation by the code under test throws. */
+function deepFreezeQueue(value: PendingQueue): PendingQueue {
+  for (const entry of value.products) {
+    for (const item of entry.members) Object.freeze(item);
+    Object.freeze(entry.members);
+    Object.freeze(entry);
+  }
+  for (const row of value.categories) Object.freeze(row);
+  Object.freeze(value.products);
+  Object.freeze(value.categories);
+  return Object.freeze(value);
+}
+
+const LECHE_TRES = member("CCC030303CCC", "leche entera 1l");
+const AZUCAR = member("AAA010101AAA", "azucar");
+
+/** Three cards: «Leche entera» (three members), «Café molido» and «Azúcar» (one each). */
+function reviewQueue(): PendingQueue {
+  return {
+    products: [
+      card("sug_a", "Leche entera", [LECHE_UNO, LECHE_DOS, LECHE_TRES]),
+      card("sug_b", "Café molido", [CAFE]),
+      card("sug_c", "Azúcar", [AZUCAR]),
+    ],
+    categories: [],
+  };
+}
+
+describe("renameSuggestion (D-12, D-19)", () => {
+  it("stores the new name and keeps the id, the target and the members", () => {
+    const base = reviewQueue();
+    const next = renameSuggestion(base, "sug_a", "Leche");
+    expect(next.products.map((entry) => entry.name)).toEqual(["Leche", "Café molido", "Azúcar"]);
+    const [first] = next.products;
+    expect(first?.id).toBe("sug_a");
+    expect(first?.target).toBeNull();
+    expect(first?.members).toEqual(base.products[0]?.members);
+    expect(next.categories).toBe(base.categories);
+  });
+
+  it("cuts a 61-character name to 60", () => {
+    const next = renameSuggestion(reviewQueue(), "sug_b", "n".repeat(61));
+    expect(next.products[1]?.name).toBe("n".repeat(60));
+    expect(pendingQueueSchema.safeParse(next).success).toBe(true);
+  });
+
+  it("keeps a name of exactly 60 characters whole", () => {
+    expect(renameSuggestion(reviewQueue(), "sug_b", "n".repeat(60)).products[1]?.name).toBe(
+      "n".repeat(60),
+    );
+  });
+
+  it("never splits an emoji when it cuts", () => {
+    const next = renameSuggestion(reviewQueue(), "sug_b", `${"a".repeat(59)}😀😀`);
+    const name = next.products[1]?.name ?? "";
+    expect(name.length).toBeLessThanOrEqual(60);
+    expect(name).toBe("a".repeat(59));
+    expect(pendingQueueSchema.safeParse(next).success).toBe(true);
+  });
+
+  it("allows an empty name while the user is editing", () => {
+    const next = renameSuggestion(reviewQueue(), "sug_b", "");
+    expect(next.products[1]?.name).toBe("");
+    expect(pendingQueueSchema.safeParse(next).success).toBe(true);
+  });
+
+  it("returns the very same queue for an unknown id or an unchanged name", () => {
+    const base = reviewQueue();
+    expect(renameSuggestion(base, "sug_x", "Otro")).toBe(base);
+    expect(renameSuggestion(base, "sug_a", "Leche entera")).toBe(base);
+  });
+});
+
+describe("removeSuggestion and restoreSuggestion (D-22)", () => {
+  it("takes the card out, reports its index, and restore gives back the same queue", () => {
+    const base = reviewQueue();
+    const result = removeSuggestion(base, "sug_b");
+    if (result === null) throw new Error("expected a removal");
+    expect(result.next.products.map((entry) => entry.id)).toEqual(["sug_a", "sug_c"]);
+    expect(result.removed.index).toBe(1);
+    expect(result.removed.card.name).toBe("Café molido");
+    expect(restoreSuggestion(result.next, result.removed)).toEqual(base);
+  });
+
+  it("returns null for an unknown id", () => {
+    expect(removeSuggestion(reviewQueue(), "sug_x")).toBeNull();
+  });
+
+  it("puts a card back at the end when the queue is shorter than its index now", () => {
+    const base = reviewQueue();
+    const last = removeSuggestion(base, "sug_c");
+    if (last === null) throw new Error("expected a removal");
+    const shorter: PendingQueue = { ...last.next, products: last.next.products.slice(0, 1) };
+    const restored = restoreSuggestion(shorter, last.removed);
+    expect(restored.products.map((entry) => entry.id)).toEqual(["sug_a", "sug_c"]);
+  });
+
+  it("leaves out a member that is pending in another card now", () => {
+    const base = reviewQueue();
+    const result = removeSuggestion(base, "sug_b");
+    if (result === null) throw new Error("expected a removal");
+    const taken: PendingQueue = {
+      ...result.next,
+      products: [...result.next.products, card("sug_n", "Nueva", [CAFE])],
+    };
+    // The only member of the card is pending elsewhere: the card is not restored at all.
+    expect(restoreSuggestion(taken, result.removed)).toBe(taken);
+
+    const wide = removeSuggestion(base, "sug_a");
+    if (wide === null) throw new Error("expected a removal");
+    const partly: PendingQueue = {
+      ...wide.next,
+      products: [...wide.next.products, card("sug_m", "Otra", [LECHE_DOS])],
+    };
+    const restored = restoreSuggestion(partly, wide.removed);
+    const back = restored.products.find((entry) => entry.id === "sug_a");
+    expect(back?.members.map((entry) => memberKey(entry))).toEqual([
+      memberKey(LECHE_UNO),
+      memberKey(LECHE_TRES),
+    ]);
+    expect(pendingQueueSchema.safeParse(restored).success).toBe(true);
+  });
+
+  it("does not restore a card whose id is already in the queue", () => {
+    const base = reviewQueue();
+    const result = removeSuggestion(base, "sug_b");
+    if (result === null) throw new Error("expected a removal");
+    const again: PendingQueue = {
+      ...result.next,
+      products: [...result.next.products, card("sug_b", "Otra", [member("ZZZ", "otro")])],
+    };
+    expect(restoreSuggestion(again, result.removed)).toBe(again);
+  });
+
+  it("does not restore past the card cap", () => {
+    const full: PendingQueue = {
+      products: oneMemberCards(PENDING_LIMITS.productCards, "q"),
+      categories: [],
+    };
+    const removed = { card: card("sug_gone", "Fuera", [member("ZZZ", "fuera")]), index: 0 };
+    expect(restoreSuggestion(full, removed)).toBe(full);
+  });
+});
+
+describe("dropMember and restoreMember (D-19, D-22)", () => {
+  it("takes a middle member out of a card that keeps others, and restore puts it back at its index", () => {
+    const base = reviewQueue();
+    const result = dropMember(base, "sug_a", memberKey(LECHE_DOS));
+    if (result === null) throw new Error("expected a drop");
+    expect(result.next.products[0]?.members.map((entry) => entry.rfc)).toEqual([
+      "AAA010101AAA",
+      "CCC030303CCC",
+    ]);
+    expect(result.dropped.index).toBe(1);
+    expect(result.dropped.cardId).toBe("sug_a");
+    expect(result.dropped.member).toEqual(LECHE_DOS);
+    expect(result.dropped.card).toBeNull();
+    expect(restoreMember(result.next, result.dropped)).toEqual(base);
+  });
+
+  it("removes the card when the member was its only one, and restore brings the card back at its index", () => {
+    const base = reviewQueue();
+    const result = dropMember(base, "sug_b", memberKey(CAFE));
+    if (result === null) throw new Error("expected a drop");
+    expect(result.next.products.map((entry) => entry.id)).toEqual(["sug_a", "sug_c"]);
+    expect(result.dropped.card?.index).toBe(1);
+    expect(result.dropped.card?.card.name).toBe("Café molido");
+    expect(restoreMember(result.next, result.dropped)).toEqual(base);
+  });
+
+  it("returns null for an unknown card or a member the card does not have", () => {
+    const base = reviewQueue();
+    expect(dropMember(base, "sug_x", memberKey(CAFE))).toBeNull();
+    expect(dropMember(base, "sug_a", memberKey(CAFE))).toBeNull();
+  });
+
+  it("does not put a member back when it is pending somewhere now, or its card is gone", () => {
+    const base = reviewQueue();
+    const result = dropMember(base, "sug_a", memberKey(LECHE_DOS));
+    if (result === null) throw new Error("expected a drop");
+    const takenElsewhere: PendingQueue = {
+      ...result.next,
+      products: [...result.next.products, card("sug_n", "Nueva", [LECHE_DOS])],
+    };
+    expect(restoreMember(takenElsewhere, result.dropped)).toBe(takenElsewhere);
+    const cardGone: PendingQueue = {
+      ...result.next,
+      products: result.next.products.filter((entry) => entry.id !== "sug_a"),
+    };
+    expect(restoreMember(cardGone, result.dropped)).toBe(cardGone);
+  });
+
+  it("does not put a member back past the member cap", () => {
+    const base = reviewQueue();
+    const result = dropMember(base, "sug_a", memberKey(LECHE_DOS));
+    if (result === null) throw new Error("expected a drop");
+    const full: PendingQueue = {
+      products: [
+        ...result.next.products.slice(0, 1),
+        ...oneMemberCards(PENDING_LIMITS.members - 2, "q"),
+      ],
+      categories: [],
+    };
+    expect(restoreMember(full, result.dropped)).toBe(full);
+  });
+});
+
+describe("review reducers never mutate their input", () => {
+  it("accept a frozen queue for every operation, and every result is a valid queue", () => {
+    const frozen = deepFreezeQueue(reviewQueue());
+    const results: PendingQueue[] = [];
+    expect(() => {
+      results.push(renameSuggestion(frozen, "sug_a", "Otro"));
+      const removed = removeSuggestion(frozen, "sug_a");
+      if (removed !== null) {
+        results.push(removed.next, restoreSuggestion(removed.next, removed.removed));
+      }
+      const dropped = dropMember(frozen, "sug_a", memberKey(LECHE_UNO));
+      if (dropped !== null) results.push(dropped.next, restoreMember(dropped.next, dropped.dropped));
+      const lone = dropMember(frozen, "sug_b", memberKey(CAFE));
+      if (lone !== null) results.push(lone.next, restoreMember(lone.next, lone.dropped));
+    }).not.toThrow();
+    expect(results).toHaveLength(7);
+    for (const result of results) {
+      expect(pendingQueueSchema.safeParse(result).success).toBe(true);
+    }
   });
 });
