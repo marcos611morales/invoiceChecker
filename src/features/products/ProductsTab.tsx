@@ -171,7 +171,14 @@ export function ProductsTab() {
           />
         </section>
       ) : null}
-      {products.length > 0 ? <ProductList /> : null}
+      {products.length > 0 ? (
+        <ProductList
+          onEmptied={() => {
+            // The list unmounts with its last product: focus goes to the tab heading.
+            titleHeading.current?.focus();
+          }}
+        />
+      ) : null}
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>

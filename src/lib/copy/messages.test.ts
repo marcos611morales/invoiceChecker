@@ -76,6 +76,21 @@ import {
   settingsDownloadedToast,
   viewCategoryInvoicesAria,
   viewSupplierInvoicesAria,
+  deleteProductAria,
+  expandMembersAria,
+  memberMovedToast,
+  memberRemovedToast,
+  membersCount,
+  moveMemberAria,
+  noProductMatches,
+  productDeletedToast,
+  productEmptiedToast,
+  productFreedText,
+  productsHeading,
+  removeMemberAria,
+  renameProductAria,
+  renameProductInputAria,
+  suppliersCell,
 } from "./messages";
 
 describe("rejectReasonText", () => {
@@ -730,5 +745,53 @@ describe("Excel export copy (UI-SPEC Shell and top bar, E8)", () => {
   it("states the pair of months behind the variation as «último vs. anterior»", () => {
     expect(variationMonthText("dic 2025", "nov 2025")).toBe("dic 2025 vs. nov 2025");
     expect(variationMonthText("ene 2026", "dic 2025")).toBe("ene 2026 vs. dic 2025");
+  });
+});
+
+describe("«Mis productos» copy (Plan 04-07, UI-SPEC 296-318)", () => {
+  it("says the singular for one product and one member", () => {
+    expect(productsHeading(1)).toBe("Mis productos · 1 producto");
+    expect(productsHeading(12)).toBe("Mis productos · 12 productos");
+    expect(membersCount(1)).toBe("1 miembro");
+    expect(membersCount(3)).toBe("3 miembros");
+  });
+
+  it("shows up to two suppliers and then «+{k}»", () => {
+    expect(suppliersCell(["A"])).toBe("A");
+    expect(suppliersCell(["A", "B"])).toBe("A, B");
+    expect(suppliersCell(["A", "B", "C", "D"])).toBe("A, B +2");
+  });
+
+  it("names the product or description every icon-only button acts on", () => {
+    expect(expandMembersAria("Leche", false)).toBe("Ver miembros de Leche");
+    expect(expandMembersAria("Leche", true)).toBe("Ocultar miembros de Leche");
+    expect(renameProductAria("Leche")).toBe("Renombrar producto Leche");
+    expect(deleteProductAria("Leche")).toBe("Borrar producto Leche");
+    expect(renameProductInputAria("Leche")).toBe("Nuevo nombre del producto Leche");
+    expect(moveMemberAria("Leche 1L")).toBe("Mover «Leche 1L» a otro producto");
+    expect(removeMemberAria("Leche 1L")).toBe("Quitar «Leche 1L» del producto");
+    expect(moveMemberAria("m".repeat(61))).toBe(`Mover «${"m".repeat(59)}…» a otro producto`);
+    expect(removeMemberAria("m".repeat(60))).toBe(`Quitar «${"m".repeat(60)}» del producto`);
+  });
+
+  it("cuts names and descriptions at 40 characters in the toasts, the product name in «de/a» never", () => {
+    expect(productDeletedToast("Leche")).toBe("Producto «Leche» borrado");
+    expect(productDeletedToast("n".repeat(41))).toBe(`Producto «${"n".repeat(39)}…» borrado`);
+    expect(productEmptiedToast("Leche")).toBe(
+      "Producto «Leche» borrado porque se quedó sin descripciones",
+    );
+    expect(memberRemovedToast("d".repeat(41), "Leche")).toBe(`«${"d".repeat(39)}…» quitada de «Leche»`);
+    expect(memberMovedToast("Leche 1L", "p".repeat(60))).toBe(
+      `«Leche 1L» movida a «${"p".repeat(60)}»`,
+    );
+  });
+
+  it("says «Sus {n} descripciones vuelven a quedar libres.» and its singular", () => {
+    expect(productFreedText(2)).toBe("Sus 2 descripciones vuelven a quedar libres.");
+    expect(productFreedText(1)).toBe("Su descripción vuelve a quedar libre.");
+  });
+
+  it("says nothing matches the typed text", () => {
+    expect(noProductMatches("queso")).toBe("Ningún producto coincide con «queso».");
   });
 });

@@ -466,6 +466,14 @@ export const es = {
         lines: "Líneas",
         actions: "Acciones",
       },
+      saveName: "Guardar nombre",
+      cancelRename: "Cancelar cambio de nombre",
+      undo: "Deshacer",
+    },
+    /** Searchable product picker used by «Mover a…» (and «Unir con…» later). */
+    picker: {
+      search: "Buscar producto",
+      groupHeading: "Productos",
     },
     /** Product-suggestion cards (UI-SPEC lines 261-273): the accept button and its refusals. */
     queue: {

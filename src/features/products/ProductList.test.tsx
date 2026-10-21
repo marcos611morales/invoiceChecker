@@ -339,3 +339,378 @@ describe("the tab's empty state (E6 empty)", () => {
     expect(screen.queryByText("Todavía no hay productos agrupados")).toBeNull();
   });
 });
+
+// --- Plan 04-07 Task 2: rename, delete, take out and move members, each with «Deshacer» ---
+
+/** What a toast call carried: its text, its description line, how long it stays and its action. */
+interface ToastCall {
+  message: string;
+  description: string | undefined;
+  duration: number | undefined;
+  actionLabel: string | undefined;
+  /** Presses the toast's action button. */
+  press: () => void;
+}
+
+function toastCall(index: number): ToastCall {
+  const call = toastMock.mock.calls[index];
+  if (call === undefined) throw new Error(`no toast call at ${String(index)}`);
+  const [message, options] = call;
+  let description: string | undefined;
+  let duration: number | undefined;
+  let actionLabel: string | undefined;
+  let press: () => void = () => {
+    throw new Error("the toast has no action");
+  };
+  if (typeof options === "object" && options !== null) {
+    if ("description" in options && typeof options.description === "string") {
+      description = options.description;
+    }
+    if ("duration" in options && typeof options.duration === "number") duration = options.duration;
+    if ("action" in options && typeof options.action === "object" && options.action !== null) {
+      const action = options.action;
+      if ("label" in action && typeof action.label === "string") actionLabel = action.label;
+      if ("onClick" in action && typeof action.onClick === "function") {
+        const onClick: unknown = action.onClick;
+        press = () => {
+          act(() => {
+            if (typeof onClick === "function") onClick();
+          });
+        };
+      }
+    }
+  }
+  return { message, description, duration, actionLabel, press };
+}
+
+function lastToast(): ToastCall {
+  return toastCall(toastMock.mock.calls.length - 1);
+}
+
+function storedProducts(): Product[] {
+  return useSettingsStore.getState().products;
+}
+
+/** «Leche entera» (two members), «Café molido» and «Azúcar», shown in that alphabetical order reversed: Azúcar, Café, Leche. */
+function threeProducts(): Product[] {
+  return [
+    productWith("prod_leche", "Leche entera", [LECHE_UNO, LECHE_DOS]),
+    productWith("prod_cafe", "Café molido", [CAFE]),
+    productWith("prod_azucar", "Azúcar", [AZUCAR]),
+  ];
+}
+
+function pencil(name: string): HTMLElement {
+  return screen.getByRole("button", { name: `Renombrar producto ${name}` });
+}
+
+function nameInput(name: string): HTMLInputElement {
+  const input = screen.getByRole("textbox", { name: `Nuevo nombre del producto ${name}` });
+  if (!(input instanceof HTMLInputElement)) throw new Error("not an input");
+  return input;
+}
+
+function typeName(name: string, value: string): void {
+  fireEvent.change(nameInput(name), { target: { value } });
+}
+
+describe("inline rename (E6 error, D-14)", () => {
+  it("opens an input with the current name selected and focused", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    fireEvent.click(pencil("Leche entera"));
+    const input = nameInput("Leche entera");
+    expect(input).toHaveValue("Leche entera");
+    expect(input).toHaveFocus();
+    expect(input.maxLength).toBe(60);
+    expect(screen.getByRole("button", { name: "Guardar nombre" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancelar cambio de nombre" })).toBeInTheDocument();
+  });
+
+  it("saves with Enter keeping id, category and members, and returns focus to that row's pencil", () => {
+    setProducts([{ ...productWith("prod_leche", "Leche entera", [LECHE_UNO]), categoryId: "seed:otros" }]);
+    render(<ProductList />);
+    fireEvent.click(pencil("Leche entera"));
+    typeName("Leche entera", "  Leche de vaca ");
+    fireEvent.keyDown(nameInput("Leche entera"), { key: "Enter" });
+    expect(storedProducts()).toEqual([
+      { id: "prod_leche", name: "Leche de vaca", categoryId: "seed:otros", members: [LECHE_UNO] },
+    ]);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(pencil("Leche de vaca")).toHaveFocus();
+  });
+
+  it("cancels with Esc, changes nothing and returns focus to the pencil", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    fireEvent.click(pencil("Café molido"));
+    typeName("Café molido", "Otro nombre");
+    fireEvent.keyDown(nameInput("Café molido"), { key: "Escape" });
+    expect(storedProducts().map((entry) => entry.name)).toEqual(["Leche entera", "Café molido", "Azúcar"]);
+    expect(pencil("Café molido")).toHaveFocus();
+  });
+
+  it("saves and cancels with the two icon buttons", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    fireEvent.click(pencil("Azúcar"));
+    typeName("Azúcar", "Azúcar morena");
+    fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
+    expect(storedProducts().map((entry) => entry.name)).toContain("Azúcar morena");
+    fireEvent.click(pencil("Azúcar morena"));
+    typeName("Azúcar morena", "No se guarda");
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar cambio de nombre" }));
+    expect(storedProducts().map((entry) => entry.name)).toContain("Azúcar morena");
+  });
+
+  it.each([
+    ["", "Escribe un nombre para el producto."],
+    ["   ", "Escribe un nombre para el producto."],
+    [" CAFÉ molido ", "Ya existe un producto con ese nombre. Cambia el nombre o usa «Unir con…»."],
+    ["Sin categoría", "«Sin categoría» es un nombre reservado."],
+    ["x".repeat(61), "El nombre puede tener hasta 60 caracteres."],
+  ])("refuses %j under the input, keeps it open and changes nothing", (value, message) => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    fireEvent.click(pencil("Leche entera"));
+    typeName("Leche entera", value);
+    fireEvent.keyDown(nameInput("Leche entera"), { key: "Enter" });
+    const input = nameInput("Leche entera");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    const describedBy = input.getAttribute("aria-describedby");
+    expect(describedBy).not.toBeNull();
+    expect(document.getElementById(describedBy ?? "")?.textContent).toBe(message);
+    expect(storedProducts().map((entry) => entry.name)).toEqual(["Leche entera", "Café molido", "Azúcar"]);
+    // Typing again clears the error.
+    typeName("Leche entera", "Leche");
+    expect(nameInput("Leche entera")).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("allows the same name in another case", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    fireEvent.click(pencil("Leche entera"));
+    typeName("Leche entera", "LECHE ENTERA");
+    fireEvent.keyDown(nameInput("Leche entera"), { key: "Enter" });
+    expect(storedProducts()[0]?.name).toBe("LECHE ENTERA");
+  });
+});
+
+describe("Borrar producto (D-14, D-15)", () => {
+  it("deletes at once with the toast, its description line and «Deshacer» for 6 s", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    fireEvent.click(screen.getByRole("button", { name: "Borrar producto Leche entera" }));
+    expect(storedProducts().map((entry) => entry.id)).toEqual(["prod_cafe", "prod_azucar"]);
+    const toast = lastToast();
+    expect(toast.message).toBe("Producto «Leche entera» borrado");
+    expect(toast.description).toBe("Sus 2 descripciones vuelven a quedar libres.");
+    expect(toast.duration).toBe(6000);
+    expect(toast.actionLabel).toBe("Deshacer");
+  });
+
+  it("says the singular for a product with one member and cuts a long name at 40", () => {
+    const long = "y".repeat(50);
+    setProducts([productWith("prod_cafe", long, [CAFE])]);
+    render(<ProductsTab />);
+    fireEvent.click(screen.getByRole("button", { name: `Borrar producto ${long}` }));
+    expect(lastToast().message).toBe(`Producto «${"y".repeat(39)}…» borrado`);
+    expect(lastToast().description).toBe("Su descripción vuelve a quedar libre.");
+  });
+
+  it("«Deshacer» restores the same id, position, name, category and members", () => {
+    const original: Product[] = [
+      productWith("prod_leche", "Leche entera", [LECHE_UNO, LECHE_DOS]),
+      { ...productWith("prod_cafe", "Café molido", [CAFE]), categoryId: "seed:otros" },
+      productWith("prod_azucar", "Azúcar", [AZUCAR]),
+    ];
+    setProducts(original);
+    render(<ProductList />);
+    fireEvent.click(screen.getByRole("button", { name: "Borrar producto Café molido" }));
+    expect(storedProducts()).toHaveLength(2);
+    lastToast().press();
+    expect(storedProducts()).toEqual(original);
+    expect(screen.getByRole("button", { name: "Borrar producto Café molido" })).toBeInTheDocument();
+  });
+
+  it("moves focus to the section heading", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    fireEvent.click(screen.getByRole("button", { name: "Borrar producto Azúcar" }));
+    expect(screen.getByRole("heading", { name: "Mis productos · 2 productos" })).toHaveFocus();
+  });
+
+  it("moves focus to the tab heading when the last product is deleted and shows the empty state; undo brings the list back", () => {
+    setProducts([productWith("prod_cafe", "Café molido", [CAFE])]);
+    render(<ProductsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "Borrar producto Café molido" }));
+    expect(screen.getByRole("heading", { name: "Productos", level: 2 })).toHaveFocus();
+    expect(screen.getByText("Todavía no hay productos agrupados")).toBeInTheDocument();
+    lastToast().press();
+    expect(screen.queryByText("Todavía no hay productos agrupados")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Mis productos · 1 producto" })).toBeInTheDocument();
+  });
+
+  it("does not undo when one of its descriptions was accepted elsewhere meanwhile", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    fireEvent.click(screen.getByRole("button", { name: "Borrar producto Café molido" }));
+    act(() => {
+      useSettingsStore.getState().acceptProduct({ name: "Otro", members: [CAFE] });
+    });
+    lastToast().press();
+    expect(storedProducts().map((entry) => entry.name)).toEqual(["Leche entera", "Azúcar", "Otro"]);
+  });
+});
+
+function expand(name: string): void {
+  fireEvent.click(screen.getByRole("button", { name: `Ver miembros de ${name}` }));
+}
+
+describe("Quitar a member (D-15, OQ5)", () => {
+  it("names the description it acts on, cut at 60 characters, and has a Tooltip-backed label", () => {
+    const longDescription = "d".repeat(70);
+    setProducts([productWith("prod_a", "Mezcla", [member(UNO, longDescription), CAFE])]);
+    render(<ProductList />);
+    expand("Mezcla");
+    expect(
+      screen.getByRole("button", { name: `Quitar «${"d".repeat(59)}…» del producto` }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Mover «${"d".repeat(59)}…» a otro producto` }),
+    ).toBeInTheDocument();
+  });
+
+  it("applies at once with the toast and «Deshacer», which puts the member back at its place", () => {
+    const original = threeProducts();
+    setProducts(original);
+    render(<ProductList />);
+    expand("Leche entera");
+    fireEvent.click(screen.getByRole("button", { name: "Quitar «Leche entera 1L» del producto" }));
+    expect(storedProducts()[0]?.members).toEqual([LECHE_DOS]);
+    const toast = lastToast();
+    expect(toast.message).toBe("«Leche entera 1L» quitada de «Leche entera»");
+    expect(toast.duration).toBe(6000);
+    expect(toast.actionLabel).toBe("Deshacer");
+    toast.press();
+    expect(storedProducts()).toEqual(original);
+  });
+
+  it("cuts the description in the toast at 40 characters", () => {
+    const longDescription = "z".repeat(50);
+    setProducts([productWith("prod_a", "Mezcla", [member(UNO, longDescription), CAFE])]);
+    render(<ProductList />);
+    expand("Mezcla");
+    fireEvent.click(screen.getByRole("button", { name: `Quitar «${"z".repeat(50)}» del producto` }));
+    expect(lastToast().message).toBe(`«${"z".repeat(39)}…» quitada de «Mezcla»`);
+  });
+
+  it("returns focus to the product's expander", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    expand("Leche entera");
+    fireEvent.click(screen.getByRole("button", { name: "Quitar «Leche entera 1L» del producto" }));
+    expect(screen.getByRole("button", { name: "Ocultar miembros de Leche entera" })).toHaveFocus();
+  });
+
+  it("deletes the product with its last member, says so, and «Deshacer» restores the product", () => {
+    const original = threeProducts();
+    setProducts(original);
+    render(<ProductList />);
+    expand("Café molido");
+    fireEvent.click(screen.getByRole("button", { name: "Quitar «Café Molido 1kg» del producto" }));
+    expect(storedProducts().map((entry) => entry.id)).toEqual(["prod_leche", "prod_azucar"]);
+    expect(lastToast().message).toBe("Producto «Café molido» borrado porque se quedó sin descripciones");
+    expect(lastToast().actionLabel).toBe("Deshacer");
+    expect(screen.getByRole("heading", { name: "Mis productos · 2 productos" })).toHaveFocus();
+    lastToast().press();
+    expect(storedProducts()).toEqual(original);
+  });
+
+  it("counts the freed description as free again in «Agrupar productos» (D-15), and as taken again after «Deshacer»", () => {
+    setProducts([
+      productWith("prod_leche", "Leche entera", [LECHE_UNO, LECHE_DOS]),
+      productWith("prod_cafe", "Café molido", [CAFE]),
+      productWith("prod_azucar", "Azúcar", [AZUCAR]),
+    ]);
+    render(<ProductsTab />);
+    // Five loaded descriptions, four taken: only «Sal» is free.
+    expect(screen.getByText("1 descripción sin agrupar")).toBeInTheDocument();
+    expand("Leche entera");
+    fireEvent.click(screen.getByRole("button", { name: "Quitar «Leche entera 1L» del producto" }));
+    expect(screen.getByText("2 descripciones sin agrupar")).toBeInTheDocument();
+    lastToast().press();
+    expect(screen.getByText("1 descripción sin agrupar")).toBeInTheDocument();
+  });
+
+  it("is not a rejection: nothing is marked «No agrupar»", () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    expand("Leche entera");
+    fireEvent.click(screen.getByRole("button", { name: "Quitar «Leche entera 1L» del producto" }));
+    expect(useSettingsStore.getState().ungroupedConcepts).toEqual([]);
+  });
+});
+
+async function openMove(description: string): Promise<void> {
+  fireEvent.click(screen.getByRole("button", { name: `Mover «${description}» a otro producto` }));
+  await screen.findByRole("combobox");
+}
+
+describe("Mover a otro producto (D-15, OQ5)", () => {
+  it("lists the other products, searchable, and moves the member to the end of the chosen one", async () => {
+    const original = threeProducts();
+    setProducts(original);
+    render(<ProductList />);
+    expand("Leche entera");
+    await openMove("Leche entera 1L");
+    expect(screen.getByRole("combobox", { name: "Buscar producto" })).toBeInTheDocument();
+    const options = screen.getAllByRole("option").map((option) => option.textContent);
+    // Alphabetical (es), without the product itself, each with its member count.
+    expect(options).toEqual(["Azúcar1 miembro", "Café molido1 miembro"]);
+    fireEvent.click(screen.getByRole("option", { name: /^Café molido/ }));
+    expect(storedProducts()[1]?.members).toEqual([CAFE, LECHE_UNO]);
+    expect(storedProducts()[0]?.members).toEqual([LECHE_DOS]);
+    const toast = lastToast();
+    expect(toast.message).toBe("«Leche entera 1L» movida a «Café molido»");
+    expect(toast.duration).toBe(6000);
+    expect(toast.actionLabel).toBe("Deshacer");
+    toast.press();
+    expect(storedProducts()).toEqual(original);
+  });
+
+  it("filters while typing ignoring case and accents, and says when nothing matches", async () => {
+    setProducts(threeProducts());
+    render(<ProductList />);
+    expand("Leche entera");
+    await openMove("Leche entera 1L");
+    const search = screen.getByRole("combobox", { name: "Buscar producto" });
+    fireEvent.change(search, { target: { value: "AZUCAR" } });
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["Azúcar1 miembro"]);
+    fireEvent.change(search, { target: { value: "queso" } });
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(screen.getByText("Ningún producto coincide con «queso».")).toBeInTheDocument();
+  });
+
+  it("deletes the source when its only member moves, says so, and «Deshacer» puts everything back", async () => {
+    const original = threeProducts();
+    setProducts(original);
+    render(<ProductList />);
+    expand("Café molido");
+    await openMove("Café Molido 1kg");
+    fireEvent.click(screen.getByRole("option", { name: /^Leche entera/ }));
+    expect(storedProducts().map((entry) => entry.id)).toEqual(["prod_leche", "prod_azucar"]);
+    expect(storedProducts()[0]?.members).toEqual([LECHE_UNO, LECHE_DOS, CAFE]);
+    expect(lastToast().message).toBe("Producto «Café molido» borrado porque se quedó sin descripciones");
+    lastToast().press();
+    expect(storedProducts()).toEqual(original);
+  });
+
+  it("offers no destination when there is a single product", async () => {
+    setProducts([productWith("prod_leche", "Leche entera", [LECHE_UNO, LECHE_DOS])]);
+    render(<ProductList />);
+    expand("Leche entera");
+    await openMove("Leche entera 1L");
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+  });
+});

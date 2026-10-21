@@ -1,6 +1,14 @@
 "use client";
 
-import { Fragment, useId, useMemo, useState } from "react";
+import {
+  Fragment,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import {
   constructSortFn,
   createColumnHelper,
@@ -12,10 +20,12 @@ import {
   useTable,
 } from "@tanstack/react-table";
 import type { Header, PaginationState, SortingState } from "@tanstack/react-table";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Pencil, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import { SortHeaderButton, ariaSort } from "@/components/SortHeaderButton";
 import { TruncatedText } from "@/components/TruncatedText";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -25,19 +35,30 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { ProductNameError } from "@/domain/settings/products";
 import type { Product } from "@/domain/settings/types";
 import { es } from "@/lib/copy/es";
 import {
+  acceptErrorText,
+  deleteProductAria,
   expandMembersAria,
   membersCount,
   paginationPageText,
   paginationRangeText,
+  productDeletedToast,
+  productFreedText,
   productsHeading,
+  renameProductAria,
+  renameProductInputAria,
   suppliersCell,
 } from "@/lib/copy/messages";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { IconAction } from "./IconAction";
 import { ProductMembers } from "./ProductMembers";
+
+/** The undo toast stays six seconds (UI-SPEC defaults). */
+const TOAST_DURATION_MS = 6000;
 
 /** A table row: the product plus what the sorts and the cells read. */
 interface ProductRow {
@@ -132,18 +153,156 @@ function NameCell({ name }: { name: string }) {
 }
 
 /**
- * «Mis productos» (D-14): the accepted products in a sortable, paginated table. Each row opens
- * a members sub-table; several can be open at once. Product names, descriptions and supplier
- * names are free or XML text and are only ever rendered as React text (T-04-19).
+ * Inline name editor of one row (the Phase 3 pattern): the current name selected, Enter saves,
+ * Esc cancels, blur does nothing. Mounted only while its row is being edited, so every opening
+ * starts from the current name with no error. `onSave` returns the refusal reason, or null when
+ * the name was saved. The error text is the one of the suggestion cards.
  */
-export function ProductList() {
+function RenameEditor({
+  name,
+  onSave,
+  onCancel,
+}: {
+  name: string;
+  onSave: (value: string) => ProductNameError | null;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(name);
+  const [error, setError] = useState<ProductNameError | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const errorId = useId();
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  const save = () => {
+    setError(onSave(value));
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      save();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      onCancel();
+    }
+  };
+
+  return (
+    <div className="flex min-w-[260px] flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <Input
+          ref={inputRef}
+          value={value}
+          maxLength={60}
+          aria-label={renameProductInputAria(name)}
+          aria-invalid={error !== null ? true : undefined}
+          aria-describedby={error !== null ? errorId : undefined}
+          onChange={(event) => {
+            setValue(event.target.value);
+            setError(null);
+          }}
+          onKeyDown={onKeyDown}
+          className="h-9 max-sm:h-11"
+        />
+        <IconAction label={es.products.list.saveName} onClick={save}>
+          <Check aria-hidden="true" />
+        </IconAction>
+        <IconAction label={es.products.list.cancelRename} onClick={onCancel}>
+          <X aria-hidden="true" />
+        </IconAction>
+      </div>
+      {error !== null ? (
+        <p id={errorId} className="text-xs text-foreground">
+          {acceptErrorText(error)}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Which button gets focus once the list has rendered again. */
+type PendingFocus = { kind: "pencil" | "expander"; id: string };
+
+/**
+ * «Mis productos» (D-14): the accepted products in a sortable, paginated table. Each row opens
+ * a members sub-table; several can be open at once. A row can be renamed in place and deleted,
+ * both with «Deshacer» for six seconds where it deletes. Product names, descriptions and
+ * supplier names are free or XML text and are only ever rendered as React text (T-04-19).
+ * `onEmptied` is called, before the change, when the change leaves no product at all: this
+ * list is then unmounted, so the parent places focus.
+ */
+export function ProductList({ onEmptied }: { onEmptied?: () => void }) {
   const products = useSettingsStore((s) => s.products);
+  const renameProduct = useSettingsStore((s) => s.renameProduct);
+  const deleteProduct = useSettingsStore((s) => s.deleteProduct);
+  const restoreProduct = useSettingsStore((s) => s.restoreProduct);
   const data = useMemo(() => products.map(toRow), [products]);
   const headingId = useId();
   const panelBaseId = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const pencilRefs = useRef(new Map<string, HTMLButtonElement>());
+  const expanderRefs = useRef(new Map<string, HTMLButtonElement>());
+  const pendingFocus = useRef<PendingFocus | null>(null);
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
   const [pagination, setPagination] = useState<PaginationState>(INITIAL_PAGINATION);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // After a rename ends the pencil is rendered again, and after a member change the expander
+  // may have been re-rendered, so focus moves here once the new render is in place.
+  useEffect(() => {
+    const target = pendingFocus.current;
+    if (target === null) return;
+    pendingFocus.current = null;
+    const refs = target.kind === "pencil" ? pencilRefs.current : expanderRefs.current;
+    refs.get(target.id)?.focus();
+  });
+
+  const saveRename = (id: string, value: string): ProductNameError | null => {
+    const result = renameProduct(id, value);
+    if (!result.ok) return result.reason;
+    setEditingId(null);
+    pendingFocus.current = { kind: "pencil", id };
+    return null;
+  };
+
+  const cancelRename = (id: string) => {
+    setEditingId(null);
+    pendingFocus.current = { kind: "pencil", id };
+  };
+
+  // Focus moves first: the trash button that was pressed is about to leave the page.
+  const placeFocusBeforeLeaving = () => {
+    if (products.length <= 1) onEmptied?.();
+    else headingRef.current?.focus();
+  };
+
+  const remove = (row: ProductRow) => {
+    placeFocusBeforeLeaving();
+    const snapshot = deleteProduct(row.id);
+    if (snapshot === null) return;
+    toast(productDeletedToast(row.name), {
+      description: productFreedText(row.memberCount),
+      duration: TOAST_DURATION_MS,
+      action: {
+        label: es.products.list.undo,
+        onClick: () => {
+          restoreProduct(snapshot);
+        },
+      },
+    });
+  };
+
+  // A member change: when the product went with its last member focus goes to the heading
+  // (or to the parent when nothing is left), else back to the product's expander.
+  const memberChanged = (id: string, deleted: boolean) => {
+    if (deleted) placeFocusBeforeLeaving();
+    else pendingFocus.current = { kind: "expander", id };
+  };
 
   // autoResetPageIndex is off so sorting or a change keeps the page. When the page no
   // longer exists, fall back to the last one that does (React's derived-state pattern).
@@ -209,7 +368,12 @@ export function ProductList() {
       className="flex min-w-0 flex-col gap-4 rounded-lg border bg-background p-6"
     >
       <div className="flex flex-col gap-1">
-        <h2 id={headingId} tabIndex={-1} className="text-xl leading-[1.2] font-semibold outline-none">
+        <h2
+          id={headingId}
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-xl leading-[1.2] font-semibold outline-none"
+        >
           {productsHeading(products.length)}
         </h2>
         <p className="text-xs text-muted-foreground">{es.products.list.intro}</p>
@@ -245,6 +409,10 @@ export function ProductList() {
                       aria-controls={open ? panelId : undefined}
                       aria-label={expandMembersAria(row.name, open)}
                       className="size-9 max-sm:size-11"
+                      ref={(node) => {
+                        if (node === null) expanderRefs.current.delete(row.id);
+                        else expanderRefs.current.set(row.id, node);
+                      }}
                       onClick={() => {
                         toggle(row.id);
                       }}
@@ -263,7 +431,19 @@ export function ProductList() {
                           id === "proveedores" && "max-w-[280px]",
                         )}
                       >
-                        {id === "producto" ? <NameCell name={row.name} /> : null}
+                        {id === "producto" ? (
+                          editingId === row.id ? (
+                            <RenameEditor
+                              name={row.name}
+                              onSave={(value) => saveRename(row.id, value)}
+                              onCancel={() => {
+                                cancelRename(row.id);
+                              }}
+                            />
+                          ) : (
+                            <NameCell name={row.name} />
+                          )
+                        ) : null}
                         {id === "miembros" ? membersCount(row.memberCount) : null}
                         {id === "proveedores" ? (
                           <TruncatedText text={suppliersCell(row.suppliers)} />
@@ -271,12 +451,42 @@ export function ProductList() {
                       </TableCell>
                     );
                   })}
-                  <TableCell className="w-24" />
+                  <TableCell className="w-24">
+                    {editingId === row.id ? null : (
+                      <div className="flex items-center justify-end">
+                        <IconAction
+                          label={renameProductAria(row.name)}
+                          onClick={() => {
+                            setEditingId(row.id);
+                          }}
+                          buttonRef={(node) => {
+                            if (node === null) pencilRefs.current.delete(row.id);
+                            else pencilRefs.current.set(row.id, node);
+                          }}
+                        >
+                          <Pencil aria-hidden="true" />
+                        </IconAction>
+                        <IconAction
+                          label={deleteProductAria(row.name)}
+                          onClick={() => {
+                            remove(row);
+                          }}
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </IconAction>
+                      </div>
+                    )}
+                  </TableCell>
                 </TableRow>
                 {open ? (
                   <TableRow className="hover:bg-transparent">
                     <TableCell id={panelId} colSpan={5} className="bg-secondary p-4 whitespace-normal">
-                      <ProductMembers product={row.product} />
+                      <ProductMembers
+                        product={row.product}
+                        onChanged={(deleted) => {
+                          memberChanged(row.id, deleted);
+                        }}
+                      />
                     </TableCell>
                   </TableRow>
                 ) : null}
