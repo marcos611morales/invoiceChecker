@@ -529,6 +529,9 @@ export const es = {
     },
     dialog: {
       title: "¿Enviar estos datos a DeepSeek?",
+      /** With more than one batch (D-33): the names DeepSeek proposed travel back to it in the same run. */
+      earlierNamesLine:
+        "Cada lote lleva también los nombres que DeepSeek propuso en los anteriores.",
       peopleLine:
         "Algunos nombres de proveedor pueden ser nombres de personas. DeepSeek es un servicio externo a esta aplicación.",
       disclosure: "Ver exactamente qué se envía",

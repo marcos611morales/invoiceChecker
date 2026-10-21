@@ -13,6 +13,7 @@ import type { Concepto, ParsedInvoice } from "@/domain/cfdi/types";
 import { groupRequestSchema, type GroupRequest } from "@/domain/llm/contract";
 import { useLlmRunStore } from "@/stores/llmRunStore";
 import { useSessionStore } from "@/stores/sessionStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
 import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
@@ -611,5 +612,86 @@ describe("«Quitar todas» during a run (UI-SPEC default, OQ13, T-04-28)", () =>
     expect(pending).toHaveLength(1);
     expect(screen.queryByRole("progressbar")).toBeNull();
     expect(toastMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("Earlier-batch names (D-28, D-33, LLM-06)", () => {
+  const SENTENCE = "Cada lote lleva también los nombres que DeepSeek propuso en los anteriores.";
+
+  function acceptLeche(): void {
+    act(() => {
+      useSettingsStore.setState({
+        products: [
+          {
+            id: "prod_leche",
+            name: "Leche entera",
+            categoryId: null,
+            members: [
+              {
+                rfc: "ZZZ990909ZZZ",
+                key: "leche",
+                description: "Leche",
+                supplierName: "Otra tienda",
+              },
+            ],
+          },
+        ],
+      });
+    });
+  }
+
+  it("discloses in the dialog that later batches carry the names DeepSeek proposed earlier", async () => {
+    view();
+    await openDialog();
+    expect(within(dialog()).getByText("Se enviarán en 2 lotes.")).toBeInTheDocument();
+    expect(within(dialog()).getByText(SENTENCE)).toBeInTheDocument();
+  });
+
+  it("does not say it with a single batch", async () => {
+    act(() => {
+      useSessionStore.getState().clearAll();
+    });
+    seed(invoiceWith(5));
+    view();
+    await openDialog();
+    expect(within(dialog()).queryByText(SENTENCE)).toBeNull();
+  });
+
+  it("sends only the accepted names in a run of one batch", async () => {
+    act(() => {
+      useSessionStore.getState().clearAll();
+    });
+    seed(invoiceWith(5));
+    acceptLeche();
+    view();
+    await startRun();
+    await requests(1);
+    expect(request(0).body.existing).toEqual([{ id: "p1", name: "Leche entera" }]);
+  });
+
+  it("sends the second batch the names of the first batch's cards, after the accepted names", async () => {
+    acceptLeche();
+    view();
+    await startRun();
+    await requests(1);
+    const first = request(0);
+    expect(first.body.existing).toEqual([{ id: "p1", name: "Leche entera" }]);
+    await act(async () => {
+      first.respond(completeAnswer(first));
+      await Promise.resolve();
+    });
+    await requests(2);
+    const second = request(1).body.existing;
+    expect(second.slice(0, 1)).toEqual([{ id: "p1", name: "Leche entera" }]);
+    expect(second.slice(1).map((entry) => entry.name)).toEqual(
+      first.body.items.map((item) => item.description),
+    );
+    expect(second[1]?.id).toBe("p2");
+    expect(second).toHaveLength(1 + first.body.items.length);
+    // Let the run finish so nothing stays in flight.
+    await act(async () => {
+      request(1).respond(completeAnswer(request(1)));
+      await Promise.resolve();
+    });
   });
 });
