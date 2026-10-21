@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { CircleAlert, Layers, X } from "lucide-react";
+import { CircleAlert, Info, Layers, X } from "lucide-react";
 import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -26,6 +26,7 @@ import {
 } from "@/lib/copy/messages";
 import { useLlmRunStore } from "@/stores/llmRunStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useStorageStatusStore, useSuggestionsStatusStore } from "@/stores/storageStatusStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
 import { ProductList } from "./ProductList";
 import { ReviewQueue } from "./ReviewQueue";
@@ -50,6 +51,10 @@ export function ProductsTab() {
   const dismissResult = useLlmRunStore((s) => s.dismissResult);
   const products = useSettingsStore((s) => s.products);
   const marks = useSettingsStore((s) => s.ungroupedConcepts);
+  // The two storage conditions that make this tab's data volatile (Q8): the settings and the
+  // pending queue each have their own status.
+  const settingsWriteFailed = useStorageStatusStore((s) => s.writeFailed);
+  const queueWriteFailed = useSuggestionsStatusStore((s) => s.writeFailed);
   // A description is taken when it waits in a card or already belongs to an accepted product
   // (D-04, D-13): taken descriptions leave the caption count and are never sent again.
   const free = useMemo(
@@ -108,6 +113,23 @@ export function ProductsTab() {
           </p>
         </div>
       </div>
+      {/* Not dismissible: each stays until a later write succeeds (Q8). */}
+      {settingsWriteFailed ? (
+        <Alert>
+          <Info aria-hidden="true" className="text-muted-foreground" />
+          <AlertDescription className="text-foreground">
+            {es.categories.writeFailedAlert}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {queueWriteFailed ? (
+        <Alert>
+          <Info aria-hidden="true" className="text-muted-foreground" />
+          <AlertDescription className="text-foreground">
+            {es.products.queueWriteFailedAlert}
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <div aria-live="polite" aria-atomic="true" className="empty:hidden">
         {status.phase === "running" ? (
           <p className="flex items-center gap-2 text-sm tabular-nums">

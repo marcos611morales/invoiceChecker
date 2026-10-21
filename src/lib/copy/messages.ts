@@ -389,6 +389,22 @@ export function qualityTabAria(n: number): string {
     : `${es.tabs.quality}, ${n} incidencias`;
 }
 
+/**
+ * Visible text of the Productos tab trigger: the counter shows only above zero. `n` is the
+ * pending product cards plus the pending category rows (UI-SPEC Shell and tab).
+ */
+export function productsTabLabel(n: number): string {
+  return n > 0 ? `${es.tabs.products} · ${String(n)}` : es.tabs.products;
+}
+
+/** Accessible name of the Productos tab trigger; «1 sugerencia por revisar» for one. */
+export function productsTabAria(n: number): string {
+  if (n <= 0) return es.tabs.products;
+  return n === 1
+    ? `${es.tabs.products}, 1 sugerencia por revisar`
+    : `${es.tabs.products}, ${String(n)} sugerencias por revisar`;
+}
+
 /** Dashboard Alert when the filters hide the invoice that "Ver factura" asked for (UI-SPEC decision 6). */
 export function hiddenInvoiceNotice(ref: string): string {
   return `La factura ${ref} no se ve porque los filtros la ocultan.`;

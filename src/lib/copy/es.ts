@@ -450,6 +450,11 @@ export const es = {
       "Revisa cada grupo. Puedes cambiar el nombre, separar descripciones o unir grupos antes de aceptar.",
     closeAlert: "Cerrar aviso",
     signIn: "Iniciar sesión",
+    /** Storage notices of the pending queue (UI-SPEC Storage notices); the settings keep theirs under categories. */
+    queueReadFailedToast:
+      "No se pudieron leer tus sugerencias pendientes guardadas. Puedes volver a pedirlas con «Agrupar productos».",
+    queueWriteFailedAlert:
+      "Este navegador no permite guardar las sugerencias pendientes. Se perderán al recargar la página; revísalas antes.",
     /** «Mis productos» (UI-SPEC lines 296-318): the accepted products and their members. */
     list: {
       intro:

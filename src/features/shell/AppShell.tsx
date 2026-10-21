@@ -18,10 +18,16 @@ import { EmptyDropzone } from "@/features/upload/EmptyDropzone";
 import { ProcessingIndicator } from "@/features/upload/ProcessingIndicator";
 import { UploadRoot, useUpload } from "@/features/upload/UploadRoot";
 import { es } from "@/lib/copy/es";
-import { qualityTabAria, qualityTabLabel } from "@/lib/copy/messages";
+import {
+  productsTabAria,
+  productsTabLabel,
+  qualityTabAria,
+  qualityTabLabel,
+} from "@/lib/copy/messages";
 import { useSessionStore, type AppTab } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { useStorageStatusStore } from "@/stores/storageStatusStore";
+import { useStorageStatusStore, useSuggestionsStatusStore } from "@/stores/storageStatusStore";
+import { useSuggestionsStore } from "@/stores/suggestionsStore";
 import { TopBar } from "./TopBar";
 import { useBeforeUnload } from "./useBeforeUnload";
 
@@ -83,6 +89,9 @@ function LoadedTabs() {
   // included (D-04). The Dashboard notice reads the same summary's `amountChanging`.
   const ledger = useLedger();
   const incidentCount = useMemo(() => qualitySummary(ledger).total, [ledger]);
+  // Everything waiting for review in the Productos tab: product cards plus category rows. The
+  // queue comes back from browser storage in the shell's mount effect, so a reload shows it here.
+  const pendingCount = useSuggestionsStore((s) => s.products.length + s.categories.length);
   // Below 640 px the four triggers do not fit: the list scrolls inside its container and
   // the active trigger is brought into view whenever the tab changes (UI-SPEC Q2).
   const listRef = useRef<HTMLDivElement>(null);
@@ -104,22 +113,38 @@ function LoadedTabs() {
         aria-label={es.tabs.ariaLabel}
         className="group-data-horizontal/tabs:h-10 max-sm:group-data-horizontal/tabs:h-11 max-w-full gap-2 p-0 max-sm:justify-start max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden"
       >
-        {TABS.map(({ value, label }) =>
-          value === "calidad" ? (
-            <TabsTrigger
-              key={value}
-              value={value}
-              className={TRIGGER_CLASS}
-              aria-label={qualityTabAria(incidentCount)}
-            >
-              {qualityTabLabel(incidentCount)}
-            </TabsTrigger>
-          ) : (
+        {TABS.map(({ value, label }) => {
+          // The two tabs with a counter carry it in the visible text and in the accessible name.
+          if (value === "calidad") {
+            return (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className={TRIGGER_CLASS}
+                aria-label={qualityTabAria(incidentCount)}
+              >
+                {qualityTabLabel(incidentCount)}
+              </TabsTrigger>
+            );
+          }
+          if (value === "productos") {
+            return (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className={TRIGGER_CLASS}
+                aria-label={productsTabAria(pendingCount)}
+              >
+                {productsTabLabel(pendingCount)}
+              </TabsTrigger>
+            );
+          }
+          return (
             <TabsTrigger key={value} value={value} className={TRIGGER_CLASS}>
               {label}
             </TabsTrigger>
-          ),
-        )}
+          );
+        })}
       </TabsList>
       {TABS.map(({ value, Panel }) => (
         <TabsContent key={value} value={value}>
@@ -136,19 +161,27 @@ export function AppShell() {
   // The unload warning keys on loaded invoices, not on the report (D-07b).
   const hasInvoices = useSessionStore((s) => s.invoices.length > 0);
   useBeforeUnload(hasInvoices);
-  // The settings store is created with skipHydration, so the stored IVA mode is read once
-  // here (external-store sync, no React state). Before that the control shows Con IVA, the
-  // same markup the server renders.
-  // When the stored settings existed but could not be used, the user is told once per page
-  // load (Q8): the notice flag is set before the toast, so StrictMode's second effect run and
-  // any later rehydrate do not repeat it.
+  // The settings store and the pending queue are created with skipHydration, so what they
+  // stored is read once here (external-store sync, no React state). Before that the IVA control
+  // shows Con IVA and the Productos tab shows no counter, the same markup the server renders.
+  // When what a store kept existed but could not be used, the user is told once per page load
+  // (Q8): the notice flag is set before the toast, so StrictMode's second effect run and any
+  // later rehydrate do not repeat it. The queue is read after the settings, and its failure is
+  // announced independently of theirs.
   useEffect(() => {
     void (async () => {
       await useSettingsStore.persist.rehydrate();
-      const status = useStorageStatusStore.getState();
-      if (!status.readFailed || status.readNoticeShown) return;
-      status.markReadNoticeShown();
-      toast(es.categories.readFailedToast);
+      const settingsStatus = useStorageStatusStore.getState();
+      if (settingsStatus.readFailed && !settingsStatus.readNoticeShown) {
+        settingsStatus.markReadNoticeShown();
+        toast(es.categories.readFailedToast);
+      }
+      await useSuggestionsStore.persist.rehydrate();
+      const queueStatus = useSuggestionsStatusStore.getState();
+      if (queueStatus.readFailed && !queueStatus.readNoticeShown) {
+        queueStatus.markReadNoticeShown();
+        toast(es.products.queueReadFailedToast);
+      }
     })();
   }, []);
   return (

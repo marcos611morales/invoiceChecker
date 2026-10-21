@@ -11,12 +11,15 @@ import {
   within,
 } from "@testing-library/react";
 import type { ParsedInvoice } from "@/domain/cfdi/types";
+import type { CategorySuggestion, ProductSuggestion } from "@/domain/llm/suggestions";
 import { defaultSettings } from "@/domain/settings/types";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useSuggestionsStore } from "@/stores/suggestionsStore";
 import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
 import { resetSettingsStore } from "../../../tests/support/settingsStorage";
+import { resetSuggestionsStore, storeQueue } from "../../../tests/support/suggestionsStorage";
 import { AppShell } from "./AppShell";
 
 const toastMock = vi.hoisted(() => vi.fn<(message: string) => void>());
@@ -24,6 +27,8 @@ vi.mock("sonner", () => ({ toast: toastMock }));
 
 const READ_FAILED_TOAST =
   "No se pudieron leer tus ajustes guardados y se usaron los valores iniciales. Si tienes un archivo de respaldo, súbelo.";
+const QUEUE_READ_FAILED_TOAST =
+  "No se pudieron leer tus sugerencias pendientes guardadas. Puedes volver a pedirlas con «Agrupar productos».";
 
 /** An Ingreso whose folio is its uuid, so every reference in the UI is easy to find. */
 function inv(uuid: string, overrides: Partial<ParsedInvoice> = {}): ParsedInvoice {
@@ -56,6 +61,7 @@ function qualityTab(): HTMLElement {
 beforeEach(() => {
   toastMock.mockReset();
   window.localStorage.clear();
+  resetSuggestionsStore();
 });
 
 afterEach(() => {
@@ -66,6 +72,7 @@ afterEach(() => {
     useSessionStore.getState().clearAll();
   });
   resetSettingsStore();
+  resetSuggestionsStore();
 });
 
 describe("AppShell tabs (D-01, D-04)", () => {
@@ -277,6 +284,175 @@ describe("AppShell read-failure toast (Q8, AJUS-01)", () => {
     cleanup();
     window.localStorage.setItem(KEY, JSON.stringify({ version: 1, state: { ivaMode: "sin" } }));
     await mountAndSettle();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+});
+
+function productsTab(): HTMLElement {
+  return screen.getByRole("tab", { name: /^Productos/ });
+}
+
+function pendingCard(id: string, rfc: string, key: string): ProductSuggestion {
+  return {
+    id,
+    name: `Producto ${id}`,
+    target: null,
+    members: [{ rfc, key, description: `Descripción ${key}`, supplierName: "Tienda Uno" }],
+  };
+}
+
+function pendingCards(count: number): ProductSuggestion[] {
+  return Array.from({ length: count }, (_unused, index) =>
+    pendingCard(`sug_${String(index)}`, "AAA010101AAA", `descripcion ${String(index)}`),
+  );
+}
+
+const CATEGORY_ROW: CategorySuggestion = {
+  id: "cat_a",
+  kind: "supplier",
+  rfc: "AAA010101AAA",
+  name: "Tienda Uno",
+  choice: null,
+};
+
+describe("AppShell Productos tab counter (UI-SPEC Shell and tab)", () => {
+  it("shows no counter and the plain name without pending suggestions", () => {
+    seed([inv("OK-1")]);
+    render(<AppShell />);
+    expect(productsTab().textContent).toBe("Productos");
+    expect(productsTab()).toHaveAccessibleName("Productos");
+  });
+
+  it("shows ' · 3' and 'Productos, 3 sugerencias por revisar' with three pending cards", () => {
+    seed([inv("OK-1")]);
+    act(() => {
+      useSuggestionsStore.setState({ products: pendingCards(3) });
+    });
+    render(<AppShell />);
+    expect(productsTab().textContent).toBe("Productos · 3");
+    expect(productsTab()).toHaveAccessibleName("Productos, 3 sugerencias por revisar");
+  });
+
+  it("uses the singular for one pending suggestion", () => {
+    seed([inv("OK-1")]);
+    act(() => {
+      useSuggestionsStore.setState({ products: pendingCards(1) });
+    });
+    render(<AppShell />);
+    expect(productsTab().textContent).toBe("Productos · 1");
+    expect(productsTab()).toHaveAccessibleName("Productos, 1 sugerencia por revisar");
+  });
+
+  it("counts the pending product cards plus the pending category rows", () => {
+    seed([inv("OK-1")]);
+    act(() => {
+      useSuggestionsStore.setState({ products: pendingCards(2), categories: [CATEGORY_ROW] });
+    });
+    render(<AppShell />);
+    expect(productsTab().textContent).toBe("Productos · 3");
+  });
+
+  it("updates when a card leaves the queue, and goes back to the plain name at zero", () => {
+    seed([inv("OK-1")]);
+    act(() => {
+      useSuggestionsStore.setState({ products: pendingCards(2) });
+    });
+    render(<AppShell />);
+    expect(productsTab().textContent).toBe("Productos · 2");
+    act(() => {
+      useSuggestionsStore.getState().removeProduct("sug_0");
+    });
+    expect(productsTab().textContent).toBe("Productos · 1");
+    act(() => {
+      useSuggestionsStore.getState().removeProduct("sug_1");
+    });
+    expect(productsTab().textContent).toBe("Productos");
+  });
+
+  it("brings the counter back after a reload, from the stored queue", async () => {
+    seed([inv("OK-1")]);
+    storeQueue({ products: pendingCards(2), categories: [CATEGORY_ROW] });
+    render(<AppShell />);
+    await waitFor(() => {
+      expect(productsTab().textContent).toBe("Productos · 3");
+    });
+    expect(productsTab()).toHaveAccessibleName("Productos, 3 sugerencias por revisar");
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("AppShell pending-queue read-failure toast (Q8 pattern)", () => {
+  const QUEUE_KEY = "invoicechecker:suggestions";
+
+  it("shows the toast exactly once for an unreadable stored queue, even in StrictMode and after another rehydrate", async () => {
+    window.localStorage.setItem(QUEUE_KEY, "{not json");
+    await act(async () => {
+      render(
+        <StrictMode>
+          <AppShell />
+        </StrictMode>,
+      );
+      await useSuggestionsStore.persist.rehydrate();
+    });
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(QUEUE_READ_FAILED_TOAST);
+    });
+    await act(async () => {
+      await useSuggestionsStore.persist.rehydrate();
+    });
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(useSuggestionsStore.getState().products).toEqual([]);
+  });
+
+  it("shows it for a stored queue that breaks an integrity rule, and uses an empty queue", async () => {
+    const repeated = pendingCard("sug_a", "AAA010101AAA", "leche");
+    window.localStorage.setItem(
+      QUEUE_KEY,
+      JSON.stringify({
+        version: 1,
+        state: { products: [repeated, { ...repeated, id: "sug_b" }], categories: [] },
+      }),
+    );
+    seed([inv("OK-1")]);
+    render(<AppShell />);
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(QUEUE_READ_FAILED_TOAST);
+    });
+    expect(productsTab().textContent).toBe("Productos");
+  });
+
+  it("shows no toast with nothing stored or with a valid queue", async () => {
+    render(<AppShell />);
+    await act(async () => {
+      await useSuggestionsStore.persist.rehydrate();
+    });
+    cleanup();
+    storeQueue({ products: pendingCards(1), categories: [] });
+    render(<AppShell />);
+    await act(async () => {
+      await useSuggestionsStore.persist.rehydrate();
+    });
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(useSuggestionsStore.getState().products).toHaveLength(1);
+  });
+
+  it("tells about the settings and about the queue separately when both are unreadable", async () => {
+    window.localStorage.setItem("invoicechecker:settings", "{not json");
+    window.localStorage.setItem(QUEUE_KEY, "{not json");
+    render(<AppShell />);
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(READ_FAILED_TOAST);
+      expect(toastMock).toHaveBeenCalledWith(QUEUE_READ_FAILED_TOAST);
+    });
+    expect(toastMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("still reads the queue when the settings were fine", async () => {
+    storeQueue({ products: pendingCards(2), categories: [] });
+    render(<AppShell />);
+    await waitFor(() => {
+      expect(useSuggestionsStore.getState().products).toHaveLength(2);
+    });
     expect(toastMock).not.toHaveBeenCalled();
   });
 });
