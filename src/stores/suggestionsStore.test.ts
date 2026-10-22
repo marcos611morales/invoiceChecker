@@ -625,6 +625,81 @@ describe("join, turn into «Agregar a» and split in the queue store (D-19)", ()
   });
 });
 
+describe("rejectMany and restoreMany in the queue store (D-20)", () => {
+  const SAL = member("AAA010101AAA", "sal");
+  const ARROZ = member("BBB020202BBB", "arroz");
+
+  function four(): ProductSuggestion[] {
+    return [
+      card("sug_a", "Leche entera", [LECHE_UNO, LECHE_DOS]),
+      card("sug_b", "Café molido", [CAFE]),
+      card("sug_c", "Sal", [SAL]),
+      card("sug_d", "Arroz", [ARROZ]),
+    ];
+  }
+
+  it("takes the named cards out in one write and returns them with the index they had, in queue order", () => {
+    useSuggestionsStore.getState().enqueueProducts(four());
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const removed = useSuggestionsStore.getState().rejectMany(["sug_d", "sug_b"]);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(removed.map((entry) => [entry.card.id, entry.index])).toEqual([
+      ["sug_b", 1],
+      ["sug_d", 3],
+    ]);
+    expect(snapshot().products.map((entry) => entry.id)).toEqual(["sug_a", "sug_c"]);
+  });
+
+  it("restoreMany gives back the stored queue exactly, with every card at its old place", async () => {
+    useSuggestionsStore.getState().enqueueProducts(four());
+    const before = storedEnvelope();
+    const removed = useSuggestionsStore.getState().rejectMany(["sug_a", "sug_c", "sug_d"]);
+    expect(snapshot().products.map((entry) => entry.id)).toEqual(["sug_b"]);
+    await reload();
+    useSuggestionsStore.getState().restoreMany(removed);
+    expect(storedEnvelope()).toEqual(before);
+    expect(queueStatus()).toEqual({ readFailed: false, writeFailed: false });
+  });
+
+  it("ignores unknown and repeated ids, and writes nothing when no known card is named", () => {
+    useSuggestionsStore.getState().enqueueProducts(four());
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSuggestionsStore.getState().rejectMany(["sug_x"])).toEqual([]);
+    expect(useSuggestionsStore.getState().rejectMany([])).toEqual([]);
+    expect(setItem).not.toHaveBeenCalled();
+    const removed = useSuggestionsStore.getState().rejectMany(["sug_b", "sug_b", "sug_x"]);
+    expect(removed.map((entry) => entry.card.id)).toEqual(["sug_b"]);
+    expect(setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("restoreMany leaves out a card whose member is pending elsewhere now and writes once", () => {
+    useSuggestionsStore.getState().enqueueProducts(four());
+    const removed = useSuggestionsStore.getState().rejectMany(["sug_b", "sug_c"]);
+    // A later batch put the café description in a new card.
+    useSuggestionsStore.getState().enqueueProducts([card("sug_e", "Café nuevo", [CAFE])]);
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSuggestionsStore.getState().restoreMany(removed);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().products.map((entry) => entry.id)).toEqual(["sug_a", "sug_d", "sug_c", "sug_e"]);
+  });
+
+  it("restoreMany with nothing to put back writes nothing, and the category rows are left alone", () => {
+    useSuggestionsStore.setState({ products: four(), categories: queue().categories });
+    const removed = useSuggestionsStore.getState().rejectMany(["sug_a"]);
+    expect(snapshot().categories).toEqual(queue().categories);
+    useSuggestionsStore.getState().restoreMany(removed);
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSuggestionsStore.getState().restoreMany(removed);
+    expect(setItem).not.toHaveBeenCalled();
+    expect(useSuggestionsStore.getState().products.map((entry) => entry.id)).toEqual([
+      "sug_a",
+      "sug_b",
+      "sug_c",
+      "sug_d",
+    ]);
+  });
+});
+
 describe("readStoredQueue test helper", () => {
   it("returns the envelope the store wrote, or null", async () => {
     expect(await readStoredQueue()).toBeNull();

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 
 /** Accessible name that every card gives its editable proposed name (UI-SPEC line 256). */
 export const NAME_INPUT_LABEL = "Nombre del producto sugerido";
@@ -32,4 +32,12 @@ export function cardOf(input: HTMLElement): HTMLElement {
   const card = input.closest("li");
   if (card === null) throw new Error("the Input is not inside a card");
   return card;
+}
+
+/**
+ * The checkboxes that choose a member of a card («Elegir «…»»), inside `root` or the whole page.
+ * The checkbox that selects a card for the bulk actions («Seleccionar la sugerencia «…»») is not one.
+ */
+export function memberCheckboxes(root: HTMLElement = document.body): HTMLElement[] {
+  return within(root).queryAllByRole("checkbox", { name: /^Elegir «/ });
 }

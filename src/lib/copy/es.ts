@@ -502,6 +502,23 @@ export const es = {
       ownProducts: "Productos que ya tienes",
       /** Toast after a join, whichever the destination (UI-SPEC line 273). */
       merged: "Sugerencias unidas",
+      /** Search field, filter toggles and the text of an empty result (UI-SPEC lines 240-243, 403-406). */
+      searchLabel: "Buscar sugerencia",
+      searchPlaceholder: "Producto, descripción o proveedor",
+      filterGroupLabel: "Filtrar sugerencias",
+      filters: {
+        todas: "Todas",
+        varios: "Varios",
+        deUno: "De uno",
+        paraAgregar: "Para agregar",
+      },
+      noMatchNoText: "No hay sugerencias en este filtro.",
+      /** Bulk bar and the confirmation of «Aceptar todas las visibles» (D-20, UI-SPEC lines 244-250). */
+      selectVisible: "Seleccionar visibles",
+      acceptSelected: "Aceptar seleccionadas",
+      rejectSelected: "Rechazar seleccionadas",
+      acceptAllVisible: "Aceptar todas las visibles",
+      bulkDismiss: "Volver a revisar",
       /** Discretion text, the same form as the Phase 3 limit toasts (LIMITS.ungroupedConcepts). */
       ungroupLimit: "Llegaste al máximo de 5,000 descripciones marcadas.",
       /** Note under the title of an «Agregar a» card (D-21, UI-SPEC line 262). */

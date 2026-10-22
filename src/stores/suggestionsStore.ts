@@ -77,6 +77,13 @@ interface SuggestionsState {
   splitSuggestion: (id: string, keys: readonly string[]) => QueueUndo | null;
   /** Undo of the three actions above; a refused undo writes nothing. */
   undoQueueChange: (undo: QueueUndo) => void;
+  /**
+   * Takes every card whose id is in `ids` out of the queue in one write (D-20) and returns what
+   * `restoreMany` needs, in queue order; unknown ids are ignored and nothing known writes nothing.
+   */
+  rejectMany: (ids: readonly string[]) => RemovedSuggestion[];
+  /** Undo of `rejectMany`: every card goes back to the index it had; a refused card is left out. */
+  restoreMany: (removed: readonly RemovedSuggestion[]) => void;
 }
 
 /** The queue as the domain reducers take it. */
@@ -173,6 +180,32 @@ export const useSuggestionsStore = create<SuggestionsState>()(
         const next = undoQueueChange(current, undo);
         // A refused undo comes back as the same object: nothing to write.
         if (next !== current) set({ products: next.products });
+      },
+      rejectMany: (ids) => {
+        const wanted = new Set(ids);
+        let queue = queueOf(get());
+        // Last card first: each removal then reports the index the card had in the whole queue.
+        const targets = queue.products.filter((card) => wanted.has(card.id)).reverse();
+        const removed: RemovedSuggestion[] = [];
+        for (const target of targets) {
+          const result = removeSuggestion(queue, target.id);
+          if (result === null) continue;
+          queue = result.next;
+          removed.push(result.removed);
+        }
+        if (removed.length === 0) return [];
+        set({ products: queue.products });
+        return removed.reverse();
+      },
+      restoreMany: (removed) => {
+        const before = queueOf(get());
+        let queue = before;
+        // First card first: the cards before each index are back already, so it lands where it was.
+        for (const entry of [...removed].sort((a, b) => a.index - b.index)) {
+          queue = restoreSuggestion(queue, entry);
+        }
+        // A queue where every restore was refused is the same object: nothing to write.
+        if (queue !== before) set({ products: queue.products });
       },
     }),
     {
