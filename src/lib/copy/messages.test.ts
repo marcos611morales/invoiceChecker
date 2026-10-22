@@ -134,6 +134,7 @@ import {
   categoryBulkBody,
   categoryBulkTitle,
   categoryBulkToast,
+  withheldHeading,
   bulkAcceptedToast,
   bulkRejectedToast,
   filterToggleLabel,
@@ -1284,6 +1285,12 @@ describe("«Aceptar todas» of the category table (D-23, UI-SPEC OQ6)", () => {
     expect(categoryBulkToast(5, 0)).toBe("5 sugerencias aplicadas");
     expect(categoryBulkToast(5, 1)).toBe("5 sugerencias aplicadas; 1 quedó en la tabla");
     expect(categoryBulkToast(0, 2)).toBe("0 sugerencias aplicadas; 2 quedaron en la tabla");
+  });
+
+  it("words the group of the send dialog that the sensitive-pattern guard keeps out (UI-SPEC OQ7)", () => {
+    expect(withheldHeading(3)).toBe(
+      "No se enviarán (3): contienen algo que parece un RFC, un UUID, un correo o un número largo.",
+    );
   });
 
   it("names the header button", () => {

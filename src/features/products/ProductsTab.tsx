@@ -11,6 +11,8 @@ import {
   collectCategorizeTargets,
   collectItems,
   freeItems,
+  withheldItems,
+  withheldTargets,
   type CategorizeRun,
   type GroupRun,
 } from "@/domain/llm/candidates";
@@ -91,12 +93,22 @@ export function ProductsTab() {
       ),
     [entries, categories, supplierCategories, products, queue, categoryRows],
   );
+  // What the sensitive-pattern guard keeps in the browser is not counted as something to send
+  // (UI-SPEC OQ7): the captions and the buttons count only what would travel.
+  const sendableTargets = useMemo(() => {
+    const kept = new Set(withheldTargets(targets));
+    return targets.filter((target) => !kept.has(target));
+  }, [targets]);
+  const sendableFree = useMemo(
+    () => free.length - withheldItems(free).length,
+    [free],
+  );
   const targetCount = useMemo(
     () => ({
-      suppliers: targets.filter((target) => target.kind === "supplier").length,
-      products: targets.filter((target) => target.kind === "product").length,
+      suppliers: sendableTargets.filter((target) => target.kind === "supplier").length,
+      products: sendableTargets.filter((target) => target.kind === "product").length,
     }),
-    [targets],
+    [sendableTargets],
   );
   // A row whose supplier or product got a category by other means (in Categorías, in the product
   // list), or whose product was deleted, leaves the table without being applied (D-07, D-18, A-3).
@@ -119,8 +131,8 @@ export function ProductsTab() {
 
   // One run slot: the entry button is inert while a run is in flight or being stopped.
   const running = status.phase === "running" || status.phase === "cancelling";
-  // aria-disabled, never `disabled`: the press is ignored when nothing is free or a run is active.
-  const blocked = free.length === 0 || running;
+  // aria-disabled, never `disabled`: the press is ignored when nothing can be sent or a run is active.
+  const blocked = sendableFree === 0 || running;
   // The entry button and «Reintentar» do the same thing: build the run from what is still free
   // and open the send dialog first, so nothing is sent without the user's confirmation. The
   // names of the accepted products go as context on every request (D-04, D-33); the names of the
@@ -137,10 +149,10 @@ export function ProductsTab() {
   };
   const caption = running
     ? es.products.runActive
-    : free.length === 0
+    : sendableFree === 0
       ? es.products.noneFree
-      : freeDescriptionsCaption(free.length);
-  const categorizeBlocked = targets.length === 0 || running;
+      : freeDescriptionsCaption(sendableFree);
+  const categorizeBlocked = sendableTargets.length === 0 || running;
   // Same as the grouping button: build the run from what is still without a category and open
   // the send dialog first. «Reintentar» after a categorize run calls this too.
   const openCategorizeDialog = () => {

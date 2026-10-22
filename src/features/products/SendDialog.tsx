@@ -31,6 +31,7 @@ import {
   itemsGroupHeading,
   productsGroupHeading,
   suppliersGroupHeading,
+  withheldHeading,
 } from "@/lib/copy/messages";
 import { RUN_STOP_SELECTOR } from "./focusTargets";
 
@@ -218,6 +219,26 @@ export function SendDialog({
               </ul>
             </section>
           ) : null}
+          {run.withheld.length > 0 ? (
+            <section className="flex flex-col">
+              <h3 className="px-3 pt-2 text-sm font-semibold">
+                {withheldHeading(run.withheld.length)}
+              </h3>
+              <ul className="flex flex-col">
+                {run.withheld.map((item) => (
+                  <li
+                    key={`${item.rfc}|${item.key}`}
+                    className="flex flex-col gap-0.5 border-b px-3 py-2 last:border-b-0"
+                  >
+                    <span className="text-sm break-words">{item.description}</span>
+                    <span className="text-xs break-words text-muted-foreground">
+                      {item.supplierName}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </>
       }
     />
@@ -317,6 +338,33 @@ export function CategorizeSendDialog({
                 {categories.map((name) => (
                   <li key={name} className="border-b px-3 py-2 last:border-b-0">
                     <span className="text-sm break-words">{name}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {run.withheld.length > 0 ? (
+            <section className="flex flex-col">
+              <h3 className="px-3 pt-2 text-sm font-semibold">
+                {withheldHeading(run.withheld.length)}
+              </h3>
+              <ul className="flex flex-col">
+                {run.withheld.map((target) => (
+                  <li
+                    key={target.kind === "supplier" ? `s|${target.rfc}` : `p|${target.productId}`}
+                    className="flex flex-col gap-0.5 border-b px-3 py-2 last:border-b-0"
+                  >
+                    <span className="text-sm break-words">{target.name}</span>
+                    {target.kind === "product"
+                      ? target.members.map((member, index) => (
+                          <span
+                            key={`${String(index)}-${member}`}
+                            className="text-xs break-words text-muted-foreground"
+                          >
+                            {member}
+                          </span>
+                        ))
+                      : null}
                   </li>
                 ))}
               </ul>

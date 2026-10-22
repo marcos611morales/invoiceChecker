@@ -643,6 +643,14 @@ export function itemsGroupHeading(n: number): string {
   return `Descripciones y proveedores (${String(n)})`;
 }
 
+/**
+ * Last group of the send dialog (UI-SPEC OQ7, user-confirmed): the texts that the sensitive-pattern
+ * guard keeps in the browser. The sentence is the UI-SPEC's, the same for any count.
+ */
+export function withheldHeading(n: number): string {
+  return `No se enviarán (${String(n)}): contienen algo que parece un RFC, un UUID, un correo o un número largo.`;
+}
+
 function suppliersWithoutCategory(n: number): string {
   return n === 1 ? "1 proveedor" : `${String(n)} proveedores`;
 }
