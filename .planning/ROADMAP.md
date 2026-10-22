@@ -234,7 +234,7 @@ Plans:
   4. Al aceptar un producto agrupado con categoría, sus conceptos toman esa categoría salvo los que el usuario ajustó a mano; los conceptos sin grupo usan la categoría de su proveedor o quedan en "Sin categoría".
   5. Una llamada a las rutas del LLM sin sesión válida recibe 401, y la API key de DeepSeek no aparece en ningún archivo del bundle del cliente ni en ninguna respuesta al navegador.
 
-**Plans:** 16/21 plans executed
+**Plans:** 17/21 plans executed
 
 Plans:
 **Wave 1**
@@ -282,7 +282,7 @@ Plans:
 - [x] 04-16-PLAN.md — «Unir con…» y «Separar en producto nuevo» con Deshacer
 
 **Wave 15** *(blocked on Wave 14 completion)*
-- [ ] 04-17-PLAN.md — Revisión en bloque: orden, búsqueda, filtros, «Mostrar más» y «Aceptar todas las visibles»
+- [x] 04-17-PLAN.md — Revisión en bloque: orden, búsqueda, filtros, «Mostrar más» y «Aceptar todas las visibles»
 
 **Wave 16** *(blocked on Wave 15 completion)*
 - [ ] 04-18-PLAN.md — «Sugerir categorías» de punta a punta hasta la cola: ruta /api/llm/categorize, diálogo y filas sugeridas
@@ -325,5 +325,5 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
 | 3. Categorías propias y exportación a Excel | 20/20 | Complete    | 2026-10-19 |
-| 4. Agrupación de productos con DeepSeek | 16/21 | In Progress | - |
+| 4. Agrupación de productos con DeepSeek | 17/21 | In Progress | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
