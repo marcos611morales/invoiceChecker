@@ -29,6 +29,9 @@ export default defineConfig({
     env: {
       APP_PASSWORD: appPassword,
       SESSION_SECRET: sessionSecret,
+      // Empty on purpose: no end-to-end test can reach DeepSeek even if a mock is missing; the
+      // LLM routes then answer 500 server_not_configured before any upstream call (T-04-42).
+      DEEPSEEK_API_KEY: "",
     },
   },
 });
