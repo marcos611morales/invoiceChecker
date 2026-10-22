@@ -234,7 +234,7 @@ Plans:
   4. Al aceptar un producto agrupado con categoría, sus conceptos toman esa categoría salvo los que el usuario ajustó a mano; los conceptos sin grupo usan la categoría de su proveedor o quedan en "Sin categoría".
   5. Una llamada a las rutas del LLM sin sesión válida recibe 401, y la API key de DeepSeek no aparece en ningún archivo del bundle del cliente ni en ninguna respuesta al navegador.
 
-**Plans:** 20/21 plans executed
+**Plans:** 21/21 plans executed
 
 Plans:
 **Wave 1**
@@ -294,7 +294,7 @@ Plans:
 - [x] 04-20-PLAN.md — «Aceptar todas» de categorías y guardia de patrones sensibles en ambos flujos
 
 **Wave 19** *(blocked on Wave 18 completion)*
-- [ ] 04-21-PLAN.md — Cierre: e2e con rutas simuladas, capturas de estados de UI, compuertas de la fase y revisión humana final
+- [x] 04-21-PLAN.md — Cierre: e2e con rutas simuladas, capturas de estados de UI, compuertas de la fase y revisión humana final
 
 **UI hint**: yes
 **Research flag**: sí — spike de DeepSeek antes de planear (calidad de agrupación en español, tasa de JSON vacío, modo JSON con thinking deshabilitado, latencia, tamaño de lote y `maxDuration` en Vercel Hobby). Candidata a `/gsd-ai-integration-phase`.
@@ -325,5 +325,5 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
 | 3. Categorías propias y exportación a Excel | 20/20 | Complete    | 2026-10-19 |
-| 4. Agrupación de productos con DeepSeek | 20/21 | In Progress | - |
+| 4. Agrupación de productos con DeepSeek | 21/21 | In Progress | - |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
