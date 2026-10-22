@@ -3,9 +3,13 @@
  * what to do with the outcome. The answer is validated with the shared zod
  * schemas before it is typed, and every failure is one of our own codes.
  */
+import { z } from "zod";
 import {
+  categorizeResponseSchema,
   groupResponseSchema,
   llmErrorBodySchema,
+  type CategorizeRequest,
+  type CategorizeResponse,
   type GroupRequest,
   type GroupResponse,
   type LlmErrorCode,
@@ -21,6 +25,7 @@ export type LlmCallResult<T> =
   | { ok: false; error: LlmFailure };
 
 const GROUP_URL = "/api/llm/group";
+const CATEGORIZE_URL = "/api/llm/categorize";
 
 function failed(error: LlmFailure): LlmCallResult<never> {
   return { ok: false, error };
@@ -30,16 +35,33 @@ function failed(error: LlmFailure): LlmCallResult<never> {
  * POSTs one grouping body. `cancel` aborts the call ("aborted"); the client
  * deadline gives "upstream_timeout"; a network failure gives "offline".
  */
-export async function postGroup(
+export function postGroup(
   body: GroupRequest,
   cancel: AbortSignal,
 ): Promise<LlmCallResult<GroupResponse>> {
+  return postJson(GROUP_URL, body, cancel, groupResponseSchema);
+}
+
+/** POSTs one categorize body, with the same cancel, deadline and failure mapping as `postGroup`. */
+export function postCategorize(
+  body: CategorizeRequest,
+  cancel: AbortSignal,
+): Promise<LlmCallResult<CategorizeResponse>> {
+  return postJson(CATEGORIZE_URL, body, cancel, categorizeResponseSchema);
+}
+
+async function postJson<T>(
+  url: string,
+  body: unknown,
+  cancel: AbortSignal,
+  schema: z.ZodType<T>,
+): Promise<LlmCallResult<T>> {
   const deadline = AbortSignal.timeout(CLIENT_TIMEOUT_MS);
   let status = 0;
   let ok = false;
   let payload: unknown;
   try {
-    const response = await fetch(GROUP_URL, {
+    const response = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -61,7 +83,7 @@ export async function postGroup(
   }
 
   if (ok) {
-    const parsed = groupResponseSchema.safeParse(payload);
+    const parsed = schema.safeParse(payload);
     return parsed.success ? { ok: true, data: parsed.data } : failed("invalid_response");
   }
   const errorBody = llmErrorBodySchema.safeParse(payload);
