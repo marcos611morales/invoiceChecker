@@ -3,7 +3,9 @@ import {
   PENDING_LIMITS,
   SUGGESTIONS_VERSION,
   appendSuggestionMembers,
+  categoryTargetKey,
   dropMember,
+  enqueueCategorySuggestions,
   enqueueProductSuggestions,
   memberKey,
   mergeSuggestions,
@@ -1217,5 +1219,60 @@ describe("mergeSuggestions, turnIntoAddCard, splitSuggestion and undoQueueChange
     expect(saved?.card).toEqual(base.products[0]);
     expect(saved?.card).not.toBe(base.products[0]);
     expect(saved?.card.members).not.toBe(base.products[0]?.members);
+  });
+});
+
+describe("enqueueCategorySuggestions (A-2, D-23)", () => {
+  function supplierRow(id: string, rfc: string): CategorySuggestion {
+    return { id, kind: "supplier", rfc, name: `Tienda ${rfc}`, choice: { kind: "new", name: "Bebidas" } };
+  }
+  function productRow(id: string, productId: string): CategorySuggestion {
+    return { id, kind: "product", productId, name: productId, choice: null };
+  }
+
+  it("keys a supplier by its RFC and a product by its id, apart from each other", () => {
+    expect(categoryTargetKey(supplierRow("r", "AAA"))).toBe("supplier:AAA");
+    expect(categoryTargetKey(productRow("r", "AAA"))).toBe("product:AAA");
+  });
+
+  it("adds the rows in order and never changes the queued ones", () => {
+    const queued = [supplierRow("r1", "AAA")];
+    const next = enqueueCategorySuggestions(queued, [supplierRow("r2", "BBB"), productRow("r3", "p1")]);
+    expect(next.map((row) => row.id)).toEqual(["r1", "r2", "r3"]);
+    expect(queued).toHaveLength(1);
+    expect(next).not.toBe(queued);
+  });
+
+  it("skips a target that already has a row and a target that repeats inside the incoming rows", () => {
+    const queued = [supplierRow("r1", "AAA"), productRow("r2", "p1")];
+    const next = enqueueCategorySuggestions(queued, [
+      supplierRow("r3", "AAA"),
+      productRow("r4", "p1"),
+      supplierRow("r5", "BBB"),
+      supplierRow("r6", "BBB"),
+    ]);
+    expect(next.map((row) => row.id)).toEqual(["r1", "r2", "r5"]);
+  });
+
+  it("is idempotent: the same rows twice give the same queue", () => {
+    const incoming = [supplierRow("r1", "AAA"), productRow("r2", "p1")];
+    const once = enqueueCategorySuggestions([], incoming);
+    expect(enqueueCategorySuggestions(once, incoming)).toEqual(once);
+  });
+
+  it("stops at the stored limit, so the queue it returns is always readable", () => {
+    const full = Array.from({ length: PENDING_LIMITS.categoryRows }, (_unused, index) =>
+      supplierRow(`r${String(index)}`, `RFC${String(index)}`),
+    );
+    const next = enqueueCategorySuggestions(full, [supplierRow("extra", "OTHER")]);
+    expect(next).toHaveLength(PENDING_LIMITS.categoryRows);
+    expect(
+      pendingQueueSchema.safeParse({ products: [], categories: next }).success,
+    ).toBe(true);
+  });
+
+  it("returns rows the stored-queue schema accepts", () => {
+    const next = enqueueCategorySuggestions([], [supplierRow("r1", "AAA"), productRow("r2", "p1")]);
+    expect(pendingQueueSchema.safeParse({ products: [], categories: next }).success).toBe(true);
   });
 });

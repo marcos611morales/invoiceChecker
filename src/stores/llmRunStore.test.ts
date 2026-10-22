@@ -1,15 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildGroupRun, type LlmItem } from "@/domain/llm/candidates";
+import {
+  buildCategorizeRun,
+  buildGroupRun,
+  type CategorizeTarget,
+  type LlmItem,
+} from "@/domain/llm/candidates";
 import type { GroupResponse } from "@/domain/llm/contract";
 import { LLM_LIMITS } from "@/domain/llm/contract";
-import { postGroup, type LlmFailure } from "@/lib/client/llmClient";
+import { postCategorize, postGroup, type LlmFailure } from "@/lib/client/llmClient";
 import { resetSuggestionsStore } from "../../tests/support/suggestionsStorage";
-import { groupBatches, useLlmRunStore, type RunBatch } from "./llmRunStore";
+import { categorizeBatches, groupBatches, useLlmRunStore, type RunBatch } from "./llmRunStore";
 import { useSessionStore } from "./sessionStore";
 import { useSettingsStore } from "./settingsStore";
 import { useSuggestionsStore } from "./suggestionsStore";
 
-vi.mock("@/lib/client/llmClient", () => ({ postGroup: vi.fn() }));
+vi.mock("@/lib/client/llmClient", () => ({ postGroup: vi.fn(), postCategorize: vi.fn() }));
 
 type SendResult = Awaited<ReturnType<RunBatch["send"]>>;
 
@@ -649,5 +654,148 @@ describe("groupBatches: earlier-batch names on later batches (D-28, D-33)", () =
       .mockResolvedValueOnce(answer([{ name: "Dos", ids: ["i1"], existing: null }]));
     await useLlmRunStore.getState().startGroupRun(run);
     expect(bodies()[1]?.existing.map((entry) => entry.name)).toEqual(["Leche", "Tres"]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// «Sugerir categorías» batches (Plan 04-18)
+
+const CATEGORY_TARGETS: CategorizeTarget[] = [
+  { kind: "supplier", rfc: "AAA010101AAA", name: "Tienda Uno" },
+  { kind: "product", productId: "prod_a", name: "Leche entera", members: ["MM LECHE ENT"] },
+];
+const USER_CATEGORIES = [
+  { id: "cat_abarrotes", name: "Abarrotes" },
+  { id: "cat_servicios", name: "Servicios" },
+];
+
+type CategorizeAnswers = Extract<
+  Awaited<ReturnType<typeof postCategorize>>,
+  { ok: true }
+>["data"]["answers"];
+
+function categorizeAnswer(answers: CategorizeAnswers): Awaited<ReturnType<typeof postCategorize>> {
+  return { ok: true, data: { answers, meta: metaOf() } };
+}
+
+describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
+  function firstBatch(): { batch: RunBatch; run: ReturnType<typeof buildCategorizeRun> } {
+    const run = buildCategorizeRun(CATEGORY_TARGETS, USER_CATEGORIES);
+    const batch = categorizeBatches(run)[0];
+    if (batch === undefined) throw new Error("expected a batch");
+    return { batch, run };
+  }
+
+  it("maps a code to the existing category and a new name to a new choice; nothing is enqueued before apply", async () => {
+    const { batch, run } = firstBatch();
+    vi.mocked(postCategorize).mockResolvedValue(
+      categorizeAnswer([
+        { id: "s1", choice: { kind: "code", code: "c2" } },
+        { id: "q1", choice: { kind: "new", name: "Bebidas" } },
+      ]),
+    );
+    const result = await batch.send(new AbortController().signal);
+    expect(vi.mocked(postCategorize)).toHaveBeenCalledWith(run.batches[0]?.body, expect.any(AbortSignal));
+    expect(useSuggestionsStore.getState().categories).toEqual([]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.apply()).toBe(2);
+    const rows = useSuggestionsStore.getState().categories;
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      kind: "supplier",
+      rfc: "AAA010101AAA",
+      name: "Tienda Uno",
+      choice: { kind: "existing", categoryId: "cat_servicios" },
+    });
+    expect(rows[1]).toMatchObject({
+      kind: "product",
+      productId: "prod_a",
+      name: "Leche entera",
+      choice: { kind: "new", name: "Bebidas" },
+    });
+    expect(rows.every((row) => row.id.startsWith("cat_"))).toBe(true);
+    // Idempotent per target: applying the same answer again adds nothing.
+    expect(result.apply()).toBe(0);
+    expect(useSuggestionsStore.getState().categories).toHaveLength(2);
+  });
+
+  it("skips a target that already has a row from another run", async () => {
+    useSuggestionsStore.getState().enqueueCategories([
+      { id: "cat_old", kind: "supplier", rfc: "AAA010101AAA", name: "Tienda Uno", choice: null },
+    ]);
+    const { batch } = firstBatch();
+    vi.mocked(postCategorize).mockResolvedValue(
+      categorizeAnswer([
+        { id: "s1", choice: { kind: "code", code: "c1" } },
+        { id: "q1", choice: { kind: "code", code: "c1" } },
+      ]),
+    );
+    const result = await batch.send(new AbortController().signal);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.apply()).toBe(1);
+    expect(useSuggestionsStore.getState().categories.map((row) => row.id)[0]).toBe("cat_old");
+  });
+
+  it("checks the coverage again: an answer that omits an id is an incomplete_response and adds nothing", async () => {
+    const { batch } = firstBatch();
+    vi.mocked(postCategorize).mockResolvedValue(
+      categorizeAnswer([{ id: "s1", choice: { kind: "code", code: "c1" } }]),
+    );
+    expect(await batch.send(new AbortController().signal)).toEqual({
+      ok: false,
+      error: "incomplete_response",
+    });
+    expect(useSuggestionsStore.getState().categories).toEqual([]);
+  });
+
+  it("refuses an answer with an invented id or a code that was not sent", async () => {
+    const { batch } = firstBatch();
+    vi.mocked(postCategorize).mockResolvedValueOnce(
+      categorizeAnswer([
+        { id: "s1", choice: { kind: "code", code: "c1" } },
+        { id: "q1", choice: { kind: "code", code: "c1" } },
+        { id: "s9", choice: { kind: "code", code: "c1" } },
+      ]),
+    );
+    expect(await batch.send(new AbortController().signal)).toEqual({
+      ok: false,
+      error: "incomplete_response",
+    });
+    vi.mocked(postCategorize).mockResolvedValueOnce(
+      categorizeAnswer([
+        { id: "s1", choice: { kind: "code", code: "c1" } },
+        { id: "q1", choice: { kind: "code", code: "c9" } },
+      ]),
+    );
+    expect(await batch.send(new AbortController().signal)).toEqual({
+      ok: false,
+      error: "invalid_response",
+    });
+    expect(useSuggestionsStore.getState().categories).toEqual([]);
+  });
+
+  it("passes a client failure through", async () => {
+    const { batch } = firstBatch();
+    vi.mocked(postCategorize).mockResolvedValue({ ok: false, error: "offline" });
+    expect(await batch.send(new AbortController().signal)).toEqual({ ok: false, error: "offline" });
+  });
+
+  it("startCategorizeRun runs the batches as a «categorize» run and ends finished with the rows added", async () => {
+    const run = buildCategorizeRun(CATEGORY_TARGETS, USER_CATEGORIES);
+    vi.mocked(postCategorize).mockResolvedValue(
+      categorizeAnswer([
+        { id: "s1", choice: { kind: "code", code: "c1" } },
+        { id: "q1", choice: { kind: "new", name: "Bebidas" } },
+      ]),
+    );
+    await useLlmRunStore.getState().startCategorizeRun(run);
+    expect(useLlmRunStore.getState().status).toEqual({
+      phase: "finished",
+      kind: "categorize",
+      total: 1,
+      received: 2,
+    });
+    expect(useSuggestionsStore.getState().categories).toHaveLength(2);
   });
 });

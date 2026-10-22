@@ -6,9 +6,11 @@
  * user sees is what travels (RESEARCH Pattern 4). Pure: no clock, no randomness.
  */
 import type { LedgerEntry } from "../accounting/ledger";
+import { orderedCategories } from "../settings/categories";
 import { normalizeDescription, ruleMapKey } from "../settings/normalize";
-import { LLM_LIMITS, type GroupRequest } from "./contract";
-import type { SuggestionMember } from "./suggestions";
+import type { Category, SettingsData } from "../settings/types";
+import { LLM_LIMITS, type CategorizeRequest, type GroupRequest } from "./contract";
+import type { PendingQueue, SuggestionMember } from "./suggestions";
 
 /** One distinct pair of supplier RFC and normalized description. */
 export interface LlmItem {
@@ -188,4 +190,200 @@ export function buildGroupRun(
     suppliers: suppliers.size,
     contextNames: context.length,
   };
+}
+
+// ---------------------------------------------------------------------------------------
+// «Sugerir categorías» (LLM-02, D-07, D-17, A-2). What is sent: the names of the suppliers and
+// products that have no category, the descriptions of the members of each product and the names of
+// the user's categories. Never an RFC, a UUID, an amount, a date or a folio (LLM-03).
+
+/** A supplier (by RFC, kept in the browser) or an accepted product that is waiting for a category. */
+export type CategorizeTarget =
+  | { kind: "supplier"; rfc: string; name: string }
+  | { kind: "product"; productId: string; name: string; members: string[] };
+
+/** The part of the settings that decides who needs a category. */
+type CategorizeSettings = Pick<SettingsData, "categories" | "supplierCategories" | "products">;
+
+/** The key of a target in the pending category rows; the same as `categoryTargetKey` of suggestions.ts. */
+function pendingKey(target: { kind: "supplier"; rfc: string } | { kind: "product"; productId: string }): string {
+  return target.kind === "supplier" ? `supplier:${target.rfc}` : `product:${target.productId}`;
+}
+
+function compareTargets(a: CategorizeTarget, b: CategorizeTarget): number {
+  const idA = a.kind === "supplier" ? a.rfc : a.productId;
+  const idB = b.kind === "supplier" ? b.rfc : b.productId;
+  return COLLATOR.compare(a.name, b.name) || comparePlain(idA, idB);
+}
+
+/**
+ * The suppliers and the products that «Sugerir categorías» would send (D-07): the loaded
+ * suppliers (one per RFC, with the name the ledger shows) that have no default category, and the
+ * accepted products that have no category. One that already has a category is never listed, so a
+ * category the user chose can never be overwritten; one that already has a pending row is left out
+ * (A-2, one row per target). A supplier whose only name is its RFC is left out like in
+ * `collectItems`, and so is a product with no readable member. Suppliers first, then products,
+ * each by name with the es collator.
+ */
+export function collectCategorizeTargets(
+  entries: readonly LedgerEntry[],
+  settings: CategorizeSettings,
+  queue: PendingQueue,
+): CategorizeTarget[] {
+  const known = new Set(settings.categories.map((category) => category.id));
+  const assigned = new Set(
+    settings.supplierCategories
+      .filter((assignment) => known.has(assignment.categoryId))
+      .map((assignment) => assignment.rfc),
+  );
+  const pending = new Set(queue.categories.map((row) => pendingKey(row)));
+  const suppliers = new Map<string, CategorizeTarget>();
+  for (const entry of entries) {
+    if (!hasReadableName(entry)) continue;
+    const rfc = entry.supplierRfc;
+    if (suppliers.has(rfc) || assigned.has(rfc) || pending.has(pendingKey({ kind: "supplier", rfc }))) {
+      continue;
+    }
+    suppliers.set(rfc, { kind: "supplier", rfc, name: entry.supplierName.trim() });
+  }
+  const products: CategorizeTarget[] = [];
+  for (const product of settings.products) {
+    if (product.categoryId !== null && known.has(product.categoryId)) continue;
+    if (pending.has(pendingKey({ kind: "product", productId: product.id }))) continue;
+    const members = product.members
+      .map((member) => member.description.trim())
+      .filter((description) => description !== "");
+    if (members.length === 0 || product.name.trim() === "") continue;
+    products.push({
+      kind: "product",
+      productId: product.id,
+      name: product.name.trim(),
+      members,
+    });
+  }
+  return [...[...suppliers.values()].sort(compareTargets), ...products.sort(compareTargets)];
+}
+
+/** One request of a «Sugerir categorías» run and the browser-only maps behind its ids. */
+export interface CategorizeBatch {
+  body: CategorizeRequest;
+  /** Supplier id (s#) or product id (q#) to the target it stands for. Never leaves the browser. */
+  idMap: Map<string, CategorizeTarget>;
+  /** Category code (c#) to the category id it stands for. Never leaves the browser. */
+  codeMap: Map<string, string>;
+}
+
+export interface CategorizeRun {
+  batches: CategorizeBatch[];
+  /** Supplier names across every batch body. */
+  suppliers: number;
+  /** Product names across every batch body. */
+  products: number;
+  /** Member descriptions across every batch body. */
+  members: number;
+  /** The user's category names that travel on every batch. */
+  categories: number;
+}
+
+/**
+ * Largest serialized body of one request, below the route's `LLM_LIMITS.requestBytes` (256 KB)
+ * with room to spare: products with many long member descriptions can be heavy, so a batch that
+ * would pass it is split instead of being refused by the route.
+ */
+const CATEGORIZE_BODY_BYTES = 200000;
+
+function bytesOf(body: CategorizeRequest): number {
+  return new TextEncoder().encode(JSON.stringify(body)).length;
+}
+
+/** The member descriptions that travel for a product: cut to 200, the first 100, none repeated. */
+function memberTexts(target: Extract<CategorizeTarget, { kind: "product" }>): string[] {
+  const seen = new Set<string>();
+  const texts: string[] = [];
+  for (const description of target.members) {
+    const text = cutText(description, LLM_LIMITS.description);
+    if (text === "" || seen.has(text)) continue;
+    seen.add(text);
+    texts.push(text);
+    if (texts.length >= LLM_LIMITS.membersPerProduct) break;
+  }
+  return texts;
+}
+
+/** Builds the batch of these targets: ids s1.. and q1.. in the order given, c1..cN for the categories. */
+function categorizeBatchOf(
+  targets: readonly CategorizeTarget[],
+  sorted: readonly Category[],
+): CategorizeBatch {
+  const idMap = new Map<string, CategorizeTarget>();
+  const suppliers: CategorizeRequest["suppliers"] = [];
+  const products: CategorizeRequest["products"] = [];
+  for (const target of targets) {
+    if (target.kind === "supplier") {
+      const id = `s${String(suppliers.length + 1)}`;
+      idMap.set(id, target);
+      suppliers.push({ id, name: cutText(target.name, LLM_LIMITS.supplier) });
+    } else {
+      const members = memberTexts(target);
+      if (members.length === 0) continue;
+      const id = `q${String(products.length + 1)}`;
+      idMap.set(id, target);
+      products.push({ id, name: cutText(target.name, LLM_LIMITS.productName), members });
+    }
+  }
+  const codeMap = new Map<string, string>();
+  const names = sorted.map((category, index) => {
+    const id = `c${String(index + 1)}`;
+    codeMap.set(id, category.id);
+    return { id, name: cutText(category.name, LLM_LIMITS.productName) };
+  });
+  return { body: { suppliers, products, categories: names }, idMap, codeMap };
+}
+
+/** Halves a group of targets until each part fits the byte budget (a single target always does). */
+function fitting(
+  targets: readonly CategorizeTarget[],
+  sorted: readonly Category[],
+): CategorizeBatch[] {
+  const batch = categorizeBatchOf(targets, sorted);
+  if (targets.length < 2 || bytesOf(batch.body) <= CATEGORIZE_BODY_BYTES) return [batch];
+  const half = Math.ceil(targets.length / 2);
+  return [
+    ...fitting(targets.slice(0, half), sorted),
+    ...fitting(targets.slice(half), sorted),
+  ];
+}
+
+/**
+ * Splits the targets into M = ceil(E / max) batches of near-equal size in the order given (the
+ * suppliers come first, as `collectCategorizeTargets` returns them), and splits further any batch
+ * whose body would pass the byte budget. Every batch carries the user's categories in the order
+ * of `orderedCategories` as c1..cN (at most `LLM_LIMITS.categories`), so a code means the same
+ * category in each of them. A product is never sent without a readable member.
+ */
+export function buildCategorizeRun(
+  targets: readonly CategorizeTarget[],
+  categories: readonly Category[],
+  max: number = LLM_LIMITS.categorizeEntries,
+): CategorizeRun {
+  const sorted = orderedCategories(categories).slice(0, LLM_LIMITS.categories);
+  const total = targets.length;
+  const count = total === 0 ? 0 : Math.ceil(total / max);
+  const batches: CategorizeBatch[] = [];
+  let start = 0;
+  for (let index = 0; index < count; index += 1) {
+    const size = Math.floor(total / count) + (index < total % count ? 1 : 0);
+    batches.push(...fitting(targets.slice(start, start + size), sorted));
+    start += size;
+  }
+  const sent = batches.filter((batch) => batch.body.suppliers.length + batch.body.products.length > 0);
+  let suppliers = 0;
+  let products = 0;
+  let members = 0;
+  for (const batch of sent) {
+    suppliers += batch.body.suppliers.length;
+    products += batch.body.products.length;
+    for (const product of batch.body.products) members += product.members.length;
+  }
+  return { batches: sent, suppliers, products, members, categories: sent.length === 0 ? 0 : sorted.length };
 }

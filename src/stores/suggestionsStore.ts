@@ -4,6 +4,7 @@ import {
   SUGGESTIONS_VERSION,
   appendSuggestionMembers,
   dropMember,
+  enqueueCategorySuggestions,
   enqueueProductSuggestions,
   mergeSuggestions,
   removeSuggestion,
@@ -38,10 +39,12 @@ const STORAGE_KEY = "invoicechecker:suggestions";
 interface SuggestionsState {
   /** Pending product cards, in arrival order. */
   products: ProductSuggestion[];
-  /** Pending category rows; empty until Plan 04-18 fills them. */
+  /** Pending category rows (Plan 04-18), one per supplier or product. */
   categories: CategorySuggestion[];
   /** Adds the cards, skipping every member already pending (idempotent per member, D-25). */
   enqueueProducts: (incoming: readonly ProductSuggestion[]) => void;
+  /** Adds the category rows, skipping every target that already has one (idempotent per target, A-2). */
+  enqueueCategories: (incoming: readonly CategorySuggestion[]) => void;
   /**
    * Adds members at the end of a pending card (D-33), skipping every member already pending in any
    * card (idempotent per member); an unknown card or nothing new writes nothing.
@@ -109,6 +112,10 @@ export const useSuggestionsStore = create<SuggestionsState>()(
       enqueueProducts: (incoming) =>
         set((current) => ({
           products: enqueueProductSuggestions(current.products, incoming),
+        })),
+      enqueueCategories: (incoming) =>
+        set((current) => ({
+          categories: enqueueCategorySuggestions(current.categories, incoming),
         })),
       appendMembers: (cardId, members) => {
         const current = queueOf(get());

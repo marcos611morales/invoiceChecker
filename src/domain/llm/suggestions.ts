@@ -59,6 +59,17 @@ export type CategorySuggestion =
   | { id: string; kind: "supplier"; rfc: string; name: string; choice: CategoryChoice | null }
   | { id: string; kind: "product"; productId: string; name: string; choice: CategoryChoice | null };
 
+/**
+ * The key under which a supplier or a product counts as pending for a category (A-2, D-23): one
+ * row per supplier (by RFC) or per product (by id). A row and the target it was built for give
+ * the same key. The prefix keeps a supplier and a product apart, whatever their ids are.
+ */
+export function categoryTargetKey(
+  target: { kind: "supplier"; rfc: string } | { kind: "product"; productId: string },
+): string {
+  return target.kind === "supplier" ? `supplier:${target.rfc}` : `product:${target.productId}`;
+}
+
 /** Everything that waits for review: product cards and category rows (D-24). */
 export interface PendingQueue {
   products: ProductSuggestion[];
@@ -256,6 +267,29 @@ export function enqueueProductSuggestions(
     }
     memberCount += members.length;
     next.push({ ...card, members });
+  }
+  return next;
+}
+
+/**
+ * The queued category rows plus each incoming row whose target (`categoryTargetKey`) is not
+ * pending yet, in incoming order (A-2, D-23): a target that already has a row, or that repeats
+ * inside the incoming list, is skipped, so a late or repeated answer never makes a second row.
+ * It stops adding at `PENDING_LIMITS.categoryRows`, so a queue valid in memory is valid stored.
+ * Returns a new array; the queued rows are not changed.
+ */
+export function enqueueCategorySuggestions(
+  queue: readonly CategorySuggestion[],
+  incoming: readonly CategorySuggestion[],
+): CategorySuggestion[] {
+  const taken = new Set(queue.map((row) => categoryTargetKey(row)));
+  const next = [...queue];
+  for (const row of incoming) {
+    const key = categoryTargetKey(row);
+    if (taken.has(key)) continue;
+    if (next.length >= PENDING_LIMITS.categoryRows) break;
+    taken.add(key);
+    next.push(row);
   }
   return next;
 }
