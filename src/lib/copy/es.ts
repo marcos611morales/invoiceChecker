@@ -463,6 +463,8 @@ export const es = {
     },
     /** Toast after «Rechazar» on a category row (UI-SPEC line 292); its action is «Deshacer». */
     categoryRejected: "Sugerencia rechazada",
+    /** «Aceptar todas» at the header of the category table (D-23, UI-SPEC line 289). */
+    categoryAcceptAll: "Aceptar todas",
     runActive: "Hay un proceso en curso",
     noLines: "Sin líneas cargadas",
     queueIntro:
