@@ -642,6 +642,86 @@ export function itemsGroupHeading(n: number): string {
   return `Descripciones y proveedores (${String(n)})`;
 }
 
+function suppliersWithoutCategory(n: number): string {
+  return n === 1 ? "1 proveedor" : `${String(n)} proveedores`;
+}
+
+function productsWithoutCategory(n: number): string {
+  return n === 1 ? "1 producto" : `${String(n)} productos`;
+}
+
+/**
+ * Caption under «Sugerir categorías» (UI-SPEC line 185): «{m} proveedores y {p} productos sin
+ * categoría», a zero part omitted («3 proveedores sin categoría»), singular «1 proveedor» and
+ * «1 producto»; with neither, «No hay proveedores ni productos sin categoría».
+ */
+export function categorizeCaption(suppliers: number, products: number): string {
+  if (suppliers === 0 && products === 0) return es.products.categorizeNone;
+  const parts: string[] = [];
+  if (suppliers > 0) parts.push(suppliersWithoutCategory(suppliers));
+  if (products > 0) parts.push(productsWithoutCategory(products));
+  return `${parts.join(" y ")} sin categoría`;
+}
+
+/** Joins «a», «a y b» or «a, b y c». */
+function joinParts(parts: readonly string[]): string {
+  if (parts.length < 3) return parts.join(" y ");
+  return `${parts.slice(0, -1).join(", ")} y ${parts[parts.length - 1] ?? ""}`;
+}
+
+/**
+ * Summary of the send dialog of «Sugerir categorías» (D-07, UI-SPEC line 204): «Se enviarán a
+ * DeepSeek {m} nombres de proveedor, {p} nombres de producto con las descripciones de sus {k}
+ * miembros y los nombres de tus {c} categorías. No se envían RFC, UUID, montos, fechas ni
+ * folios.» A zero part is omitted and each part has its singular form.
+ */
+export function categorizeSendSummary(
+  suppliers: number,
+  products: number,
+  members: number,
+  categories: number,
+): string {
+  const parts: string[] = [];
+  if (suppliers > 0) {
+    parts.push(suppliers === 1 ? "1 nombre de proveedor" : `${String(suppliers)} nombres de proveedor`);
+  }
+  if (products > 0) {
+    const name = products === 1 ? "1 nombre de producto" : `${String(products)} nombres de producto`;
+    const descriptions =
+      members === 1
+        ? "la descripción de su miembro"
+        : `las descripciones de sus ${String(members)} miembros`;
+    parts.push(`${name} con ${descriptions}`);
+  }
+  if (categories > 0) {
+    parts.push(categories === 1 ? "el nombre de tu categoría" : `los nombres de tus ${String(categories)} categorías`);
+  }
+  return `Se enviarán a DeepSeek ${joinParts(parts)}. No se envían RFC, UUID, montos, fechas ni folios.`;
+}
+
+/** Disclosure group headings of the categorize dialog (UI-SPEC line 207). */
+export function suppliersGroupHeading(n: number): string {
+  return `Proveedores sin categoría (${String(n)})`;
+}
+
+export function productsGroupHeading(n: number): string {
+  return `Productos sin categoría (${String(n)})`;
+}
+
+export function categoriesGroupHeading(n: number): string {
+  return `Tus categorías (${String(n)})`;
+}
+
+/** Heading of the pending category rows: «Sugerencias de categoría · {n}». */
+export function categoryRowsHeading(n: number): string {
+  return `Sugerencias de categoría · ${String(n)}`;
+}
+
+/** The suggested category of a row when DeepSeek proposed a name that is not one of the user's: «Nueva: Bebidas». */
+export function newCategoryLabel(name: string): string {
+  return `Nueva: ${name}`;
+}
+
 /** First line of the run status: «Agrupando productos · Lote {k} de {M}». */
 export function runLine(kind: "group" | "categorize", k: number, total: number): string {
   const verb = kind === "group" ? "Agrupando productos" : "Sugiriendo categorías";

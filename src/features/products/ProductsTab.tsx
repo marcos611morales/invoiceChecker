@@ -1,22 +1,32 @@
 "use client";
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { Info, Layers } from "lucide-react";
+import { Info, Layers, Tags } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import {
+  buildCategorizeRun,
   buildGroupRun,
+  collectCategorizeTargets,
   collectItems,
   freeItems,
+  type CategorizeRun,
   type GroupRun,
 } from "@/domain/llm/candidates";
-import { pendingMemberKeys } from "@/domain/llm/suggestions";
+import { pendingMemberKeys, type CategorySuggestion } from "@/domain/llm/suggestions";
 import { ruleMapKey } from "@/domain/settings/normalize";
 import { productMemberKeys, ungroupedKeys } from "@/domain/settings/products";
 import { useLedger } from "@/features/dashboard/useLedger";
 import { es } from "@/lib/copy/es";
-import { freeDescriptionsCaption, productQueueHeading } from "@/lib/copy/messages";
+import {
+  categorizeCaption,
+  categoryRowsHeading,
+  freeDescriptionsCaption,
+  newCategoryLabel,
+  productQueueHeading,
+} from "@/lib/copy/messages";
 import { useLlmRunStore } from "@/stores/llmRunStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useStorageStatusStore, useSuggestionsStatusStore } from "@/stores/storageStatusStore";
@@ -26,16 +36,58 @@ import { ProductList } from "./ProductList";
 import { ReviewQueue } from "./ReviewQueue";
 import { RunProgress } from "./RunProgress";
 import { RunResult } from "./RunResult";
-import { SendDialog } from "./SendDialog";
+import { CategorizeSendDialog, SendDialog } from "./SendDialog";
 import { UngroupedList } from "./UngroupedList";
 
 /**
- * Productos tab (D-01, D-02). The entry button builds the run from the free
- * descriptions of ALL loaded invoices (D-03, D-04) and opens the send dialog; only
- * confirming it starts the run, and the run lives in a store outside this panel.
+ * The pending category suggestions, one read-only row per supplier or product with its type, its
+ * name and the suggested category («Nueva: {nombre}» for a new one). Nothing is applied from here:
+ * the per-row actions and the editable Select come with Plan 04-19.
+ */
+function CategoryRows({ rows }: { rows: readonly CategorySuggestion[] }) {
+  const categories = useSettingsStore((s) => s.categories);
+  const nameOf = (row: CategorySuggestion): string => {
+    if (row.choice === null) return es.products.categoryChoose;
+    if (row.choice.kind === "new") return newCategoryLabel(row.choice.name);
+    const id = row.choice.categoryId;
+    return categories.find((category) => category.id === id)?.name ?? es.products.categoryChoose;
+  };
+  return (
+    <section className="flex min-w-0 flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <h2 tabIndex={-1} className="text-xl leading-[1.2] font-semibold">
+          {categoryRowsHeading(rows.length)}
+        </h2>
+        <p className="text-xs text-muted-foreground">{es.products.categoryRowsIntro}</p>
+      </div>
+      <ul className="flex flex-col rounded-lg border">
+        {rows.map((row) => (
+          <li
+            key={row.id}
+            className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b px-4 py-3 last:border-b-0"
+          >
+            <Badge variant="outline">
+              {row.kind === "supplier"
+                ? es.products.categoryTypeSupplier
+                : es.products.categoryTypeProduct}
+            </Badge>
+            <span className="min-w-0 flex-1 text-sm break-words">{row.name}</span>
+            <span className="text-sm break-words text-muted-foreground">{nameOf(row)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Productos tab (D-01, D-02). Each entry button builds its run from everything that is still
+ * free (D-03, D-04) and opens its send dialog; only confirming it starts the run, and the run
+ * lives in a store outside this panel. The two buttons share one run slot.
  */
 export function ProductsTab() {
   const captionId = useId();
+  const categorizeCaptionId = useId();
   const entries = useLedger();
   const items = useMemo(() => collectItems(entries), [entries]);
   const linesByKey = useMemo(
@@ -45,7 +97,11 @@ export function ProductsTab() {
   const queue = useSuggestionsStore((s) => s.products);
   const status = useLlmRunStore((s) => s.status);
   const startGroupRun = useLlmRunStore((s) => s.startGroupRun);
+  const startCategorizeRun = useLlmRunStore((s) => s.startCategorizeRun);
+  const categoryRows = useSuggestionsStore((s) => s.categories);
   const products = useSettingsStore((s) => s.products);
+  const categories = useSettingsStore((s) => s.categories);
+  const supplierCategories = useSettingsStore((s) => s.supplierCategories);
   const marks = useSettingsStore((s) => s.ungroupedConcepts);
   // The two storage conditions that make this tab's data volatile (Q8): the settings and the
   // pending queue each have their own status.
@@ -66,8 +122,28 @@ export function ProductsTab() {
       ),
     [items, queue, products, marks],
   );
+  // Suppliers without a default category and accepted products without category, minus the ones
+  // that already wait in a category row (D-07, A-2): the caption counts them, the run sends them.
+  const targets = useMemo(
+    () =>
+      collectCategorizeTargets(
+        entries,
+        { categories, supplierCategories, products },
+        { products: queue, categories: categoryRows },
+      ),
+    [entries, categories, supplierCategories, products, queue, categoryRows],
+  );
+  const targetCount = useMemo(
+    () => ({
+      suppliers: targets.filter((target) => target.kind === "supplier").length,
+      products: targets.filter((target) => target.kind === "product").length,
+    }),
+    [targets],
+  );
   const [run, setRun] = useState<GroupRun | null>(null);
   const [open, setOpen] = useState(false);
+  const [categorizeRun, setCategorizeRun] = useState<CategorizeRun | null>(null);
+  const [categorizeOpen, setCategorizeOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const titleHeading = useRef<HTMLHeadingElement>(null);
   const queueHeading = useRef<HTMLHeadingElement>(null);
@@ -100,6 +176,17 @@ export function ProductsTab() {
     : free.length === 0
       ? es.products.noneFree
       : freeDescriptionsCaption(free.length);
+  const categorizeBlocked = targets.length === 0 || running;
+  // Same as the grouping button: build the run from what is still without a category and open
+  // the send dialog first. «Reintentar» after a categorize run calls this too.
+  const openCategorizeDialog = () => {
+    if (categorizeBlocked) return;
+    setCategorizeRun(buildCategorizeRun(targets, categories));
+    setCategorizeOpen(true);
+  };
+  const categorizeCaptionText = running
+    ? es.products.runActive
+    : categorizeCaption(targetCount.suppliers, targetCount.products);
 
   return (
     <div className="flex flex-col gap-8">
@@ -116,22 +203,41 @@ export function ProductsTab() {
           <p className="text-xs text-muted-foreground">{es.products.intro1}</p>
           <p className="text-xs text-muted-foreground">{es.products.intro2}</p>
         </div>
-        <div className="flex flex-col gap-1 max-md:w-full">
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            aria-disabled={blocked}
-            aria-describedby={captionId}
-            className="max-sm:h-11 max-sm:w-full aria-disabled:opacity-50"
-            onClick={openGroupDialog}
-          >
-            <Layers aria-hidden="true" />
-            {es.products.groupButton}
-          </Button>
-          <p id={captionId} className="text-xs text-muted-foreground">
-            {caption}
-          </p>
+        <div className="flex flex-wrap items-start gap-4 max-md:w-full max-sm:flex-col">
+          <div className="flex flex-col gap-1 max-sm:w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              aria-disabled={blocked}
+              aria-describedby={captionId}
+              className="max-sm:h-11 max-sm:w-full aria-disabled:opacity-50"
+              onClick={openGroupDialog}
+            >
+              <Layers aria-hidden="true" />
+              {es.products.groupButton}
+            </Button>
+            <p id={captionId} className="text-xs text-muted-foreground">
+              {caption}
+            </p>
+          </div>
+          <div className="flex flex-col gap-1 max-sm:w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              aria-disabled={categorizeBlocked}
+              aria-describedby={categorizeCaptionId}
+              className="max-sm:h-11 max-sm:w-full aria-disabled:opacity-50"
+              onClick={openCategorizeDialog}
+            >
+              <Tags aria-hidden="true" />
+              {es.products.categorizeButton}
+            </Button>
+            <p id={categorizeCaptionId} className="text-xs text-muted-foreground">
+              {categorizeCaptionText}
+            </p>
+          </div>
         </div>
       </div>
       {/* Not dismissible: each stays until a later write succeeds (Q8). */}
@@ -151,9 +257,17 @@ export function ProductsTab() {
           </AlertDescription>
         </Alert>
       ) : null}
-      <RunResult onRetry={openGroupDialog} />
+      <RunResult
+        onRetry={(kind) => {
+          if (kind === "categorize") openCategorizeDialog();
+          else openGroupDialog();
+        }}
+      />
       <RunProgress />
-      {products.length === 0 && queue.length === 0 && marks.length === 0 ? (
+      {products.length === 0 &&
+      queue.length === 0 &&
+      categoryRows.length === 0 &&
+      marks.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>
             <EmptyTitle className="text-base">{es.products.list.emptyHeading}</EmptyTitle>
@@ -182,6 +296,7 @@ export function ProductsTab() {
           />
         </section>
       ) : null}
+      {categoryRows.length > 0 ? <CategoryRows rows={categoryRows} /> : null}
       {products.length > 0 ? (
         <ProductList
           onEmptied={() => {
@@ -210,6 +325,17 @@ export function ProductsTab() {
           onConfirm={() => {
             setOpen(false);
             void startGroupRun(run);
+          }}
+        />
+      )}
+      {categorizeRun === null ? null : (
+        <CategorizeSendDialog
+          run={categorizeRun}
+          open={categorizeOpen}
+          onOpenChange={setCategorizeOpen}
+          onConfirm={() => {
+            setCategorizeOpen(false);
+            void startCategorizeRun(categorizeRun);
           }}
         />
       )}

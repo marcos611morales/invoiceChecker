@@ -1,15 +1,21 @@
 import { create } from "zustand";
-import { cutText, type ContextTarget, type GroupBatch, type GroupRun } from "@/domain/llm/candidates";
+import {
+  cutText,
+  type CategorizeRun,
+  type ContextTarget,
+  type GroupBatch,
+  type GroupRun,
+} from "@/domain/llm/candidates";
 import { LLM_LIMITS, isRetryable, type GroupRequest } from "@/domain/llm/contract";
 import { coverageOf, isComplete } from "@/domain/llm/reconcile";
-import { memberKey, resolveProductAnswer } from "@/domain/llm/suggestions";
+import { memberKey, resolveProductAnswer, type CategorySuggestion } from "@/domain/llm/suggestions";
 import { ruleMapKey } from "@/domain/settings/normalize";
-import { postGroup, type LlmFailure } from "@/lib/client/llmClient";
+import { postCategorize, postGroup, type LlmFailure } from "@/lib/client/llmClient";
 import { useSessionStore } from "./sessionStore";
 import { useSettingsStore } from "./settingsStore";
 import { useSuggestionsStore } from "./suggestionsStore";
 
-/** What a run asks DeepSeek for; Plan 04-18 adds the «categorize» batches. */
+/** What a run asks DeepSeek for: product groups or a category for each supplier and product. */
 export type RunKind = "group" | "categorize";
 
 export type RunStatus =
@@ -68,6 +74,8 @@ interface LlmRunState {
   startRun: (kind: RunKind, batches: readonly RunBatch[]) => Promise<void>;
   /** The tracer entry point: a thin wrapper of `startRun("group", groupBatches(run))`. */
   startGroupRun: (run: GroupRun) => Promise<void>;
+  /** The same for «Sugerir categorías»: a thin wrapper of `startRun("categorize", categorizeBatches(run))`. */
+  startCategorizeRun: (run: CategorizeRun) => Promise<void>;
   /** Stops the batch in flight and every later one; keeps what already arrived. */
   cancel: () => void;
   dismissResult: () => void;
@@ -188,6 +196,64 @@ export function groupBatches(run: GroupRun): RunBatch[] {
   }));
 }
 
+function newCategoryRowId(): string {
+  return `cat_${crypto.randomUUID()}`;
+}
+
+/**
+ * The batches of a «Sugerir categorías» run (D-26, D-27). Each one posts its body, re-checks that
+ * every sent id came back exactly once and that every code stands for a category of the request
+ * (anything else becomes an incomplete or invalid response and adds nothing, D-11) and maps the
+ * answers to read-only rows; `apply` enqueues them as soon as the runner decides the batch counts.
+ * A target that already has a row (an earlier batch, an earlier run) is skipped by the queue (A-2).
+ */
+export function categorizeBatches(run: CategorizeRun): RunBatch[] {
+  return run.batches.map((batch) => ({
+    send: async (signal) => {
+      const result = await postCategorize(batch.body, signal);
+      if (!result.ok) return { ok: false, error: result.error };
+      const sentIds = [
+        ...batch.body.suppliers.map((supplier) => supplier.id),
+        ...batch.body.products.map((product) => product.id),
+      ];
+      const coverage = coverageOf(
+        sentIds,
+        result.data.answers.map((answer) => ({ ids: [answer.id] })),
+      );
+      if (!isComplete(coverage)) return { ok: false, error: "incomplete_response" };
+      const rows: CategorySuggestion[] = [];
+      for (const answer of result.data.answers) {
+        const target = batch.idMap.get(answer.id);
+        if (target === undefined) return { ok: false, error: "incomplete_response" };
+        let choice: CategorySuggestion["choice"];
+        if (answer.choice.kind === "code") {
+          const categoryId = batch.codeMap.get(answer.choice.code);
+          if (categoryId === undefined) return { ok: false, error: "invalid_response" };
+          choice = { kind: "existing", categoryId };
+        } else {
+          choice = { kind: "new", name: answer.choice.name };
+        }
+        const name = cutText(target.name, LLM_LIMITS.productName);
+        const id = newCategoryRowId();
+        rows.push(
+          target.kind === "supplier"
+            ? { id, kind: "supplier", rfc: target.rfc, name, choice }
+            : { id, kind: "product", productId: target.productId, name, choice },
+        );
+      }
+      return {
+        ok: true,
+        apply: () => {
+          const store = useSuggestionsStore.getState();
+          const before = store.categories.length;
+          store.enqueueCategories(rows);
+          return useSuggestionsStore.getState().categories.length - before;
+        },
+      };
+    },
+  }));
+}
+
 /**
  * The run lives here, outside any tab panel, so switching to another tab while a
  * batch is in flight does not lose it (RESEARCH Pattern 2). In memory only, like the
@@ -286,6 +352,7 @@ export const useLlmRunStore = create<LlmRunState>()((set, get) => ({
     }
   },
   startGroupRun: (run) => get().startRun("group", groupBatches(run)),
+  startCategorizeRun: (run) => get().startRun("categorize", categorizeBatches(run)),
   cancel: () => {
     const { status, controller } = get();
     if (status.phase !== "running" || controller === null) return;

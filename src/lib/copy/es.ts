@@ -444,6 +444,16 @@ export const es = {
       "Lo que aceptas se guarda en este navegador y va en tu archivo de ajustes. Las sugerencias pendientes también se guardan aquí, pero no van en el archivo.",
     groupButton: "Agrupar productos",
     noneFree: "No hay descripciones nuevas para agrupar",
+    /** «Sugerir categorías» (UI-SPEC lines 182-186): the second entry button and its caption when nothing qualifies. */
+    categorizeButton: "Sugerir categorías",
+    categorizeNone: "No hay proveedores ni productos sin categoría",
+    /** «Sugerencias de categoría» (UI-SPEC lines 280-286): the intro and the badges of the type column. */
+    categoryRowsIntro:
+      "DeepSeek propone una categoría para cada proveedor y producto que aún no tiene. Puedes cambiarla antes de aceptar.",
+    /** Value shown when the suggested category no longer exists (UI-SPEC line 285). */
+    categoryChoose: "Elige una categoría",
+    categoryTypeSupplier: "Proveedor",
+    categoryTypeProduct: "Producto",
     runActive: "Hay un proceso en curso",
     noLines: "Sin líneas cargadas",
     queueIntro:

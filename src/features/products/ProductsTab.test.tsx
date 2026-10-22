@@ -582,12 +582,17 @@ describe("Agrupar productos: the free count (D-03, D-04, D-05, OQ2)", () => {
     render(<ProductsTab />);
     await openDialog();
     await confirm();
+    // The caption is under both entry buttons while a run is active (one run slot).
     await waitFor(() => {
-      expect(screen.getByText("Hay un proceso en curso")).toBeInTheDocument();
+      expect(screen.getAllByText("Hay un proceso en curso")).toHaveLength(2);
     });
     const line = screen.getByText("Agrupando productos · Lote 1 de 1");
     expect(line.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
     expect(groupButton()).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Sugerir categorías" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     fireEvent.click(groupButton());
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(routeBodies).toHaveLength(1);

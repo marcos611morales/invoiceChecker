@@ -2,16 +2,27 @@ import { describe, expect, it } from "vitest";
 import type { LedgerEntry } from "../accounting/ledger";
 import type { Concepto, ParsedInvoice } from "../cfdi/types";
 import { makeEntry, makeInvoice } from "../../../tests/support/ledgerFactory";
+import type { Category, Product } from "../settings/types";
 import {
+  buildCategorizeRun,
   buildGroupRun,
+  collectCategorizeTargets,
   collectItems,
   cutText,
   freeItems,
+  type CategorizeTarget,
   type LlmItem,
 } from "./candidates";
-import { groupRequestSchema, LLM_LIMITS } from "./contract";
+import { categorizeRequestSchema, groupRequestSchema, LLM_LIMITS } from "./contract";
 import { coverageOf, isComplete, normalizeProductName } from "./reconcile";
-import { enqueueProductSuggestions, type ProductSuggestion } from "./suggestions";
+import {
+  categoryTargetKey,
+  emptyQueue,
+  enqueueProductSuggestions,
+  type CategorySuggestion,
+  type PendingQueue,
+  type ProductSuggestion,
+} from "./suggestions";
 
 const UNO = { rfc: "AAA010101AAA", nombre: "Tienda Uno" };
 const DOS = { rfc: "BBB020202BBB", nombre: "Tienda Dos" };
@@ -469,5 +480,398 @@ describe("normalizeProductName (D-12, Pitfall 7)", () => {
     expect(normalizeProductName("   ")).toBe("");
     expect(normalizeProductName("\u0000\u0007\n")).toBe("");
     expect(normalizeProductName("")).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// «Sugerir categorías» (Plan 04-18): who is asked, how it is packed, what travels.
+
+const CATEGORIES: Category[] = [
+  { id: "cat_servicios", name: "Servicios" },
+  { id: "seed:otros", name: "Otros" },
+  { id: "cat_abarrotes", name: "Abarrotes" },
+];
+
+function product(
+  id: string,
+  name: string,
+  descriptions: readonly string[],
+  categoryId: string | null = null,
+): Product {
+  return {
+    id,
+    name,
+    categoryId,
+    members: descriptions.map((description, index) => ({
+      rfc: index % 2 === 0 ? UNO.rfc : DOS.rfc,
+      key: description.toLowerCase(),
+      description,
+      supplierName: index % 2 === 0 ? UNO.nombre : DOS.nombre,
+    })),
+  };
+}
+
+function settingsOf(
+  overrides: {
+    categories?: Category[];
+    supplierCategories?: { rfc: string; name: string; categoryId: string }[];
+    products?: Product[];
+  } = {},
+) {
+  return {
+    categories: overrides.categories ?? CATEGORIES,
+    supplierCategories: overrides.supplierCategories ?? [],
+    products: overrides.products ?? [],
+  };
+}
+
+function supplierRow(rfc: string): CategorySuggestion {
+  return { id: `row_${rfc}`, kind: "supplier", rfc, name: rfc, choice: null };
+}
+
+function productRow(productId: string): CategorySuggestion {
+  return { id: `row_${productId}`, kind: "product", productId, name: productId, choice: null };
+}
+
+function queueWith(categories: CategorySuggestion[]): PendingQueue {
+  return { ...emptyQueue(), categories };
+}
+
+describe("collectCategorizeTargets (D-07, A-2)", () => {
+  const entries = [entry(DOS, ["Pago"]), entry(UNO, ["Azúcar"]), entry(UNO, ["Café"])];
+
+  it("lists the loaded suppliers without a default category, one per RFC, suppliers first and each by name", () => {
+    const targets = collectCategorizeTargets(
+      entries,
+      settingsOf({
+        products: [
+          product("prod_b", "Zanahoria", ["Zanahoria 1kg"]),
+          product("prod_a", "Aceite", ["Aceite 1L"]),
+        ],
+      }),
+      emptyQueue(),
+    );
+    expect(targets.map((target) => `${target.kind}:${target.name}`)).toEqual([
+      "supplier:Tienda Dos",
+      "supplier:Tienda Uno",
+      "product:Aceite",
+      "product:Zanahoria",
+    ]);
+  });
+
+  it("leaves out a supplier whose default category exists, but not one assigned to a deleted category", () => {
+    const targets = collectCategorizeTargets(
+      entries,
+      settingsOf({
+        supplierCategories: [
+          { rfc: UNO.rfc, name: UNO.nombre, categoryId: "cat_servicios" },
+          { rfc: DOS.rfc, name: DOS.nombre, categoryId: "cat_borrada" },
+        ],
+      }),
+      emptyQueue(),
+    );
+    expect(targets).toEqual([{ kind: "supplier", rfc: DOS.rfc, name: DOS.nombre }]);
+  });
+
+  it("lists an accepted product only when it has no category, and carries the descriptions of its members", () => {
+    const targets = collectCategorizeTargets(
+      [],
+      settingsOf({
+        products: [
+          product("prod_a", "Leche entera", ["MM LECHE ENT", "LECHE ENTERA 1L"]),
+          product("prod_b", "Azúcar", ["Azúcar 1kg"], "cat_abarrotes"),
+        ],
+      }),
+      emptyQueue(),
+    );
+    expect(targets).toEqual([
+      {
+        kind: "product",
+        productId: "prod_a",
+        name: "Leche entera",
+        members: ["MM LECHE ENT", "LECHE ENTERA 1L"],
+      },
+    ]);
+  });
+
+  it("leaves out a target that already has a pending category row (A-2) and keeps the rest", () => {
+    const targets = collectCategorizeTargets(
+      entries,
+      settingsOf({
+        products: [product("prod_a", "Leche", ["Leche"]), product("prod_b", "Pan", ["Pan"])],
+      }),
+      queueWith([supplierRow(UNO.rfc), productRow("prod_b")]),
+    );
+    expect(targets.map((target) => target.name)).toEqual(["Tienda Dos", "Leche"]);
+  });
+
+  it("builds the same key for a row and for its target", () => {
+    expect(categoryTargetKey({ kind: "supplier", rfc: "AAA" })).toBe("supplier:AAA");
+    expect(categoryTargetKey({ kind: "product", productId: "p1" })).toBe("product:p1");
+    expect(categoryTargetKey(supplierRow(DOS.rfc))).toBe(`supplier:${DOS.rfc}`);
+    expect(categoryTargetKey(productRow("prod_a"))).toBe("product:prod_a");
+    const targets = collectCategorizeTargets(entries, settingsOf(), queueWith([supplierRow(DOS.rfc)]));
+    expect(targets.map((target) => (target.kind === "supplier" ? target.rfc : ""))).toEqual([UNO.rfc]);
+  });
+
+  it("skips a supplier whose only name is its RFC, and a product with no readable member", () => {
+    const targets = collectCategorizeTargets(
+      [entry({ rfc: "XAXX010101000", nombre: "XAXX010101000" }, ["Algo"])],
+      settingsOf({ products: [product("prod_a", "Vacío", ["   "])] }),
+      emptyQueue(),
+    );
+    expect(targets).toEqual([]);
+  });
+});
+
+function supplierTarget(index: number): CategorizeTarget {
+  return {
+    kind: "supplier",
+    rfc: `RFC${String(index)}`,
+    name: `Proveedor ${String(index).padStart(3, "0")}`,
+  };
+}
+
+function productTarget(index: number, members: string[] = ["Descripción"]): CategorizeTarget {
+  return {
+    kind: "product",
+    productId: `prod_${String(index)}`,
+    name: `Producto ${String(index).padStart(3, "0")}`,
+    members,
+  };
+}
+
+describe("buildCategorizeRun (D-07, LLM-03)", () => {
+  it("numbers suppliers s1.., products q1.. and the categories c1.. in orderedCategories order, with «Otros» last", () => {
+    const run = buildCategorizeRun(
+      [supplierTarget(1), supplierTarget(2), productTarget(1)],
+      CATEGORIES,
+    );
+    expect(run.batches).toHaveLength(1);
+    const batch = run.batches[0];
+    expect(batch?.body.suppliers.map((supplier) => supplier.id)).toEqual(["s1", "s2"]);
+    expect(batch?.body.products.map((entryProduct) => entryProduct.id)).toEqual(["q1"]);
+    expect(batch?.body.categories).toEqual([
+      { id: "c1", name: "Abarrotes" },
+      { id: "c2", name: "Servicios" },
+      { id: "c3", name: "Otros" },
+    ]);
+    expect(batch?.codeMap.get("c1")).toBe("cat_abarrotes");
+    expect(batch?.codeMap.get("c3")).toBe("seed:otros");
+    expect(batch?.idMap.get("s2")).toEqual(supplierTarget(2));
+    expect(batch?.idMap.get("q1")).toEqual(productTarget(1));
+    expect(run).toMatchObject({ suppliers: 2, products: 1, members: 1, categories: 3 });
+  });
+
+  it("every body passes the strict request schema", () => {
+    const run = buildCategorizeRun([supplierTarget(1), productTarget(1, ["A", "B"])], CATEGORIES);
+    for (const batch of run.batches) {
+      expect(categorizeRequestSchema.safeParse(batch.body).success).toBe(true);
+    }
+  });
+
+  it("cuts a member description to 200 characters, a product name to 60 and a supplier name to 120", () => {
+    const run = buildCategorizeRun(
+      [
+        { kind: "supplier", rfc: "R", name: "S".repeat(150) },
+        { kind: "product", productId: "p", name: "P".repeat(80), members: ["d".repeat(250)] },
+      ],
+      CATEGORIES,
+    );
+    const body = run.batches[0]?.body;
+    expect(body?.suppliers[0]?.name).toHaveLength(120);
+    expect(body?.products[0]?.name).toHaveLength(60);
+    expect(body?.products[0]?.members[0]).toHaveLength(200);
+    expect(body?.products[0]?.members[0]?.endsWith("…")).toBe(true);
+  });
+
+  it("sends the first 100 members of a product and none twice", () => {
+    const members = [
+      ...Array.from({ length: 150 }, (_unused, index) => `Descripción ${String(index)}`),
+      "Descripción 0",
+    ];
+    const run = buildCategorizeRun([productTarget(1, members)], CATEGORIES);
+    const sent = run.batches[0]?.body.products[0]?.members ?? [];
+    expect(sent).toHaveLength(LLM_LIMITS.membersPerProduct);
+    expect(sent[0]).toBe("Descripción 0");
+    expect(new Set(sent).size).toBe(sent.length);
+    expect(run.members).toBe(100);
+  });
+
+  it("keeps 150 entries in one batch and splits 151 into two of 76 and 75 in the order given", () => {
+    const one = buildCategorizeRun(
+      Array.from({ length: 150 }, (_unused, index) => supplierTarget(index)),
+      CATEGORIES,
+    );
+    expect(one.batches).toHaveLength(1);
+    const targets = [
+      ...Array.from({ length: 100 }, (_unused, index) => supplierTarget(index)),
+      ...Array.from({ length: 51 }, (_unused, index) => productTarget(index)),
+    ];
+    const two = buildCategorizeRun(targets, CATEGORIES);
+    expect(
+      two.batches.map((batch) => batch.body.suppliers.length + batch.body.products.length),
+    ).toEqual([76, 75]);
+    expect(two.batches[0]?.body.suppliers).toHaveLength(76);
+    expect(two.batches[1]?.body.suppliers).toHaveLength(24);
+    expect(two.batches[1]?.body.suppliers[0]?.id).toBe("s1");
+    expect(two.batches[1]?.body.products[0]?.id).toBe("q1");
+    expect(two).toMatchObject({ suppliers: 100, products: 51 });
+    // The user's categories travel on every batch with the same codes.
+    expect(two.batches[1]?.body.categories).toEqual(two.batches[0]?.body.categories);
+  });
+
+  it("splits a batch that would pass the byte budget instead of letting the route refuse it", () => {
+    const heavy = Array.from({ length: 100 }, (_unused, index) =>
+      productTarget(
+        index,
+        Array.from(
+          { length: 100 },
+          (_member, member) => `${"x".repeat(190)} ${String(index)}-${String(member)}`,
+        ),
+      ),
+    );
+    const run = buildCategorizeRun(heavy, CATEGORIES);
+    expect(run.batches.length).toBeGreaterThan(1);
+    for (const batch of run.batches) {
+      const bytes = new TextEncoder().encode(JSON.stringify(batch.body)).length;
+      expect(bytes).toBeLessThanOrEqual(200000);
+      expect(bytes).toBeLessThan(LLM_LIMITS.requestBytes);
+    }
+    expect(run.products).toBe(100);
+    const sentProducts = run.batches.flatMap((batch) =>
+      [...batch.idMap.values()].map((target) => (target.kind === "product" ? target.productId : "")),
+    );
+    expect(new Set(sentProducts).size).toBe(100);
+  });
+
+  it("sends no batch when there is nothing to ask", () => {
+    expect(buildCategorizeRun([], CATEGORIES)).toMatchObject({
+      batches: [],
+      suppliers: 0,
+      products: 0,
+      members: 0,
+      categories: 0,
+    });
+  });
+
+  it("works with no categories: every batch carries an empty list", () => {
+    const run = buildCategorizeRun([supplierTarget(1)], []);
+    expect(run.batches[0]?.body.categories).toEqual([]);
+    expect(categorizeRequestSchema.safeParse(run.batches[0]?.body).success).toBe(true);
+  });
+
+  it("serializes no RFC, UUID, folio, date or amount of the invoices (T-04-37)", () => {
+    const loadedEntries = [
+      entry(UNO, ["Azúcar"], {
+        uuid: "11111111-2222-4333-8444-555555555501",
+        folio: "F-90210",
+        fecha: "2025-03-03T09:00:00",
+        total: "2468.13",
+      }),
+    ];
+    const targets = collectCategorizeTargets(
+      loadedEntries,
+      settingsOf({ products: [product("prod_a", "Leche", ["MM LECHE ENT", "LECHE ENTERA 1L"])] }),
+      emptyQueue(),
+    );
+    const serialized = JSON.stringify(
+      buildCategorizeRun(targets, CATEGORIES).batches.map((batch) => batch.body),
+    );
+    for (const forbidden of [
+      UNO.rfc,
+      DOS.rfc,
+      "11111111-2222",
+      "F-90210",
+      "2025-03-03",
+      "2468.13",
+      "prod_a",
+    ]) {
+      expect(serialized).not.toContain(forbidden);
+    }
+    expect(serialized).toContain("Tienda Uno");
+    expect(serialized).toContain("MM LECHE ENT");
+    expect(serialized).toContain("Servicios");
+  });
+});
+
+describe("categorizeRequestSchema (LLM-03, T-04-37)", () => {
+  const body = {
+    suppliers: [{ id: "s1", name: "Tienda Uno" }],
+    products: [{ id: "q1", name: "Leche", members: ["MM LECHE ENT"] }],
+    categories: [{ id: "c1", name: "Abarrotes" }],
+  };
+
+  it("accepts the valid body", () => {
+    expect(categorizeRequestSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("rejects an rfc on a supplier, an amount on a product, a uuid at the top and a field on a category", () => {
+    expect(
+      categorizeRequestSchema.safeParse({
+        ...body,
+        suppliers: [{ id: "s1", name: "T", rfc: "AAA010101AAA" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      categorizeRequestSchema.safeParse({
+        ...body,
+        products: [{ id: "q1", name: "L", members: ["x"], total: "1" }],
+      }).success,
+    ).toBe(false);
+    expect(categorizeRequestSchema.safeParse({ ...body, uuid: "x" }).success).toBe(false);
+    expect(
+      categorizeRequestSchema.safeParse({
+        ...body,
+        categories: [{ id: "c1", name: "A", color: "red" }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects ids of the wrong kind, a product with no member and more than 100 members", () => {
+    expect(
+      categorizeRequestSchema.safeParse({ ...body, suppliers: [{ id: "q1", name: "T" }] }).success,
+    ).toBe(false);
+    expect(
+      categorizeRequestSchema.safeParse({
+        ...body,
+        products: [{ id: "q1", name: "L", members: [] }],
+      }).success,
+    ).toBe(false);
+    expect(
+      categorizeRequestSchema.safeParse({
+        ...body,
+        products: [{ id: "q1", name: "L", members: Array.from({ length: 101 }, () => "x") }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects 0 and 151 entries and 201 categories", () => {
+    expect(
+      categorizeRequestSchema.safeParse({ suppliers: [], products: [], categories: [] }).success,
+    ).toBe(false);
+    expect(
+      categorizeRequestSchema.safeParse({
+        suppliers: Array.from({ length: 76 }, (_unused, index) => ({
+          id: `s${String(index + 1)}`,
+          name: "T",
+        })),
+        products: Array.from({ length: 75 }, (_unused, index) => ({
+          id: `q${String(index + 1)}`,
+          name: "P",
+          members: ["x"],
+        })),
+        categories: [],
+      }).success,
+    ).toBe(false);
+    expect(
+      categorizeRequestSchema.safeParse({
+        ...body,
+        categories: Array.from({ length: 201 }, (_unused, index) => ({
+          id: `c${String(index + 1)}`,
+          name: "C",
+        })),
+      }).success,
+    ).toBe(false);
   });
 });

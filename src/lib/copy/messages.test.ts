@@ -96,7 +96,14 @@ import {
   suppliersCell,
   batchesLine,
   canceledText,
+  categoriesGroupHeading,
+  categorizeCaption,
+  categorizeSendSummary,
+  categoryRowsHeading,
   failedBatchesText,
+  newCategoryLabel,
+  productsGroupHeading,
+  suppliersGroupHeading,
   runCaptionReceived,
   runCaptionWaiting,
   runFinishedToast,
@@ -1150,5 +1157,47 @@ describe("Search, filters and bulk actions copy (Plan 04-17, UI-SPEC 240-255, 27
     expect(queue.rejectSelected).toBe("Rechazar seleccionadas");
     expect(queue.acceptAllVisible).toBe("Aceptar todas las visibles");
     expect(queue.bulkDismiss).toBe("Volver a revisar");
+  });
+});
+
+describe("«Sugerir categorías» copy (D-07, UI-SPEC lines 185-186, 204, 207, 280)", () => {
+  it("captions the entry button with the two counts, a zero part omitted and the singular forms", () => {
+    expect(categorizeCaption(3, 2)).toBe("3 proveedores y 2 productos sin categoría");
+    expect(categorizeCaption(3, 0)).toBe("3 proveedores sin categoría");
+    expect(categorizeCaption(0, 2)).toBe("2 productos sin categoría");
+    expect(categorizeCaption(1, 1)).toBe("1 proveedor y 1 producto sin categoría");
+    expect(categorizeCaption(1, 0)).toBe("1 proveedor sin categoría");
+    expect(categorizeCaption(0, 1)).toBe("1 producto sin categoría");
+    expect(categorizeCaption(0, 0)).toBe("No hay proveedores ni productos sin categoría");
+    expect(es.products.categorizeNone).toBe("No hay proveedores ni productos sin categoría");
+  });
+
+  it("summarizes what is sent with the four counts", () => {
+    expect(categorizeSendSummary(3, 2, 7, 9)).toBe(
+      "Se enviarán a DeepSeek 3 nombres de proveedor, 2 nombres de producto con las descripciones de sus 7 miembros y los nombres de tus 9 categorías. No se envían RFC, UUID, montos, fechas ni folios.",
+    );
+  });
+
+  it("omits a zero part and uses the singular forms in the summary", () => {
+    expect(categorizeSendSummary(3, 0, 0, 9)).toBe(
+      "Se enviarán a DeepSeek 3 nombres de proveedor y los nombres de tus 9 categorías. No se envían RFC, UUID, montos, fechas ni folios.",
+    );
+    expect(categorizeSendSummary(0, 2, 5, 0)).toBe(
+      "Se enviarán a DeepSeek 2 nombres de producto con las descripciones de sus 5 miembros. No se envían RFC, UUID, montos, fechas ni folios.",
+    );
+    expect(categorizeSendSummary(1, 1, 1, 1)).toBe(
+      "Se enviarán a DeepSeek 1 nombre de proveedor, 1 nombre de producto con la descripción de su miembro y el nombre de tu categoría. No se envían RFC, UUID, montos, fechas ni folios.",
+    );
+    expect(categorizeSendSummary(2, 0, 0, 0)).toBe(
+      "Se enviarán a DeepSeek 2 nombres de proveedor. No se envían RFC, UUID, montos, fechas ni folios.",
+    );
+  });
+
+  it("names the disclosure groups and the heading of the rows", () => {
+    expect(suppliersGroupHeading(4)).toBe("Proveedores sin categoría (4)");
+    expect(productsGroupHeading(2)).toBe("Productos sin categoría (2)");
+    expect(categoriesGroupHeading(9)).toBe("Tus categorías (9)");
+    expect(categoryRowsHeading(6)).toBe("Sugerencias de categoría · 6");
+    expect(newCategoryLabel("Bebidas")).toBe("Nueva: Bebidas");
   });
 });
