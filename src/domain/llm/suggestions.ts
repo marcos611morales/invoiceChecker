@@ -294,6 +294,132 @@ export function enqueueCategorySuggestions(
   return next;
 }
 
+/** The part of the settings that decides who still needs a category. */
+export interface PruneSettings {
+  categories: readonly { id: string }[];
+  supplierCategories: readonly { rfc: string; categoryId: string }[];
+  products: readonly { id: string; categoryId: string | null }[];
+}
+
+/**
+ * The queue without the category rows whose target no longer needs a category (D-07, D-18, D-34,
+ * A-3): a supplier that now has a default category (one that exists), a product that now has a
+ * category, and a product that no longer exists. A row whose target got a category by other means
+ * is dropped, never applied, so a category the user chose is never overwritten. Every other row
+ * stays in its place and the product cards are untouched. When no row goes, the very same queue
+ * object comes back, so the store can tell that nothing needs to be written. Pure; the input is
+ * not mutated.
+ */
+export function pruneCategoryRows(queue: PendingQueue, settings: PruneSettings): PendingQueue {
+  if (queue.categories.length === 0) return queue;
+  const known = new Set(settings.categories.map((category) => category.id));
+  const assigned = new Set(
+    settings.supplierCategories
+      .filter((assignment) => known.has(assignment.categoryId))
+      .map((assignment) => assignment.rfc),
+  );
+  const products = new Map(settings.products.map((product) => [product.id, product.categoryId]));
+  const keep = (row: CategorySuggestion): boolean => {
+    if (row.kind === "supplier") return !assigned.has(row.rfc);
+    const categoryId = products.get(row.productId);
+    if (categoryId === undefined) return false;
+    return categoryId === null || !known.has(categoryId);
+  };
+  const categories = queue.categories.filter(keep);
+  if (categories.length === queue.categories.length) return queue;
+  return { ...queue, categories };
+}
+
+/** A category row taken out and the position it had, which is all `restoreCategoryRow` needs (D-22). */
+export interface RemovedCategoryRow {
+  row: CategorySuggestion;
+  index: number;
+}
+
+/** A copy of a row that shares nothing with the original, so an undo value never aliases the queue. */
+function copyCategoryRow(row: CategorySuggestion): CategorySuggestion {
+  const choice: CategoryChoice | null =
+    row.choice === null
+      ? null
+      : row.choice.kind === "existing"
+        ? { kind: "existing", categoryId: row.choice.categoryId }
+        : { kind: "new", name: row.choice.name };
+  return row.kind === "supplier"
+    ? { id: row.id, kind: "supplier", rfc: row.rfc, name: row.name, choice }
+    : { id: row.id, kind: "product", productId: row.productId, name: row.name, choice };
+}
+
+/**
+ * Takes a category row out of the queue (D-22). Returns the queue without it and the value for
+ * «Deshacer», or null when the id is unknown. Pure; the input is not mutated.
+ */
+export function removeCategoryRow(
+  queue: PendingQueue,
+  id: string,
+): { next: PendingQueue; removed: RemovedCategoryRow } | null {
+  const index = queue.categories.findIndex((row) => row.id === id);
+  const row = queue.categories[index];
+  if (row === undefined) return null;
+  return {
+    next: { ...queue, categories: queue.categories.filter((candidate) => candidate.id !== id) },
+    removed: { row: copyCategoryRow(row), index },
+  };
+}
+
+/**
+ * Puts a removed category row back at min(index, length) (D-22). A row whose id is already in the
+ * queue, whose target has another row now, or that would pass `PENDING_LIMITS.categoryRows` is
+ * not restored: in every refusal the same queue comes back.
+ */
+export function restoreCategoryRow(queue: PendingQueue, removed: RemovedCategoryRow): PendingQueue {
+  const key = categoryTargetKey(removed.row);
+  if (queue.categories.some((row) => row.id === removed.row.id || categoryTargetKey(row) === key)) {
+    return queue;
+  }
+  if (queue.categories.length >= PENDING_LIMITS.categoryRows) return queue;
+  const categories = [...queue.categories];
+  categories.splice(
+    Math.min(Math.max(removed.index, 0), categories.length),
+    0,
+    copyCategoryRow(removed.row),
+  );
+  return { ...queue, categories };
+}
+
+function sameChoice(a: CategoryChoice | null, b: CategoryChoice): boolean {
+  if (a === null) return false;
+  if (a.kind === "existing") return b.kind === "existing" && a.categoryId === b.categoryId;
+  return b.kind === "new" && a.name === b.name;
+}
+
+/**
+ * Stores the category the user picked on a row (D-17): an existing category id, or a new name of
+ * 1 to 60 characters once trimmed. An empty id, an empty or over-long name, an unknown row or the
+ * choice the row already has is no change: the same queue comes back.
+ */
+export function setCategoryChoice(
+  queue: PendingQueue,
+  id: string,
+  choice: CategoryChoice,
+): PendingQueue {
+  const current = queue.categories.find((row) => row.id === id);
+  if (current === undefined) return queue;
+  let next: CategoryChoice;
+  if (choice.kind === "existing") {
+    if (choice.categoryId === "") return queue;
+    next = { kind: "existing", categoryId: choice.categoryId };
+  } else {
+    const name = choice.name.trim();
+    if (name === "" || name.length > NAME_MAX) return queue;
+    next = { kind: "new", name };
+  }
+  if (sameChoice(current.choice, next)) return queue;
+  return {
+    ...queue,
+    categories: queue.categories.map((row) => (row.id === id ? { ...row, choice: next } : row)),
+  };
+}
+
 // ---------------------------------------------------------------------------------------
 // Review actions over the queue (D-12, D-19, D-22). Each one is a pure reducer over the whole
 // queue that never mutates its input and never produces a value `pendingQueueSchema` would

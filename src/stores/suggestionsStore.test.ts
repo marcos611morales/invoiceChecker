@@ -567,6 +567,98 @@ describe("review actions of the queue store (D-12, D-19, D-22)", () => {
   });
 });
 
+describe("category row actions of the queue store (D-17, D-18, D-22, A-3)", () => {
+  const SECOND_ROW: CategorySuggestion = {
+    id: "cat_c",
+    kind: "supplier",
+    rfc: "BBB020202BBB",
+    name: "Tienda Dos",
+    choice: null,
+  };
+
+  function seedRows(): void {
+    useSuggestionsStore.getState().enqueueProducts(queue().products);
+    useSuggestionsStore.getState().enqueueCategories([SUPPLIER_ROW, PRODUCT_ROW, SECOND_ROW]);
+  }
+
+  it("removeCategoryRow returns the row and its index, and the pair gives back the stored queue", () => {
+    seedRows();
+    const before = storedEnvelope();
+    const removed = useSuggestionsStore.getState().removeCategoryRow("cat_b");
+    if (removed === null) throw new Error("expected a row");
+    expect(removed.row.id).toBe("cat_b");
+    expect(removed.index).toBe(1);
+    expect(snapshot().categories.map((row) => row.id)).toEqual(["cat_a", "cat_c"]);
+    useSuggestionsStore.getState().restoreCategoryRow(removed);
+    expect(storedEnvelope()).toEqual(before);
+  });
+
+  it("removeCategoryRow of an unknown id returns null and writes nothing", () => {
+    seedRows();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSuggestionsStore.getState().removeCategoryRow("cat_x")).toBeNull();
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("a refused restore writes nothing", () => {
+    seedRows();
+    const removed = useSuggestionsStore.getState().removeCategoryRow("cat_b");
+    if (removed === null) throw new Error("expected a row");
+    useSuggestionsStore.getState().restoreCategoryRow(removed);
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSuggestionsStore.getState().restoreCategoryRow(removed);
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("setCategoryChoice stores the chosen category and it survives a reload", async () => {
+    seedRows();
+    useSuggestionsStore
+      .getState()
+      .setCategoryChoice("cat_c", { kind: "existing", categoryId: "seed:otros" });
+    await reload();
+    expect(snapshot().categories.find((row) => row.id === "cat_c")?.choice).toEqual({
+      kind: "existing",
+      categoryId: "seed:otros",
+    });
+  });
+
+  it("setCategoryChoice with the same choice or an unknown row writes nothing", () => {
+    seedRows();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSuggestionsStore.getState().setCategoryChoice("cat_b", { kind: "new", name: "Bebidas" });
+    useSuggestionsStore.getState().setCategoryChoice("cat_x", { kind: "new", name: "Otra" });
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("pruneCategories drops the rows whose target got a category and keeps the product cards", () => {
+    seedRows();
+    useSuggestionsStore.getState().pruneCategories({
+      categories: [{ id: "seed:otros" }],
+      supplierCategories: [{ rfc: "AAA010101AAA", categoryId: "seed:otros" }],
+      products: [{ id: "prod_1", categoryId: null }],
+    });
+    expect(snapshot().categories.map((row) => row.id)).toEqual(["cat_b", "cat_c"]);
+    expect(snapshot().products).toHaveLength(2);
+  });
+
+  it("pruneCategories with nothing to drop writes nothing", () => {
+    seedRows();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSuggestionsStore.getState().pruneCategories({
+      categories: [],
+      supplierCategories: [],
+      products: [{ id: "prod_1", categoryId: null }],
+    });
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("only sets the category rows: the product cards are left alone", () => {
+    seedRows();
+    useSuggestionsStore.getState().removeCategoryRow("cat_a");
+    expect(snapshot().products).toEqual(queue().products);
+  });
+});
+
 describe("join, turn into «Agregar a» and split in the queue store (D-19)", () => {
   it("mergeSuggestions stores the joined card, and undoQueueChange gives back the stored queue", async () => {
     useSuggestionsStore.getState().enqueueProducts(queue().products);

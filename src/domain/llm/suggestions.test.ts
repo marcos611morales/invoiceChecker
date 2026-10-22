@@ -10,19 +10,25 @@ import {
   memberKey,
   mergeSuggestions,
   pendingQueueSchema,
+  pruneCategoryRows,
+  removeCategoryRow,
   removeSuggestion,
   renameSuggestion,
   resolvePendingQueue,
   resolveProductAnswer,
+  restoreCategoryRow,
   restoreMember,
   restoreSuggestion,
+  setCategoryChoice,
   splitSuggestion,
   toProductSuggestions,
   turnIntoAddCard,
   undoQueueChange,
+  type CategoryChoice,
   type CategorySuggestion,
   type PendingQueue,
   type ProductSuggestion,
+  type PruneSettings,
   type RunContext,
   type SuggestionMember,
 } from "./suggestions";
@@ -1274,5 +1280,216 @@ describe("enqueueCategorySuggestions (A-2, D-23)", () => {
   it("returns rows the stored-queue schema accepts", () => {
     const next = enqueueCategorySuggestions([], [supplierRow("r1", "AAA"), productRow("r2", "p1")]);
     expect(pendingQueueSchema.safeParse({ products: [], categories: next }).success).toBe(true);
+  });
+});
+
+describe("pruneCategoryRows (D-07, D-18, D-34, A-3)", () => {
+  const settings: PruneSettings = {
+    categories: [{ id: "cat_bebidas" }, { id: "cat_limpieza" }],
+    supplierCategories: [],
+    products: [
+      { id: "p_con", categoryId: "cat_bebidas" },
+      { id: "p_sin", categoryId: null },
+    ],
+  };
+
+  function supplierRow(id: string, rfc: string): CategorySuggestion {
+    return { id, kind: "supplier", rfc, name: `Tienda ${rfc}`, choice: { kind: "new", name: "Bebidas" } };
+  }
+  function productRow(id: string, productId: string): CategorySuggestion {
+    return { id, kind: "product", productId, name: productId, choice: null };
+  }
+  function queueOf(rows: CategorySuggestion[]): PendingQueue {
+    return { products: [card("sug_a", "Leche", [LECHE_UNO])], categories: rows };
+  }
+  function withAssignment(rfc: string, categoryId: string): PruneSettings {
+    return { ...settings, supplierCategories: [{ rfc, categoryId }] };
+  }
+
+  it("returns the very same queue when every row still needs a category", () => {
+    const base = queueOf([supplierRow("r1", "AAA"), productRow("r2", "p_sin")]);
+    expect(pruneCategoryRows(base, settings)).toBe(base);
+  });
+
+  it("returns the very same queue when there are no rows", () => {
+    expect(pruneCategoryRows(EMPTY, settings)).toBe(EMPTY);
+  });
+
+  it("drops a supplier row whose supplier now has a default category", () => {
+    const base = queueOf([supplierRow("r1", "AAA"), supplierRow("r2", "BBB")]);
+    const next = pruneCategoryRows(base, withAssignment("AAA", "cat_bebidas"));
+    expect(next.categories.map((row) => row.id)).toEqual(["r2"]);
+  });
+
+  it("keeps a supplier row whose assignment points at a category that no longer exists", () => {
+    const base = queueOf([supplierRow("r1", "AAA")]);
+    expect(pruneCategoryRows(base, withAssignment("AAA", "cat_borrada"))).toBe(base);
+  });
+
+  it("drops a product row whose product now has a category", () => {
+    const base = queueOf([productRow("r1", "p_con"), productRow("r2", "p_sin")]);
+    const next = pruneCategoryRows(base, settings);
+    expect(next.categories.map((row) => row.id)).toEqual(["r2"]);
+  });
+
+  it("drops a product row whose product was deleted", () => {
+    const base = queueOf([productRow("r1", "p_borrado"), productRow("r2", "p_sin")]);
+    const next = pruneCategoryRows(base, settings);
+    expect(next.categories.map((row) => row.id)).toEqual(["r2"]);
+  });
+
+  it("keeps the order of the other rows and never touches the product cards", () => {
+    const base = queueOf([
+      supplierRow("r1", "AAA"),
+      productRow("r2", "p_con"),
+      supplierRow("r3", "CCC"),
+      productRow("r4", "p_sin"),
+    ]);
+    const next = pruneCategoryRows(base, withAssignment("AAA", "cat_limpieza"));
+    expect(next.categories.map((row) => row.id)).toEqual(["r3", "r4"]);
+    expect(next.products).toBe(base.products);
+  });
+
+  it("keeps a supplier and a product that share an id apart", () => {
+    const base = queueOf([supplierRow("r1", "p_con"), productRow("r2", "p_con")]);
+    const next = pruneCategoryRows(base, settings);
+    expect(next.categories.map((row) => row.id)).toEqual(["r1"]);
+  });
+
+  it("never mutates its input and returns a queue the stored schema accepts", () => {
+    const base = deepFreezeQueue(queueOf([supplierRow("r1", "AAA"), productRow("r2", "p_con")]));
+    const next = pruneCategoryRows(base, withAssignment("AAA", "cat_bebidas"));
+    expect(next.categories).toEqual([]);
+    expect(base.categories).toHaveLength(2);
+    expect(pendingQueueSchema.safeParse(next).success).toBe(true);
+  });
+});
+
+describe("removeCategoryRow and restoreCategoryRow (D-18, D-22)", () => {
+  function row(id: string, rfc: string): CategorySuggestion {
+    return { id, kind: "supplier", rfc, name: `Tienda ${rfc}`, choice: { kind: "new", name: "Bebidas" } };
+  }
+  function threeRows(): PendingQueue {
+    return {
+      products: [card("sug_a", "Leche", [LECHE_UNO])],
+      categories: [row("r1", "AAA"), row("r2", "BBB"), row("r3", "CCC")],
+    };
+  }
+
+  it("takes the row out and reports the row and the index it had", () => {
+    const result = removeCategoryRow(threeRows(), "r2");
+    if (result === null) throw new Error("expected a removal");
+    expect(result.next.categories.map((entry) => entry.id)).toEqual(["r1", "r3"]);
+    expect(result.removed.index).toBe(1);
+    expect(result.removed.row).toEqual(threeRows().categories[1]);
+  });
+
+  it("returns null for an unknown id", () => {
+    expect(removeCategoryRow(threeRows(), "r9")).toBeNull();
+  });
+
+  it("restores the row at the index it had, which gives back the same queue", () => {
+    const base = threeRows();
+    const result = removeCategoryRow(base, "r2");
+    if (result === null) throw new Error("expected a removal");
+    expect(restoreCategoryRow(result.next, result.removed)).toEqual(base);
+  });
+
+  it("restores the first and the last row at their places", () => {
+    const base = threeRows();
+    for (const id of ["r1", "r3"]) {
+      const result = removeCategoryRow(base, id);
+      if (result === null) throw new Error("expected a removal");
+      expect(restoreCategoryRow(result.next, result.removed)).toEqual(base);
+    }
+  });
+
+  it("clamps the index to the list when other rows left in the meantime", () => {
+    const result = removeCategoryRow(threeRows(), "r3");
+    if (result === null) throw new Error("expected a removal");
+    const shorter: PendingQueue = { products: [], categories: [row("r1", "AAA")] };
+    const next = restoreCategoryRow(shorter, { ...result.removed, index: 9 });
+    expect(next.categories.map((entry) => entry.id)).toEqual(["r1", "r3"]);
+  });
+
+  it("refuses, with the same queue, when the id is already in the queue", () => {
+    const base = threeRows();
+    const result = removeCategoryRow(base, "r2");
+    if (result === null) throw new Error("expected a removal");
+    expect(restoreCategoryRow(base, result.removed)).toBe(base);
+  });
+
+  it("refuses, with the same queue, when its target has another row now", () => {
+    const result = removeCategoryRow(threeRows(), "r2");
+    if (result === null) throw new Error("expected a removal");
+    const other: PendingQueue = { products: [], categories: [row("r8", "BBB")] };
+    expect(restoreCategoryRow(other, result.removed)).toBe(other);
+  });
+
+  it("refuses, with the same queue, at the stored limit", () => {
+    const result = removeCategoryRow(threeRows(), "r2");
+    if (result === null) throw new Error("expected a removal");
+    const full: PendingQueue = {
+      products: [],
+      categories: Array.from({ length: PENDING_LIMITS.categoryRows }, (_unused, index) =>
+        row(`f${String(index)}`, `RFC${String(index)}`),
+      ),
+    };
+    expect(restoreCategoryRow(full, result.removed)).toBe(full);
+  });
+
+  it("gives an undo value that shares nothing with the queue and never mutates its input", () => {
+    const base = deepFreezeQueue(threeRows());
+    const result = removeCategoryRow(base, "r1");
+    if (result === null) throw new Error("expected a removal");
+    expect(result.removed.row).not.toBe(base.categories[0]);
+    expect(base.categories).toHaveLength(3);
+    const back = restoreCategoryRow(result.next, result.removed);
+    expect(pendingQueueSchema.safeParse(back).success).toBe(true);
+  });
+});
+
+describe("setCategoryChoice (D-17, D-18)", () => {
+  function row(id: string, choice: CategoryChoice | null): CategorySuggestion {
+    return { id, kind: "supplier", rfc: `RFC${id}`, name: `Tienda ${id}`, choice };
+  }
+  function base(): PendingQueue {
+    return {
+      products: [],
+      categories: [row("r1", { kind: "new", name: "Bebidas" }), row("r2", null)],
+    };
+  }
+
+  it("stores an existing category id on the row and leaves the others alone", () => {
+    const next = setCategoryChoice(base(), "r1", { kind: "existing", categoryId: "cat_x" });
+    expect(next.categories[0]?.choice).toEqual({ kind: "existing", categoryId: "cat_x" });
+    expect(next.categories[1]).toEqual(base().categories[1]);
+  });
+
+  it("stores a new category name of 1 to 60 characters, trimmed", () => {
+    const next = setCategoryChoice(base(), "r2", { kind: "new", name: "  Servicios  " });
+    expect(next.categories[1]?.choice).toEqual({ kind: "new", name: "Servicios" });
+    const longest = setCategoryChoice(base(), "r2", { kind: "new", name: "n".repeat(60) });
+    expect(longest.categories[1]?.choice).toEqual({ kind: "new", name: "n".repeat(60) });
+  });
+
+  it("refuses, with the same queue, an empty or a 61-character name and an empty category id", () => {
+    const queued = base();
+    expect(setCategoryChoice(queued, "r1", { kind: "new", name: "   " })).toBe(queued);
+    expect(setCategoryChoice(queued, "r1", { kind: "new", name: "n".repeat(61) })).toBe(queued);
+    expect(setCategoryChoice(queued, "r1", { kind: "existing", categoryId: "" })).toBe(queued);
+  });
+
+  it("returns the same queue for an unknown row or for the choice the row already has", () => {
+    const queued = base();
+    expect(setCategoryChoice(queued, "r9", { kind: "new", name: "Bebidas" })).toBe(queued);
+    expect(setCategoryChoice(queued, "r1", { kind: "new", name: "Bebidas" })).toBe(queued);
+  });
+
+  it("never mutates its input and returns a queue the stored schema accepts", () => {
+    const queued = deepFreezeQueue(base());
+    const next = setCategoryChoice(queued, "r2", { kind: "existing", categoryId: "cat_x" });
+    expect(queued.categories[1]?.choice).toBeNull();
+    expect(pendingQueueSchema.safeParse(next).success).toBe(true);
   });
 });

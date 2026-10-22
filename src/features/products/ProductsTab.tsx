@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Info, Layers, Tags } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import {
@@ -15,22 +14,21 @@ import {
   type CategorizeRun,
   type GroupRun,
 } from "@/domain/llm/candidates";
-import { pendingMemberKeys, type CategorySuggestion } from "@/domain/llm/suggestions";
+import { pendingMemberKeys } from "@/domain/llm/suggestions";
 import { ruleMapKey } from "@/domain/settings/normalize";
 import { productMemberKeys, ungroupedKeys } from "@/domain/settings/products";
 import { useLedger } from "@/features/dashboard/useLedger";
 import { es } from "@/lib/copy/es";
 import {
   categorizeCaption,
-  categoryRowsHeading,
   freeDescriptionsCaption,
-  newCategoryLabel,
   productQueueHeading,
 } from "@/lib/copy/messages";
 import { useLlmRunStore } from "@/stores/llmRunStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useStorageStatusStore, useSuggestionsStatusStore } from "@/stores/storageStatusStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
+import { CategorySuggestionsTable } from "./CategorySuggestionsTable";
 import { PRODUCTS_QUEUE_HEADING_ID, PRODUCTS_TITLE_ID } from "./focusTargets";
 import { ProductList } from "./ProductList";
 import { ReviewQueue } from "./ReviewQueue";
@@ -38,47 +36,6 @@ import { RunProgress } from "./RunProgress";
 import { RunResult } from "./RunResult";
 import { CategorizeSendDialog, SendDialog } from "./SendDialog";
 import { UngroupedList } from "./UngroupedList";
-
-/**
- * The pending category suggestions, one read-only row per supplier or product with its type, its
- * name and the suggested category («Nueva: {nombre}» for a new one). Nothing is applied from here:
- * the per-row actions and the editable Select come with Plan 04-19.
- */
-function CategoryRows({ rows }: { rows: readonly CategorySuggestion[] }) {
-  const categories = useSettingsStore((s) => s.categories);
-  const nameOf = (row: CategorySuggestion): string => {
-    if (row.choice === null) return es.products.categoryChoose;
-    if (row.choice.kind === "new") return newCategoryLabel(row.choice.name);
-    const id = row.choice.categoryId;
-    return categories.find((category) => category.id === id)?.name ?? es.products.categoryChoose;
-  };
-  return (
-    <section className="flex min-w-0 flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 tabIndex={-1} className="text-xl leading-[1.2] font-semibold">
-          {categoryRowsHeading(rows.length)}
-        </h2>
-        <p className="text-xs text-muted-foreground">{es.products.categoryRowsIntro}</p>
-      </div>
-      <ul className="flex flex-col rounded-lg border">
-        {rows.map((row) => (
-          <li
-            key={row.id}
-            className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b px-4 py-3 last:border-b-0"
-          >
-            <Badge variant="outline">
-              {row.kind === "supplier"
-                ? es.products.categoryTypeSupplier
-                : es.products.categoryTypeProduct}
-            </Badge>
-            <span className="min-w-0 flex-1 text-sm break-words">{row.name}</span>
-            <span className="text-sm break-words text-muted-foreground">{nameOf(row)}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
 
 /**
  * Productos tab (D-01, D-02). Each entry button builds its run from everything that is still
@@ -99,6 +56,7 @@ export function ProductsTab() {
   const startGroupRun = useLlmRunStore((s) => s.startGroupRun);
   const startCategorizeRun = useLlmRunStore((s) => s.startCategorizeRun);
   const categoryRows = useSuggestionsStore((s) => s.categories);
+  const pruneCategories = useSuggestionsStore((s) => s.pruneCategories);
   const products = useSettingsStore((s) => s.products);
   const categories = useSettingsStore((s) => s.categories);
   const supplierCategories = useSettingsStore((s) => s.supplierCategories);
@@ -140,6 +98,12 @@ export function ProductsTab() {
     }),
     [targets],
   );
+  // A row whose supplier or product got a category by other means (in Categorías, in the product
+  // list), or whose product was deleted, leaves the table without being applied (D-07, D-18, A-3).
+  // Nothing to drop writes nothing, so this settles after one pass.
+  useEffect(() => {
+    pruneCategories({ categories, supplierCategories, products });
+  }, [pruneCategories, categories, supplierCategories, products, categoryRows]);
   const [run, setRun] = useState<GroupRun | null>(null);
   const [open, setOpen] = useState(false);
   const [categorizeRun, setCategorizeRun] = useState<CategorizeRun | null>(null);
@@ -296,7 +260,16 @@ export function ProductsTab() {
           />
         </section>
       ) : null}
-      {categoryRows.length > 0 ? <CategoryRows rows={categoryRows} /> : null}
+      {categoryRows.length > 0 ? (
+        <CategorySuggestionsTable
+          rows={categoryRows}
+          onAnnounce={setAnnouncement}
+          onEmptied={() => {
+            // The section unmounts with its last row: focus goes to the tab heading.
+            titleHeading.current?.focus();
+          }}
+        />
+      ) : null}
       {products.length > 0 ? (
         <ProductList
           onEmptied={() => {

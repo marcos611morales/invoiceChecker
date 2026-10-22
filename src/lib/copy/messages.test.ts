@@ -98,6 +98,12 @@ import {
   canceledText,
   categoriesGroupHeading,
   categorizeCaption,
+  categoryAcceptErrorText,
+  categoryAcceptedAnnouncement,
+  categoryAcceptedToast,
+  categoryCreatedToast,
+  categorySelectAria,
+  moreMembersLabel,
   categorizeSendSummary,
   categoryRowsHeading,
   failedBatchesText,
@@ -1199,5 +1205,56 @@ describe("«Sugerir categorías» copy (D-07, UI-SPEC lines 185-186, 204, 207, 2
     expect(categoriesGroupHeading(9)).toBe("Tus categorías (9)");
     expect(categoryRowsHeading(6)).toBe("Sugerencias de categoría · 6");
     expect(newCategoryLabel("Bebidas")).toBe("Nueva: Bebidas");
+  });
+});
+
+describe("Copy of the category suggestion table (Plan 04-19, UI-SPEC 276-294)", () => {
+  it("names the Select after the supplier or the product", () => {
+    expect(categorySelectAria("Tienda Uno")).toBe("Categoría sugerida para Tienda Uno");
+    expect(moreMembersLabel(3)).toBe("+3");
+  });
+
+  it("words the toast for an existing and for a created category, cutting the name at 40 characters", () => {
+    expect(categoryAcceptedToast("Tienda Uno", "Otros")).toBe("Categoría de «Tienda Uno»: Otros");
+    expect(categoryAcceptedToast("x".repeat(50), "Otros")).toBe(`Categoría de «${"x".repeat(39)}…»: Otros`);
+    expect(categoryCreatedToast("Bebidas", "Tienda Uno")).toBe(
+      "Categoría «Bebidas» creada y asignada a «Tienda Uno»",
+    );
+    expect(categoryCreatedToast("Bebidas", "x".repeat(50))).toBe(
+      `Categoría «Bebidas» creada y asignada a «${"x".repeat(39)}…»`,
+    );
+  });
+
+  it("announces the acceptance with the plural, singular and empty forms of what remains", () => {
+    expect(categoryAcceptedAnnouncement("Tienda Uno", 2)).toBe(
+      "Categoría sugerida aceptada para «Tienda Uno». Quedan 2 sugerencias.",
+    );
+    expect(categoryAcceptedAnnouncement("Tienda Uno", 1)).toBe(
+      "Categoría sugerida aceptada para «Tienda Uno». Queda 1 sugerencia.",
+    );
+    expect(categoryAcceptedAnnouncement("Tienda Uno", 0)).toBe(
+      "Categoría sugerida aceptada para «Tienda Uno». No quedan sugerencias.",
+    );
+  });
+
+  it("words every refusal of «Aceptar»: the name errors of Categorías and the two limits", () => {
+    expect(categoryAcceptErrorText("limit")).toBe(
+      "Alcanzaste el límite de 200 categorías. Elige una existente.",
+    );
+    expect(categoryAcceptErrorText("reserved")).toBe("«Sin categoría» es un nombre reservado.");
+    expect(categoryAcceptErrorText("empty")).toBe(es.categories.list.errors.empty);
+    expect(categoryAcceptErrorText("duplicate")).toBe(es.categories.list.errors.duplicate);
+    expect(categoryAcceptErrorText("too-long")).toBe(es.categories.list.errors.tooLong);
+    expect(categoryAcceptErrorText("supplier-limit")).toBe(es.categories.supplierLimit);
+  });
+
+  it("keeps the rejection toast and the column headers of the table", () => {
+    expect(es.products.categoryRejected).toBe("Sugerencia rechazada");
+    expect(es.products.categoryColumns).toEqual({
+      type: "Tipo",
+      name: "Nombre",
+      category: "Categoría sugerida",
+      actions: "Acciones",
+    });
   });
 });

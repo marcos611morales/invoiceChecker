@@ -454,6 +454,15 @@ export const es = {
     categoryChoose: "Elige una categoría",
     categoryTypeSupplier: "Proveedor",
     categoryTypeProduct: "Producto",
+    /** Column headers of the «Sugerencias de categoría» table (UI-SPEC line 282); the last one is `sr-only`. */
+    categoryColumns: {
+      type: "Tipo",
+      name: "Nombre",
+      category: "Categoría sugerida",
+      actions: "Acciones",
+    },
+    /** Toast after «Rechazar» on a category row (UI-SPEC line 292); its action is «Deshacer». */
+    categoryRejected: "Sugerencia rechazada",
     runActive: "Hay un proceso en curso",
     noLines: "Sin líneas cargadas",
     queueIntro:

@@ -7,19 +7,26 @@ import {
   enqueueCategorySuggestions,
   enqueueProductSuggestions,
   mergeSuggestions,
+  pruneCategoryRows,
+  removeCategoryRow,
   removeSuggestion,
   renameSuggestion,
   resolvePendingQueue,
+  restoreCategoryRow,
   restoreMember,
   restoreSuggestion,
+  setCategoryChoice,
   splitSuggestion,
   turnIntoAddCard,
   undoQueueChange,
+  type CategoryChoice,
   type CategorySuggestion,
   type DroppedMember,
   type PendingQueue,
   type ProductSuggestion,
+  type PruneSettings,
   type QueueUndo,
+  type RemovedCategoryRow,
   type RemovedSuggestion,
   type SuggestionMember,
 } from "@/domain/llm/suggestions";
@@ -45,6 +52,23 @@ interface SuggestionsState {
   enqueueProducts: (incoming: readonly ProductSuggestion[]) => void;
   /** Adds the category rows, skipping every target that already has one (idempotent per target, A-2). */
   enqueueCategories: (incoming: readonly CategorySuggestion[]) => void;
+  /**
+   * Takes one category row out of the queue (D-22) and returns it with the index it had, which is
+   * what `restoreCategoryRow` needs, or null (nothing written) for an unknown id. Sets only `categories`.
+   */
+  removeCategoryRow: (id: string) => RemovedCategoryRow | null;
+  /** Undo of `removeCategoryRow`; a refused restore (target pending again, a limit) writes nothing. */
+  restoreCategoryRow: (removed: RemovedCategoryRow) => void;
+  /**
+   * Stores the category the user picked on a row, an existing id or a new name of 1 to 60
+   * characters (D-17); an unknown row, a refused value or the same choice writes nothing.
+   */
+  setCategoryChoice: (id: string, choice: CategoryChoice) => void;
+  /**
+   * Drops the rows whose supplier or product got a category by other means, or whose product no
+   * longer exists (D-07, D-18, D-34, A-3); nothing to drop writes nothing.
+   */
+  pruneCategories: (settings: PruneSettings) => void;
   /**
    * Adds members at the end of a pending card (D-33), skipping every member already pending in any
    * card (idempotent per member); an unknown card or nothing new writes nothing.
@@ -117,6 +141,30 @@ export const useSuggestionsStore = create<SuggestionsState>()(
         set((current) => ({
           categories: enqueueCategorySuggestions(current.categories, incoming),
         })),
+      removeCategoryRow: (id) => {
+        const result = removeCategoryRow(queueOf(get()), id);
+        if (result === null) return null;
+        set({ categories: result.next.categories });
+        return result.removed;
+      },
+      restoreCategoryRow: (removed) => {
+        const current = queueOf(get());
+        const next = restoreCategoryRow(current, removed);
+        // A refused restore comes back as the same object: nothing to write.
+        if (next !== current) set({ categories: next.categories });
+      },
+      setCategoryChoice: (id, choice) => {
+        const current = queueOf(get());
+        const next = setCategoryChoice(current, id, choice);
+        // An unknown row, a refused value or the same choice comes back as the same object.
+        if (next !== current) set({ categories: next.categories });
+      },
+      pruneCategories: (settings) => {
+        const current = queueOf(get());
+        const next = pruneCategoryRows(current, settings);
+        // Nothing to drop comes back as the same object: nothing to write.
+        if (next !== current) set({ categories: next.categories });
+      },
       appendMembers: (cardId, members) => {
         const current = queueOf(get());
         const next = appendSuggestionMembers(current, cardId, members);

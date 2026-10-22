@@ -197,7 +197,7 @@ async function openDialog(): Promise<HTMLElement> {
 function categoryRow(name: string): HTMLElement {
   const section = screen.getByRole("heading", { name: /^Sugerencias de categoría · / }).closest("section");
   if (section === null) throw new Error("the category section is not rendered");
-  const row = within(section).getByText(name).closest("li");
+  const row = within(section).getByText(name).closest("tr");
   if (row === null) throw new Error(`no row for ${name}`);
   return row;
 }
@@ -344,7 +344,7 @@ describe("Sugerir categorías: the run through the real route (LLM-02, D-23, LLM
     await screen.findByRole("heading", { name: /Sugerencias de categoría · / });
   }
 
-  it("sends only names, lands one read-only row per supplier or product and applies nothing", async () => {
+  it("sends only names, lands one row per supplier or product and applies nothing until «Aceptar»", async () => {
     acceptLeche();
     render(<ProductsTab />);
     const before = {
@@ -368,7 +368,7 @@ describe("Sugerir categorías: the run through the real route (LLM-02, D-23, LLM
       { id: "q1", name: "Leche entera", members: ["MM LECHE ENT", "LECHE ENTERA 1L"] },
     ]);
 
-    // The rows: type, name and suggested category, read-only.
+    // The rows: type, name and the Select already set on the suggested category.
     expect(screen.getByRole("heading", { name: "Sugerencias de categoría · 3" })).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -380,12 +380,14 @@ describe("Sugerir categorías: the run through the real route (LLM-02, D-23, LLM
     expect(rows[0]?.choice).toEqual({ kind: "existing", categoryId: "seed:abarrotes-despensa" });
     expect(rows[1]?.choice).toEqual({ kind: "new", name: "Servicios" });
     expect(rows[2]?.choice).toEqual({ kind: "new", name: "Bebidas" });
+    const selectOf = (name: string): HTMLElement =>
+      within(categoryRow(name)).getByRole("combobox", { name: `Categoría sugerida para ${name}` });
     expect(within(categoryRow("Tienda Dos")).getByText("Proveedor")).toBeInTheDocument();
-    expect(within(categoryRow("Tienda Dos")).getByText("Abarrotes y despensa")).toBeInTheDocument();
+    expect(selectOf("Tienda Dos")).toHaveTextContent("Abarrotes y despensa");
     expect(within(categoryRow("Tienda Uno")).getByText("Proveedor")).toBeInTheDocument();
-    expect(within(categoryRow("Tienda Uno")).getByText("Nueva: Servicios")).toBeInTheDocument();
+    expect(selectOf("Tienda Uno")).toHaveTextContent("Nueva: Servicios");
     expect(within(categoryRow("Leche entera")).getByText("Producto")).toBeInTheDocument();
-    expect(within(categoryRow("Leche entera")).getByText("Nueva: Bebidas")).toBeInTheDocument();
+    expect(selectOf("Leche entera")).toHaveTextContent("Nueva: Bebidas");
 
     // Nothing was applied (LLM-04).
     expect(useSettingsStore.getState().categories).toEqual(before.categories);
