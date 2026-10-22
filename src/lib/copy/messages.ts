@@ -12,6 +12,7 @@ import type {
   IgnoredKind,
 } from "@/domain/import/types";
 import type { BackupFailure, BackupSummary } from "@/domain/settings/backup";
+import type { NameError } from "@/domain/settings/categories";
 import type { QueueFilter } from "@/domain/llm/queueView";
 import type { AcceptProductError, AddMembersError } from "@/domain/settings/products";
 import { LIMITS } from "@/domain/settings/types";
@@ -720,6 +721,56 @@ export function categoryRowsHeading(n: number): string {
 /** The suggested category of a row when DeepSeek proposed a name that is not one of the user's: «Nueva: Bebidas». */
 export function newCategoryLabel(name: string): string {
   return `Nueva: ${name}`;
+}
+
+/** `aria-label` of the Select of a category row (UI-SPEC line 285): «Categoría sugerida para {nombre}». */
+export function categorySelectAria(name: string): string {
+  return `Categoría sugerida para ${name}`;
+}
+
+/** Caption count under a product row when it has more than two members: «+{k}». */
+export function moreMembersLabel(k: number): string {
+  return `+${String(k)}`;
+}
+
+/** Toast after «Aceptar» on a row whose category already existed: «Categoría de «{nombre}»: {categoría}». */
+export function categoryAcceptedToast(name: string, category: string): string {
+  return `Categoría de «${capCodePoints(name, PRODUCT_TOAST_MAX)}»: ${category}`;
+}
+
+/** Toast after «Aceptar» that created the category: «Categoría «{categoría}» creada y asignada a «{nombre}»». */
+export function categoryCreatedToast(category: string, name: string): string {
+  return `Categoría «${category}» creada y asignada a «${capCodePoints(name, PRODUCT_TOAST_MAX)}»`;
+}
+
+/**
+ * Polite announcement after «Aceptar» on a category row: «Categoría sugerida aceptada para
+ * «{nombre}». Quedan {n} sugerencias.» (singular and empty forms as for the product cards).
+ */
+export function categoryAcceptedAnnouncement(name: string, remaining: number): string {
+  return `Categoría sugerida aceptada para «${name}». ${queueLeftText(remaining)}`;
+}
+
+/** The refusals of «Aceptar» on a category row, under the Select (UI-SPEC lines 285, 291). */
+export type CategoryAcceptError = NameError | "supplier-limit";
+
+/** Text under the Select of a row when «Aceptar» is refused: the name errors of Categorías, the 200 limit and the 5,000 suppliers limit. */
+export function categoryAcceptErrorText(reason: CategoryAcceptError): string {
+  const errors = es.categories.list.errors;
+  switch (reason) {
+    case "empty":
+      return errors.empty;
+    case "duplicate":
+      return errors.duplicate;
+    case "reserved":
+      return errors.reserved;
+    case "too-long":
+      return errors.tooLong;
+    case "limit":
+      return `Alcanzaste el límite de ${String(LIMITS.categories)} categorías. Elige una existente.`;
+    case "supplier-limit":
+      return es.categories.supplierLimit;
+  }
 }
 
 /** First line of the run status: «Agrupando productos · Lote {k} de {M}». */
