@@ -12,6 +12,7 @@ import type {
   IgnoredKind,
 } from "@/domain/import/types";
 import type { BackupFailure, BackupSummary } from "@/domain/settings/backup";
+import type { QueueFilter } from "@/domain/llm/queueView";
 import type { AcceptProductError, AddMembersError } from "@/domain/settings/products";
 import { LIMITS } from "@/domain/settings/types";
 import type { LlmFailure } from "@/lib/client/llmClient";
@@ -1003,4 +1004,102 @@ export function acceptErrorText(reason: AcceptProductError): string {
     case "no-members":
       return errors.membersTaken;
   }
+}
+
+// --- Search, filters, bulk bar and bulk actions of the queue (Plan 04-17, D-20, D-35) ---
+
+/** Label of one filter toggle with the number of cards it keeps: «Todas (12)», «De uno (3)». */
+export function filterToggleLabel(filter: QueueFilter, n: number): string {
+  return `${es.products.queue.filters[filter]} (${String(n)})`;
+}
+
+/** Count in the bulk bar: «1 seleccionada» or «{n} seleccionadas». */
+export function selectedCount(n: number): string {
+  return n === 1 ? "1 seleccionada" : `${String(n)} seleccionadas`;
+}
+
+/** Button under the cards: «Mostrar {n} más» (50 per press). */
+export function showMoreLabel(n: number): string {
+  return `Mostrar ${String(n)} más`;
+}
+
+/** `aria-label` of the checkbox that selects a card for the bulk actions. */
+export function selectSuggestionAria(name: string): string {
+  return `Seleccionar la sugerencia «${name}»`;
+}
+
+/**
+ * Text of a search or filter that keeps no card: with text «Ninguna sugerencia coincide con
+ * «{texto}». Revisa la búsqueda o el filtro.», without it «No hay sugerencias en este filtro.».
+ */
+export function noMatchText(text: string): string {
+  const typed = text.trim();
+  if (typed === "") return es.products.queue.noMatchNoText;
+  return `Ninguna sugerencia coincide con «${typed}». Revisa la búsqueda o el filtro.`;
+}
+
+/** Title of the «Aceptar todas las visibles» dialog: «¿Aceptar {n} sugerencias?» (D-20). */
+export function bulkAcceptTitle(n: number): string {
+  return n === 1 ? "¿Aceptar 1 sugerencia?" : `¿Aceptar ${String(n)} sugerencias?`;
+}
+
+/**
+ * Body of the same dialog: how many products will be created (`created`, cards without target) and
+ * how many already existing products will get descriptions (`addedTo`, cards with target). A part
+ * that is zero is left out, and the sentence always ends with where to edit what was accepted.
+ */
+export function bulkAcceptBody(created: number, addedTo: number): string {
+  const parts: string[] = [];
+  if (created > 0) {
+    parts.push(
+      created === 1
+        ? "Se creará 1 producto nuevo"
+        : `Se crearán ${String(created)} productos nuevos`,
+    );
+  }
+  if (addedTo > 0) {
+    parts.push(
+      addedTo === 1
+        ? "se sumarán descripciones a 1 producto que ya tienes"
+        : `se sumarán descripciones a ${String(addedTo)} productos que ya tienes`,
+    );
+  }
+  const first = parts[0] ?? "";
+  const sentence =
+    parts.length === 2
+      ? `${first} y ${parts[1] ?? ""}`
+      : first.charAt(0).toUpperCase() + first.slice(1);
+  return `${sentence}. Podrás editarlos o borrarlos en «Mis productos».`;
+}
+
+/** Confirm button of the dialog (accent): «Aceptar {n} sugerencias». */
+export function bulkAcceptConfirm(n: number): string {
+  return n === 1 ? "Aceptar 1 sugerencia" : `Aceptar ${String(n)} sugerencias`;
+}
+
+/**
+ * Toast after «Aceptar seleccionadas» and «Aceptar todas las visibles» (D-35): «{n} productos
+ * creados», plus «; {k} quedaron en la cola» when some card was refused and stayed. The cards that
+ * added descriptions to a product that already existed say so («Descripciones sumadas a {q}
+ * productos»); with none created and none added it reads «0 productos creados».
+ */
+export function bulkAcceptedToast(created: number, addedTo: number, stayed: number): string {
+  const parts: string[] = [];
+  if (created > 0) parts.push(created === 1 ? "1 producto creado" : `${String(created)} productos creados`);
+  if (addedTo > 0) {
+    parts.push(
+      addedTo === 1
+        ? "descripciones sumadas a 1 producto"
+        : `descripciones sumadas a ${String(addedTo)} productos`,
+    );
+  }
+  const main = parts.length === 0 ? "0 productos creados" : parts.join(" y ");
+  const text = main.charAt(0).toUpperCase() + main.slice(1);
+  if (stayed === 0) return text;
+  return `${text}; ${stayed === 1 ? "1 quedó" : `${String(stayed)} quedaron`} en la cola`;
+}
+
+/** Toast after «Rechazar seleccionadas»: «{n} sugerencias rechazadas» («1 sugerencia rechazada»). */
+export function bulkRejectedToast(n: number): string {
+  return n === 1 ? "1 sugerencia rechazada" : `${String(n)} sugerencias rechazadas`;
 }

@@ -22,7 +22,13 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
 import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
-import { cardOf, findNameInput, nameInput, nameInputs } from "../../../tests/support/reviewQueue";
+import {
+  cardOf,
+  findNameInput,
+  memberCheckboxes,
+  nameInput,
+  nameInputs,
+} from "../../../tests/support/reviewQueue";
 import { resetSettingsStore } from "../../../tests/support/settingsStorage";
 import {
   readStoredQueue,
@@ -1033,7 +1039,7 @@ describe("Accepted products as context and «Agregar a» cards through the real 
     const title = await screen.findByRole("heading", { name: "Agregar a «Leche entera»" });
     const card = title.closest("li");
     if (card === null) throw new Error("the title is not inside a card");
-    expect(within(card).getAllByRole("checkbox")).toHaveLength(1);
+    expect(memberCheckboxes(card)).toHaveLength(1);
     expect(within(card).getByRole("checkbox", { name: "Elegir «LECHE ENTERA 1L»" })).toBeChecked();
     const queued = useSuggestionsStore.getState().products.find((entry) => entry.target !== null);
     expect(queued?.target).toBe("prod_leche");
@@ -1058,6 +1064,6 @@ describe("Accepted products as context and «Agregar a» cards through the real 
     expect(titles).toHaveLength(1);
     const card = titles[0]?.closest("li");
     if (card === undefined || card === null) throw new Error("the title is not inside a card");
-    expect(within(card).getAllByRole("checkbox")).toHaveLength(2);
+    expect(memberCheckboxes(card)).toHaveLength(2);
   });
 });

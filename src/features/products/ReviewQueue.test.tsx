@@ -11,7 +11,7 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
 import { makeInvoice } from "../../../tests/support/ledgerFactory";
 import "../../../tests/support/domPolyfills";
-import { nameInput, nameInputs } from "../../../tests/support/reviewQueue";
+import { memberCheckboxes, nameInput, nameInputs } from "../../../tests/support/reviewQueue";
 import { resetSettingsStore } from "../../../tests/support/settingsStorage";
 import { readStoredQueue, resetSuggestionsStore } from "../../../tests/support/suggestionsStorage";
 import { ProductsTab } from "./ProductsTab";
@@ -44,11 +44,13 @@ function invoice(emisor: { rfc: string; nombre: string }, descriptions: readonly
   return makeInvoice({ emisor, conceptos: descriptions.map(concepto) });
 }
 
-/** Five distinct pairs of supplier and description: three at Tienda Uno, two at Tienda Dos. */
+/** Five distinct pairs of supplier and description: three at Tienda Uno, two at Tienda Dos (the coffee has two lines). */
 function seedInvoices(): void {
   const invoices = [
     invoice(UNO, ["Leche entera 1L", "Café Molido 1kg", "Azúcar"]),
     invoice(DOS, ["LECHE ENTERA 1L", "Sal"]),
+    // A second line of the coffee, so the singleton «Café molido» sorts before «Azúcar» (more lines first).
+    invoice(UNO, ["Café Molido 1kg"]),
   ];
   act(() => {
     const store = useSessionStore.getState();
@@ -319,7 +321,8 @@ describe("E4: a refused accept keeps the card and says why", () => {
   it.each(cases)("$title", ({ prepare, name, members, text }) => {
     prepare();
     const before = storedProducts();
-    enqueue([card("sug_a", name, members), card("sug_b", "Café molido", [CAFE])]);
+    // Two members make it a group, which the queue lists before the one-member «Café molido».
+    enqueue([card("sug_a", name, [...members, AZUCAR]), card("sug_b", "Café molido", [CAFE])]);
     render(<ProductsTab />);
     const button = firstAcceptButton();
     expect(button.getAttribute("aria-describedby")).toBeNull();
@@ -1055,7 +1058,7 @@ describe("«Agregar a «X»» card (D-21)", () => {
     seedProductWithCategory();
     enqueue([addToCard([LECHE_DOS, CAFE, AZUCAR])]);
     render(<ProductsTab />);
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(memberCheckboxes()).toHaveLength(3);
     for (const description of ["LECHE ENTERA 1L", "Café Molido 1kg", "Azúcar"]) {
       expect(memberBox(description)).toBeChecked();
     }
@@ -1359,7 +1362,7 @@ describe("«Separar en producto nuevo» and the member checkboxes (D-19, E4)", (
   it("gives a card with one member neither a checkbox, a «Separar» nor a count", () => {
     enqueue([card("sug_b", "Café molido", [CAFE])]);
     render(<ProductsTab />);
-    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(memberCheckboxes()).toHaveLength(0);
     expect(screen.queryByRole("button", { name: /^Separar en producto nuevo/ })).toBeNull();
     expect(screen.queryByText(/^\d+ descripciones$/)).toBeNull();
   });
@@ -1367,7 +1370,7 @@ describe("«Separar en producto nuevo» and the member checkboxes (D-19, E4)", (
   it("gives a card with several members a checkbox per row that starts unchecked, and a count", () => {
     enqueue(milkCards());
     render(<ProductsTab />);
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(memberCheckboxes()).toHaveLength(3);
     for (const description of ["Leche entera 1L", "LECHE ENTERA 1L", "Sal"]) {
       expect(box(description)).not.toBeChecked();
     }
@@ -1444,7 +1447,7 @@ describe("«Separar en producto nuevo» and the member checkboxes (D-19, E4)", (
       split.undo();
     });
     expect(useSuggestionsStore.getState().products).toEqual(original);
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(memberCheckboxes()).toHaveLength(3);
   });
 
   it("splits with the name the user typed kept on the original card", () => {

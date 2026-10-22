@@ -115,6 +115,16 @@ import {
   contextGroupHeading,
   contextNamesLine,
   memberCountCaption,
+  bulkAcceptBody,
+  bulkAcceptConfirm,
+  bulkAcceptTitle,
+  bulkAcceptedToast,
+  bulkRejectedToast,
+  filterToggleLabel,
+  noMatchText,
+  selectSuggestionAria,
+  selectedCount,
+  showMoreLabel,
   mergeAria,
   mergedToast,
   membersAddedAnnouncement,
@@ -1056,5 +1066,89 @@ describe("Context names and «Agregar a» copy (Plan 04-14, UI-SPEC 198-203, 262
       "Alcanzaste el límite de 5,000 descripciones en tus productos. Quita alguna para agregar más.",
     );
     expect(addMembersErrorText("no-members")).toBe("Elige al menos una descripción para agregar.");
+  });
+});
+
+describe("Search, filters and bulk actions copy (Plan 04-17, UI-SPEC 240-255, 270, D-20, D-35)", () => {
+  it("labels each filter toggle with its count", () => {
+    expect(filterToggleLabel("todas", 12)).toBe("Todas (12)");
+    expect(filterToggleLabel("varios", 0)).toBe("Varios (0)");
+    expect(filterToggleLabel("deUno", 3)).toBe("De uno (3)");
+    expect(filterToggleLabel("paraAgregar", 1)).toBe("Para agregar (1)");
+  });
+
+  it("counts the selected cards, with the singular", () => {
+    expect(selectedCount(1)).toBe("1 seleccionada");
+    expect(selectedCount(0)).toBe("0 seleccionadas");
+    expect(selectedCount(7)).toBe("7 seleccionadas");
+  });
+
+  it("says how many more cards «Mostrar» adds and names the card in its checkbox", () => {
+    expect(showMoreLabel(50)).toBe("Mostrar 50 más");
+    expect(selectSuggestionAria("Leche entera")).toBe("Seleccionar la sugerencia «Leche entera»");
+  });
+
+  it("explains an empty result with the typed text, or without it", () => {
+    expect(noMatchText("leche")).toBe(
+      "Ninguna sugerencia coincide con «leche». Revisa la búsqueda o el filtro.",
+    );
+    expect(noMatchText("  leche  ")).toBe(
+      "Ninguna sugerencia coincide con «leche». Revisa la búsqueda o el filtro.",
+    );
+    expect(noMatchText("")).toBe("No hay sugerencias en este filtro.");
+    expect(noMatchText("   ")).toBe("No hay sugerencias en este filtro.");
+  });
+
+  it("titles and confirms the bulk dialog with the exact count", () => {
+    expect(bulkAcceptTitle(200)).toBe("¿Aceptar 200 sugerencias?");
+    expect(bulkAcceptTitle(1)).toBe("¿Aceptar 1 sugerencia?");
+    expect(bulkAcceptConfirm(200)).toBe("Aceptar 200 sugerencias");
+    expect(bulkAcceptConfirm(1)).toBe("Aceptar 1 sugerencia");
+  });
+
+  it("states the new products and the products that get descriptions, leaving a zero part out", () => {
+    expect(bulkAcceptBody(5, 2)).toBe(
+      "Se crearán 5 productos nuevos y se sumarán descripciones a 2 productos que ya tienes. Podrás editarlos o borrarlos en «Mis productos».",
+    );
+    expect(bulkAcceptBody(5, 0)).toBe(
+      "Se crearán 5 productos nuevos. Podrás editarlos o borrarlos en «Mis productos».",
+    );
+    expect(bulkAcceptBody(0, 2)).toBe(
+      "Se sumarán descripciones a 2 productos que ya tienes. Podrás editarlos o borrarlos en «Mis productos».",
+    );
+    expect(bulkAcceptBody(1, 1)).toBe(
+      "Se creará 1 producto nuevo y se sumarán descripciones a 1 producto que ya tienes. Podrás editarlos o borrarlos en «Mis productos».",
+    );
+  });
+
+  it("tells how many products were created and, when some card stayed, how many stayed (D-35)", () => {
+    expect(bulkAcceptedToast(12, 0, 0)).toBe("12 productos creados");
+    expect(bulkAcceptedToast(1, 0, 0)).toBe("1 producto creado");
+    expect(bulkAcceptedToast(12, 0, 3)).toBe("12 productos creados; 3 quedaron en la cola");
+    expect(bulkAcceptedToast(12, 0, 1)).toBe("12 productos creados; 1 quedó en la cola");
+    expect(bulkAcceptedToast(0, 0, 2)).toBe("0 productos creados; 2 quedaron en la cola");
+  });
+
+  it("also says how many products got descriptions", () => {
+    expect(bulkAcceptedToast(3, 2, 0)).toBe("3 productos creados y descripciones sumadas a 2 productos");
+    expect(bulkAcceptedToast(0, 1, 0)).toBe("Descripciones sumadas a 1 producto");
+    expect(bulkAcceptedToast(0, 4, 1)).toBe("Descripciones sumadas a 4 productos; 1 quedó en la cola");
+  });
+
+  it("says how many suggestions were rejected", () => {
+    expect(bulkRejectedToast(4)).toBe("4 sugerencias rechazadas");
+    expect(bulkRejectedToast(1)).toBe("1 sugerencia rechazada");
+  });
+
+  it("keeps the static texts of the toolbar in es.ts", () => {
+    const queue = es.products.queue;
+    expect(queue.searchLabel).toBe("Buscar sugerencia");
+    expect(queue.searchPlaceholder).toBe("Producto, descripción o proveedor");
+    expect(queue.filterGroupLabel).toBe("Filtrar sugerencias");
+    expect(queue.selectVisible).toBe("Seleccionar visibles");
+    expect(queue.acceptSelected).toBe("Aceptar seleccionadas");
+    expect(queue.rejectSelected).toBe("Rechazar seleccionadas");
+    expect(queue.acceptAllVisible).toBe("Aceptar todas las visibles");
+    expect(queue.bulkDismiss).toBe("Volver a revisar");
   });
 });
