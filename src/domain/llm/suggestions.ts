@@ -294,6 +294,48 @@ export function enqueueCategorySuggestions(
   return next;
 }
 
+/** The part of the settings that decides who still needs a category. */
+export interface PruneSettings {
+  categories: readonly { id: string }[];
+  supplierCategories: readonly { rfc: string; categoryId: string }[];
+  products: readonly { id: string; categoryId: string | null }[];
+}
+
+/** RED stub: replaced by the real reducer in the next commit. */
+export function pruneCategoryRows(queue: PendingQueue, settings: PruneSettings): PendingQueue {
+  void settings;
+  return queue;
+}
+
+/** A rejected category row and the position it had, which is all `restoreCategoryRow` needs. */
+export interface RemovedCategoryRow {
+  row: CategorySuggestion;
+  index: number;
+}
+
+/** RED stub: replaced by the real reducer in the next commit. */
+export function removeCategoryRow(
+  queue: PendingQueue,
+  id: string,
+): { next: PendingQueue; removed: RemovedCategoryRow } | null {
+  void queue;
+  void id;
+  return null;
+}
+
+/** RED stub: replaced by the real reducer in the next commit. */
+export function restoreCategoryRow(queue: PendingQueue, removed: RemovedCategoryRow): PendingQueue {
+  void removed;
+  return queue;
+}
+
+/** RED stub: replaced by the real reducer in the next commit. */
+export function setCategoryChoice(queue: PendingQueue, id: string, choice: CategoryChoice): PendingQueue {
+  void id;
+  void choice;
+  return queue;
+}
+
 // ---------------------------------------------------------------------------------------
 // Review actions over the queue (D-12, D-19, D-22). Each one is a pure reducer over the whole
 // queue that never mutates its input and never produces a value `pendingQueueSchema` would
