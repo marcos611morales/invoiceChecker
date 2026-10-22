@@ -571,6 +571,41 @@ describe("Agrupar productos: the free count (D-03, D-04, D-05, OQ2)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("does not count a sensitive description, and lists it under «No se enviarán» in the dialog (UI-SPEC OQ7)", async () => {
+    reseed([invoice(0, UNO, ["Azúcar", "PAGO RFC EKU9003173C9"])]);
+    render(<ProductsTab />);
+    expect(screen.getByText("1 descripción sin agrupar")).toBeInTheDocument();
+    fireEvent.click(groupButton());
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Ver exactamente qué se envía/ }));
+    expect(
+      within(dialog).getByRole("heading", {
+        name: "No se enviarán (1): contienen algo que parece un RFC, un UUID, un correo o un número largo.",
+      }),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("PAGO RFC EKU9003173C9")).toBeInTheDocument();
+  });
+
+  it("reads «No hay descripciones nuevas para agrupar» and opens nothing when only sensitive descriptions are free", () => {
+    reseed([invoice(0, UNO, ["PEDIDO 12345678", "ventas@tienda.mx"])]);
+    render(<ProductsTab />);
+    expect(screen.getByText("No hay descripciones nuevas para agrupar")).toBeInTheDocument();
+    expect(groupButton()).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(groupButton());
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reads «No hay proveedores ni productos sin categoría» when the only supplier looks sensitive", () => {
+    reseed([invoice(0, { rfc: UNO.rfc, nombre: "Juan ROMA800101AB1" }, ["Azúcar"])]);
+    render(<ProductsTab />);
+    expect(screen.getByText("No hay proveedores ni productos sin categoría")).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Sugerir categorías" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(button);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
   it("reads «Hay un proceso en curso», announces the batch and starts nothing on a second press while a run is active", async () => {
     let release: () => void = () => undefined;
     upstream = (body) =>

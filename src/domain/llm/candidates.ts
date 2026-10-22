@@ -87,6 +87,61 @@ export function freeItems(
   return items.filter((item) => !taken.has(ruleMapKey(item.rfc, item.key)));
 }
 
+// ---------------------------------------------------------------------------------------
+// The sensitive-pattern guard (UI-SPEC OQ7, LLM-03, T-04-40). Vendor text can carry identifiers
+// typed by the issuer; the request schemas only stop fields, not what a description says. So every
+// text that would leave the browser is checked here, and what matches is kept out of every body.
+
+/** An RFC: 3 or 4 letters (Ñ and & included), 6 digits (the date) and 3 letters or digits. */
+const RFC_PATTERN = /(?<![\p{L}\d])[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}(?![\p{L}\d])/iu;
+/** A UUID, 8-4-4-4-12 hexadecimal. */
+const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+/** An e-mail address. */
+const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+/i;
+/** A long number: 8 or more consecutive digits. */
+const LONG_NUMBER_PATTERN = /\d{8,}/;
+
+/**
+ * True when `text` has something shaped like an RFC, a UUID, an e-mail address or a run of 8 or
+ * more digits. It errs on the side of withholding: a product code that happens to look like an RFC
+ * is kept in the browser and listed in the dialog, never sent. The patterns carry no `g` flag, so
+ * they hold no state between calls.
+ */
+export function isSensitive(text: string): boolean {
+  return (
+    RFC_PATTERN.test(text) ||
+    UUID_PATTERN.test(text) ||
+    LONG_NUMBER_PATTERN.test(text) ||
+    // The `@` check first keeps the e-mail pattern from scanning long texts that cannot match.
+    (text.includes("@") && EMAIL_PATTERN.test(text))
+  );
+}
+
+/**
+ * True when the text or its cut version is sensitive: the version that is sent is what matters,
+ * but a cut can leave a pattern's start in the body (an RFC followed by «…» reads as a whole one),
+ * so the whole text counts too.
+ */
+function looksSensitive(text: string, max: number): boolean {
+  return isSensitive(text) || isSensitive(cutText(text, max));
+}
+
+/** An item is withheld when its description or its supplier name looks sensitive. */
+function itemIsWithheld(item: LlmItem): boolean {
+  return (
+    looksSensitive(item.description, LLM_LIMITS.description) ||
+    looksSensitive(item.supplierName, LLM_LIMITS.supplier)
+  );
+}
+
+/**
+ * The items that must not be sent because their description or supplier name looks like an RFC,
+ * a UUID, an e-mail address or a long number (UI-SPEC OQ7), in the order given.
+ */
+export function withheldItems(items: readonly LlmItem[]): LlmItem[] {
+  return items.filter(itemIsWithheld);
+}
+
 /**
  * Trims, and above `max` characters keeps the first `max - 1` plus «…», so the
  * result never exceeds `max` UTF-16 units (the unit zod counts) and an emoji is
@@ -128,6 +183,8 @@ export interface GroupRun {
   suppliers: number;
   /** Product names that travel as context. */
   contextNames: number;
+  /** Items kept out of every body (sensitive pattern); shown in the dialog only, never sent. */
+  withheld: LlmItem[];
 }
 
 /**
@@ -146,12 +203,17 @@ export function buildGroupRun(
   existing: readonly { productId: string; name: string }[],
   max: number = LLM_LIMITS.groupItems,
 ): GroupRun {
-  const context = [...existing]
+  // A sensitive text never travels: not as an item, and not as the name of an accepted product.
+  const withheld = withheldItems(free);
+  const kept = new Set(withheld);
+  const sendable = free.filter((item) => !kept.has(item));
+  const context = existing
+    .filter((product) => !looksSensitive(product.name, LLM_LIMITS.productName))
     .sort((a, b) => COLLATOR.compare(a.name, b.name) || comparePlain(a.productId, b.productId))
     .slice(0, LLM_LIMITS.contextNames);
-  const total = free.length;
+  const total = sendable.length;
   const count = total === 0 ? 0 : Math.ceil(total / max);
-  const sorted = [...free].sort(compareItems);
+  const sorted = [...sendable].sort(compareItems);
   const slices: LlmItem[][] = Array.from({ length: count }, () => []);
   sorted.forEach((item, index) => {
     slices[index % count]?.push(item);
@@ -189,6 +251,7 @@ export function buildGroupRun(
     items: total,
     suppliers: suppliers.size,
     contextNames: context.length,
+    withheld,
   };
 }
 
@@ -283,6 +346,8 @@ export interface CategorizeRun {
   members: number;
   /** The user's category names that travel on every batch. */
   categories: number;
+  /** Targets kept out of every body (sensitive pattern); shown in the dialog only, never sent. */
+  withheld: CategorizeTarget[];
 }
 
 /**
@@ -296,11 +361,15 @@ function bytesOf(body: CategorizeRequest): number {
   return new TextEncoder().encode(JSON.stringify(body)).length;
 }
 
-/** The member descriptions that travel for a product: cut to 200, the first 100, none repeated. */
+/**
+ * The member descriptions that travel for a product: cut to 200, the first 100, none repeated. A
+ * description that looks sensitive is left out (the product still goes with the others).
+ */
 function memberTexts(target: Extract<CategorizeTarget, { kind: "product" }>): string[] {
   const seen = new Set<string>();
   const texts: string[] = [];
   for (const description of target.members) {
+    if (looksSensitive(description, LLM_LIMITS.description)) continue;
     const text = cutText(description, LLM_LIMITS.description);
     if (text === "" || seen.has(text)) continue;
     seen.add(text);
@@ -308,6 +377,20 @@ function memberTexts(target: Extract<CategorizeTarget, { kind: "product" }>): st
     if (texts.length >= LLM_LIMITS.membersPerProduct) break;
   }
   return texts;
+}
+
+/**
+ * A target is withheld when its name looks like an RFC, a UUID, an e-mail address or a long number,
+ * or, for a product, when no member description is left to send (UI-SPEC OQ7, LLM-03).
+ */
+function targetIsWithheld(target: CategorizeTarget): boolean {
+  if (target.kind === "supplier") return looksSensitive(target.name, LLM_LIMITS.supplier);
+  return looksSensitive(target.name, LLM_LIMITS.productName) || memberTexts(target).length === 0;
+}
+
+/** The targets that must not be sent (see `targetIsWithheld`), in the order given. */
+export function withheldTargets(targets: readonly CategorizeTarget[]): CategorizeTarget[] {
+  return targets.filter(targetIsWithheld);
 }
 
 /** Builds the batch of these targets: ids s1.. and q1.. in the order given, c1..cN for the categories. */
@@ -362,11 +445,15 @@ function fitting(
  * category in each of them. A product is never sent without a readable member.
  */
 export function buildCategorizeRun(
-  targets: readonly CategorizeTarget[],
+  asked: readonly CategorizeTarget[],
   categories: readonly Category[],
   max: number = LLM_LIMITS.categorizeEntries,
 ): CategorizeRun {
   const sorted = orderedCategories(categories).slice(0, LLM_LIMITS.categories);
+  // A withheld target is in no body at all: it does not count for the batch sizes either.
+  const withheld = withheldTargets(asked);
+  const kept = new Set(withheld);
+  const targets = asked.filter((target) => !kept.has(target));
   const total = targets.length;
   const count = total === 0 ? 0 : Math.ceil(total / max);
   const batches: CategorizeBatch[] = [];
@@ -385,5 +472,12 @@ export function buildCategorizeRun(
     products += batch.body.products.length;
     for (const product of batch.body.products) members += product.members.length;
   }
-  return { batches: sent, suppliers, products, members, categories: sent.length === 0 ? 0 : sorted.length };
+  return {
+    batches: sent,
+    suppliers,
+    products,
+    members,
+    categories: sent.length === 0 ? 0 : sorted.length,
+    withheld,
+  };
 }

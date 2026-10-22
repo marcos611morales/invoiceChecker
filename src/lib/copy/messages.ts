@@ -643,6 +643,14 @@ export function itemsGroupHeading(n: number): string {
   return `Descripciones y proveedores (${String(n)})`;
 }
 
+/**
+ * Last group of the send dialog (UI-SPEC OQ7, user-confirmed): the texts that the sensitive-pattern
+ * guard keeps in the browser. The sentence is the UI-SPEC's, the same for any count.
+ */
+export function withheldHeading(n: number): string {
+  return `No se enviarán (${String(n)}): contienen algo que parece un RFC, un UUID, un correo o un número largo.`;
+}
+
 function suppliersWithoutCategory(n: number): string {
   return n === 1 ? "1 proveedor" : `${String(n)} proveedores`;
 }
@@ -716,6 +724,43 @@ export function categoriesGroupHeading(n: number): string {
 /** Heading of the pending category rows: «Sugerencias de categoría · {n}». */
 export function categoryRowsHeading(n: number): string {
   return `Sugerencias de categoría · ${String(n)}`;
+}
+
+/** Title of the «Aceptar todas» dialog of the category table: «¿Aceptar {n} sugerencias de categoría?» (D-23, OQ6). */
+export function categoryBulkTitle(n: number): string {
+  return n === 1
+    ? "¿Aceptar 1 sugerencia de categoría?"
+    : `¿Aceptar ${String(n)} sugerencias de categoría?`;
+}
+
+/**
+ * Body of the same dialog (Claude's discretion; the title and the buttons are the UI-SPEC ones): how
+ * many rows get the category their Select shows, that a new category is created once, and, when
+ * `skipped` rows have no chosen category, that they are left as they are (E5 partial).
+ */
+export function categoryBulkBody(applied: number, skipped: number): string {
+  const first =
+    applied === 1
+      ? "La fila recibirá la categoría que muestra su selector."
+      : `Cada una de las ${String(applied)} filas recibirá la categoría que muestra su selector.`;
+  const created = "Una categoría nueva se crea una sola vez.";
+  const omitted =
+    skipped === 0
+      ? ""
+      : skipped === 1
+        ? " Se omitirá 1 fila sin categoría elegida."
+        : ` Se omitirán ${String(skipped)} filas sin categoría elegida.`;
+  return `${first} ${created}${omitted}`;
+}
+
+/**
+ * Toast after the «Aceptar todas» confirmation: «{n} sugerencias aplicadas», plus «; {k} quedaron
+ * en la tabla» when some row was refused (a limit) and stayed with its message.
+ */
+export function categoryBulkToast(applied: number, stayed: number): string {
+  const main = applied === 1 ? "1 sugerencia aplicada" : `${String(applied)} sugerencias aplicadas`;
+  if (stayed === 0) return main;
+  return `${main}; ${stayed === 1 ? "1 quedó" : `${String(stayed)} quedaron`} en la tabla`;
 }
 
 /** The suggested category of a row when DeepSeek proposed a name that is not one of the user's: «Nueva: Bebidas». */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { TruncatedText } from "@/components/TruncatedText";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,7 @@ import {
   categoryAcceptErrorText,
   categoryAcceptedAnnouncement,
   categoryAcceptedToast,
+  categoryBulkToast,
   categoryCreatedToast,
   categoryRowsHeading,
   categorySelectAria,
@@ -38,10 +39,34 @@ import {
   newCategoryLabel,
   rejectSuggestionAria,
   rejectedAnnouncement,
+  showMoreLabel,
   type CategoryAcceptError,
 } from "@/lib/copy/messages";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useSuggestionsStore } from "@/stores/suggestionsStore";
+import { CategoryBulkDialog } from "./CategoryBulkDialog";
+
+/** Rows shown at first and added by each «Mostrar más» (UI-SPEC E5 overflow). */
+const PAGE_SIZE = 50;
+
+const COLLATOR = new Intl.Collator("es", { sensitivity: "base" });
+
+function comparePlain(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
+/**
+ * Suppliers first, then products, each by name with the es collator (UI-SPEC E5, D-23). The id is
+ * the last tie-breaker so the order is total and stable between renders.
+ */
+function orderRows(rows: readonly CategorySuggestion[]): CategorySuggestion[] {
+  return [...rows].sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === "supplier" ? -1 : 1;
+    return COLLATOR.compare(a.name, b.name) || comparePlain(a.id, b.id);
+  });
+}
 
 /**
  * Select values are encoded so that no category id can collide with the «Nueva: …» item: a
@@ -55,6 +80,16 @@ const UNDO_TOAST_MS = 6000;
 
 /** Item text wraps even though the shared SelectItem keeps it on one line. */
 const WRAPPING_TEXT = "whitespace-normal break-words";
+
+/** What writing one row did: the single-row «Aceptar» and the bulk one share this (D-23). */
+type ApplyOutcome =
+  | { kind: "applied"; created: boolean; categoryName: string }
+  /** The target got a category by other means or the product is gone: dropped, never applied. */
+  | { kind: "stale" }
+  /** A limit or a name rule refused it; the text goes under the row. */
+  | { kind: "refused"; text: string }
+  /** Nothing usable to apply (no choice, or the write was refused with no message to show). */
+  | { kind: "ignored" };
 
 /** What «Aceptar» will do with a row: reuse a category, or create one and use it. */
 type AcceptPlan =
@@ -155,7 +190,17 @@ export function CategorySuggestionsTable({ rows, onAnnounce, onEmptied }: Catego
   const heading = useRef<HTMLHeadingElement>(null);
   const triggers = useRef(new Map<string, HTMLElement>());
   const [errors, setErrors] = useState<ReadonlyMap<string, string>>(new Map());
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const ordered = orderedCategories(categories);
+  // The rows in the order of the table; the first `limit` are on the page (UI-SPEC E5 overflow).
+  const arranged = useMemo(() => orderRows(rows), [rows]);
+  const shown = arranged.slice(0, limit);
+  const hiddenCount = arranged.length - shown.length;
+  // «Aceptar todas» counts every row, shown or not (UI-SPEC OQ6): those whose Select has a
+  // category are applied, the others are skipped and counted in the confirmation.
+  const appliable = arranged.filter((row) => selectValue(row, categories) !== null).length;
+  const skipped = arranged.length - appliable;
 
   const setError = (id: string, text: string) => {
     setErrors((current) => new Map(current).set(id, text));
@@ -173,18 +218,23 @@ export function CategorySuggestionsTable({ rows, onAnnounce, onEmptied }: Catego
   // Select of the next row, or to the heading when this was the last (the tab heading when no
   // row remains, because the section is not rendered without rows).
   const leave = (id: string) => {
-    const index = rows.findIndex((candidate) => candidate.id === id);
-    const next = rows[index + 1];
+    const index = shown.findIndex((candidate) => candidate.id === id);
+    const next = shown[index + 1];
     const target = next === undefined ? undefined : triggers.current.get(next.id);
     if (target !== undefined) target.focus();
     else if (rows.length <= 1) onEmptied();
     else heading.current?.focus();
   };
 
-  const accept = (id: string) => {
+  /**
+   * Writes one row into the settings with the single-row rules, reading the queue and the settings
+   * as they are now (so a category created by an earlier row is found and reused by a later one).
+   * It does not touch the queue: the caller removes the row, moves the focus and says what happened.
+   */
+  const applyRow = (id: string): ApplyOutcome => {
     const queue = useSuggestionsStore.getState();
     const row = queue.categories.find((candidate) => candidate.id === id);
-    if (row === undefined) return;
+    if (row === undefined) return { kind: "ignored" };
     const current = useSettingsStore.getState();
     // A target that got a category by other means, or a product that is gone, leaves the table
     // without being applied: what the user chose is never overwritten (D-34, A-3).
@@ -192,26 +242,20 @@ export function CategorySuggestionsTable({ rows, onAnnounce, onEmptied }: Catego
       { products: queue.products, categories: queue.categories },
       current,
     );
-    if (!pending.categories.some((candidate) => candidate.id === id)) {
-      leave(id);
-      queue.pruneCategories(current);
-      return;
-    }
+    if (!pending.categories.some((candidate) => candidate.id === id)) return { kind: "stale" };
     const plan = planAccept(current, row);
+    // A row with no usable choice keeps «Aceptar» aria-disabled; nothing to say here.
     if (!plan.ok) {
-      // A row with no usable choice keeps «Aceptar» aria-disabled; nothing to say here.
-      if (plan.reason !== "choose") setError(id, categoryAcceptErrorText(plan.reason));
-      return;
+      return plan.reason === "choose"
+        ? { kind: "ignored" }
+        : { kind: "refused", text: categoryAcceptErrorText(plan.reason) };
     }
     let categoryId: string;
     let name: string | null;
     let created = false;
     if (plan.createName !== null) {
       const added = current.addCategory(plan.createName);
-      if (!added.ok) {
-        setError(id, categoryAcceptErrorText(added.reason));
-        return;
-      }
+      if (!added.ok) return { kind: "refused", text: categoryAcceptErrorText(added.reason) };
       categoryId = added.category.id;
       name = added.category.name;
       created = true;
@@ -219,21 +263,86 @@ export function CategorySuggestionsTable({ rows, onAnnounce, onEmptied }: Catego
       categoryId = plan.categoryId;
       name = categoryName(current.categories, categoryId);
     }
-    if (name === null) return;
+    if (name === null) return { kind: "ignored" };
     if (row.kind === "supplier") {
       const result = useSettingsStore.getState().setSupplierCategory(row.rfc, row.name, categoryId);
-      if (!result.ok) return;
+      if (!result.ok) return { kind: "ignored" };
     } else {
       const result = useSettingsStore.getState().setProductCategory(row.productId, categoryId);
-      if (!result.ok) return;
+      if (!result.ok) return { kind: "ignored" };
     }
+    return { kind: "applied", created, categoryName: name };
+  };
+
+  const accept = (id: string) => {
+    const queue = useSuggestionsStore.getState();
+    const row = queue.categories.find((candidate) => candidate.id === id);
+    if (row === undefined) return;
+    const outcome = applyRow(id);
+    if (outcome.kind === "stale") {
+      leave(id);
+      queue.pruneCategories(useSettingsStore.getState());
+      return;
+    }
+    if (outcome.kind === "refused") setError(id, outcome.text);
+    if (outcome.kind !== "applied") return;
     leave(id);
     clearError(id);
     queue.removeCategoryRow(id);
-    toast(created ? categoryCreatedToast(name, row.name) : categoryAcceptedToast(row.name, name));
+    toast(
+      outcome.created
+        ? categoryCreatedToast(outcome.categoryName, row.name)
+        : categoryAcceptedToast(row.name, outcome.categoryName),
+    );
     onAnnounce(
       categoryAcceptedAnnouncement(row.name, useSuggestionsStore.getState().categories.length),
     );
+  };
+
+  // «Aceptar todas» after the confirmation (D-23, UI-SPEC OQ6): every row whose Select has a
+  // category, in the order of the table, follows the single-row rules; a new name is created by the
+  // first row that uses it and reused by the rest. A refused row stays with its message; a row
+  // whose target got a category by other means is dropped without being applied.
+  const applyAll = () => {
+    let applied = 0;
+    let stayed = 0;
+    let stale = false;
+    for (const row of arranged) {
+      if (selectValue(row, useSettingsStore.getState().categories) === null) continue;
+      const outcome = applyRow(row.id);
+      if (outcome.kind === "applied") {
+        useSuggestionsStore.getState().removeCategoryRow(row.id);
+        clearError(row.id);
+        applied += 1;
+      } else if (outcome.kind === "refused") {
+        setError(row.id, outcome.text);
+        stayed += 1;
+      } else if (outcome.kind === "stale") {
+        stale = true;
+      } else {
+        stayed += 1;
+      }
+    }
+    if (stale) useSuggestionsStore.getState().pruneCategories(useSettingsStore.getState());
+    const message = categoryBulkToast(applied, stayed);
+    toast(message);
+    onAnnounce(message);
+    // The section unmounts with its last row, and the dialog with it: the focus goes to the tab
+    // heading once the dialog has closed.
+    if (useSuggestionsStore.getState().categories.length === 0) {
+      window.setTimeout(onEmptied, 0);
+    }
+  };
+
+  const showMore = () => {
+    const first = arranged[limit];
+    setLimit((current) => current + PAGE_SIZE);
+    // The pressed button may leave with the last page: the focus goes to the first new row.
+    if (first !== undefined) {
+      window.setTimeout(() => {
+        triggers.current.get(first.id)?.focus();
+      }, 0);
+    }
   };
 
   const reject = (id: string) => {
@@ -263,15 +372,29 @@ export function CategorySuggestionsTable({ rows, onAnnounce, onEmptied }: Catego
 
   return (
     <section className="flex min-w-0 flex-col gap-4 rounded-lg border p-6">
-      <div className="flex flex-col gap-1">
-        <h2
-          ref={heading}
-          tabIndex={-1}
-          className="text-xl leading-[1.2] font-semibold"
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2
+            ref={heading}
+            tabIndex={-1}
+            className="text-xl leading-[1.2] font-semibold"
+          >
+            {categoryRowsHeading(rows.length)}
+          </h2>
+          <p className="text-xs text-muted-foreground">{es.products.categoryRowsIntro}</p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          aria-disabled={appliable === 0 ? true : undefined}
+          className="max-sm:h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50"
+          onClick={() => {
+            if (appliable > 0) setBulkOpen(true);
+          }}
         >
-          {categoryRowsHeading(rows.length)}
-        </h2>
-        <p className="text-xs text-muted-foreground">{es.products.categoryRowsIntro}</p>
+          {es.products.categoryAcceptAll}
+        </Button>
       </div>
       <Table className="min-w-[760px]">
         <TableHeader>
@@ -285,7 +408,7 @@ export function CategorySuggestionsTable({ rows, onAnnounce, onEmptied }: Catego
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => {
+          {shown.map((row) => {
             const value = selectValue(row, categories);
             const items = [
               ...(row.choice !== null && row.choice.kind === "new"
@@ -389,6 +512,33 @@ export function CategorySuggestionsTable({ rows, onAnnounce, onEmptied }: Catego
           })}
         </TableBody>
       </Table>
+      {hiddenCount > 0 ? (
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="max-sm:h-11"
+            onClick={showMore}
+          >
+            {showMoreLabel(Math.min(PAGE_SIZE, hiddenCount))}
+          </Button>
+        </div>
+      ) : null}
+      {bulkOpen ? (
+        <CategoryBulkDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setBulkOpen(false);
+          }}
+          applied={appliable}
+          skipped={skipped}
+          onConfirm={() => {
+            setBulkOpen(false);
+            applyAll();
+          }}
+        />
+      ) : null}
     </section>
   );
 }

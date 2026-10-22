@@ -10,6 +10,9 @@ import {
   collectItems,
   cutText,
   freeItems,
+  isSensitive,
+  withheldItems,
+  withheldTargets,
   type CategorizeTarget,
   type LlmItem,
 } from "./candidates";
@@ -873,5 +876,200 @@ describe("categorizeRequestSchema (LLM-03, T-04-37)", () => {
         })),
       }).success,
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// The sensitive-pattern guard (Plan 04-20, UI-SPEC OQ7, LLM-03, T-04-40): text that looks like an
+// RFC, a UUID, an e-mail address or a long number never reaches a request body.
+
+describe("isSensitive (LLM-03, UI-SPEC OQ7)", () => {
+  it.each([
+    ["an RFC of a company inside a sentence", "PAGO RFC EKU9003173C9"],
+    ["an RFC of a person (4 letters)", "FACTURA ROMA800101AB1"],
+    ["the generic RFC", "XAXX010101000"],
+    ["an RFC with Ñ", "ÑAA010101AAA"],
+    ["an RFC with &", "&AA010101AAA"],
+    ["an RFC in lower case", "pago eku9003173c9"],
+    ["a UUID", "UUID 3F2504E0-4F89-41D3-9A0C-0305E82C3301"],
+    ["a UUID in lower case", "3f2504e0-4f89-41d3-9a0c-0305e82c3301"],
+    ["an e-mail address", "ventas@tienda.mx"],
+    ["an e-mail address inside text", "CONTACTO: juan.perez+cafe@mail.example.com GRACIAS"],
+    ["8 consecutive digits", "PEDIDO 12345678"],
+    ["a long run of digits", "CUENTA 012345678901234567"],
+  ])("is true for %s", (_label, text) => {
+    expect(isSensitive(text)).toBe(true);
+  });
+
+  it.each([
+    ["a plain description", "LECHE ENTERA 1L"],
+    ["a size code", "PZ DOMO FRUTA CH 13-12-44"],
+    ["a weight", "1K MANCHEGO"],
+    ["a description with & and short numbers", "JAMON ZWAN VIRGINIA1X1KG & 10360 1/1 KG"],
+    ["7 digits", "PEDIDO 1234567"],
+    ["digits split by spaces", "55 1234 5678"],
+    ["an at sign alone", "CAFE @ 50%"],
+    ["a word that only ends like an RFC", "DESCRIPCIONES010101AAAS"],
+    ["an empty text", ""],
+  ])("is false for %s", (_label, text) => {
+    expect(isSensitive(text)).toBe(false);
+  });
+
+  it("is stable when called twice with the same text (no regular expression state)", () => {
+    expect(isSensitive("PEDIDO 12345678")).toBe(true);
+    expect(isSensitive("PEDIDO 12345678")).toBe(true);
+    expect(isSensitive("LECHE")).toBe(false);
+  });
+});
+
+describe("withheldItems and buildGroupRun with the guard (LLM-03, T-04-40)", () => {
+  const CLEAN = item(1, { description: "LECHE ENTERA 1L", key: "leche entera 1l" });
+  const RFC_IN_TEXT = item(2, { description: "PAGO RFC EKU9003173C9", key: "pago rfc eku9003173c9" });
+  const LONG_NUMBER = item(3, { description: "PEDIDO 12345678", key: "pedido 12345678" });
+  const SENSITIVE_SUPPLIER = item(4, {
+    description: "Azúcar",
+    key: "azucar",
+    supplierName: "Ventas ventas@tienda.mx",
+  });
+
+  it("lists exactly the items with a sensitive description or supplier name", () => {
+    expect(
+      withheldItems([CLEAN, RFC_IN_TEXT, LONG_NUMBER, SENSITIVE_SUPPLIER]).map((entryItem) => entryItem.key),
+    ).toEqual(["pago rfc eku9003173c9", "pedido 12345678", "azucar"]);
+    expect(withheldItems([CLEAN])).toEqual([]);
+  });
+
+  it("also withholds a description whose sensitive part lies beyond the 200-character cut", () => {
+    const long = item(5, { description: `${"A".repeat(250)} ventas@tienda.mx`, key: "largo" });
+    expect(withheldItems([long])).toEqual([long]);
+  });
+
+  it("leaves a sensitive item out of every body and lists it in withheld", () => {
+    const run = buildGroupRun([CLEAN, RFC_IN_TEXT, LONG_NUMBER, SENSITIVE_SUPPLIER], []);
+    expect(run.batches).toHaveLength(1);
+    expect(run.batches[0]?.body.items.map((sent) => sent.description)).toEqual(["LECHE ENTERA 1L"]);
+    expect(run.withheld).toEqual([RFC_IN_TEXT, LONG_NUMBER, SENSITIVE_SUPPLIER]);
+    const serialized = JSON.stringify(run.batches.map((batch) => batch.body));
+    for (const text of ["EKU9003173C9", "12345678", "ventas@tienda.mx"]) {
+      expect(serialized).not.toContain(text);
+    }
+    expect(run.batches[0]?.idMap.size).toBe(1);
+  });
+
+  it("counts only what is sent: items and suppliers", () => {
+    const run = buildGroupRun([CLEAN, RFC_IN_TEXT, SENSITIVE_SUPPLIER], []);
+    expect(run.items).toBe(1);
+    expect(run.suppliers).toBe(1);
+  });
+
+  it("sends no batch when every free item is withheld, and still lists them", () => {
+    const run = buildGroupRun([RFC_IN_TEXT, LONG_NUMBER], []);
+    expect(run.batches).toEqual([]);
+    expect(run.items).toBe(0);
+    expect(run.withheld).toHaveLength(2);
+  });
+
+  it("splits into batches by the items that are sent, not by the withheld ones", () => {
+    const sendable = items(5);
+    const run = buildGroupRun([...sendable, RFC_IN_TEXT, LONG_NUMBER, SENSITIVE_SUPPLIER], [], 3);
+    expect(run.batches.map((batch) => batch.body.items.length)).toEqual([3, 2]);
+    expect(run.items).toBe(5);
+  });
+
+  it("keeps a sensitive accepted-product name out of the context", () => {
+    const run = buildGroupRun(
+      [CLEAN],
+      [
+        { productId: "p1", name: "Leche" },
+        { productId: "p2", name: "Pedido 12345678" },
+      ],
+    );
+    expect(run.batches[0]?.body.existing.map((entryProduct) => entryProduct.name)).toEqual(["Leche"]);
+    expect(run.contextNames).toBe(1);
+    expect(run.batches[0]?.targets.size).toBe(1);
+  });
+
+  it("has an empty withheld list when nothing matches", () => {
+    expect(buildGroupRun(items(3), []).withheld).toEqual([]);
+  });
+});
+
+describe("withheldTargets and buildCategorizeRun with the guard (LLM-03, T-04-40)", () => {
+  it("withholds a supplier whose name looks sensitive", () => {
+    const clean = supplierTarget(1);
+    const dirty: CategorizeTarget = { kind: "supplier", rfc: "RFCX", name: "Juan PEREZ ROMA800101AB1" };
+    const run = buildCategorizeRun([clean, dirty], CATEGORIES);
+    expect(run.batches[0]?.body.suppliers.map((supplier) => supplier.name)).toEqual(["Proveedor 001"]);
+    expect(run.withheld).toEqual([dirty]);
+    expect(withheldTargets([clean, dirty])).toEqual([dirty]);
+    expect(run.suppliers).toBe(1);
+  });
+
+  it("drops a sensitive member description from a product and keeps the product", () => {
+    const target = productTarget(1, ["LECHE ENTERA 1L", "PEDIDO 12345678", "MM LECHE ENT"]);
+    const run = buildCategorizeRun([target], CATEGORIES);
+    expect(run.batches[0]?.body.products[0]?.members).toEqual(["LECHE ENTERA 1L", "MM LECHE ENT"]);
+    expect(run.withheld).toEqual([]);
+    expect(run.members).toBe(2);
+    expect(withheldTargets([target])).toEqual([]);
+  });
+
+  it("withholds a product whose members are all sensitive", () => {
+    const target = productTarget(1, ["PEDIDO 12345678", "ventas@tienda.mx"]);
+    const run = buildCategorizeRun([target, supplierTarget(1)], CATEGORIES);
+    expect(run.batches[0]?.body.products).toEqual([]);
+    expect(run.withheld).toEqual([target]);
+    expect(withheldTargets([target])).toEqual([target]);
+  });
+
+  it("withholds a product whose name is sensitive, even with clean members", () => {
+    const target: CategorizeTarget = {
+      kind: "product",
+      productId: "prod_x",
+      name: "Pedido 12345678",
+      members: ["LECHE ENTERA 1L"],
+    };
+    const run = buildCategorizeRun([target], CATEGORIES);
+    expect(run.batches).toEqual([]);
+    expect(run.withheld).toEqual([target]);
+  });
+
+  it("looks at the cut text: a member whose sensitive part lies beyond 200 characters is still withheld", () => {
+    const target = productTarget(1, [`${"A".repeat(250)} ventas@tienda.mx`]);
+    expect(buildCategorizeRun([target], CATEGORIES).withheld).toEqual([target]);
+  });
+
+  it("serializes none of the withheld texts and passes the strict schema", () => {
+    const run = buildCategorizeRun(
+      [
+        supplierTarget(1),
+        { kind: "supplier", rfc: "RFCX", name: "Cobros EKU9003173C9" },
+        productTarget(1, ["LECHE", "FOLIO 20250312345"]),
+      ],
+      CATEGORIES,
+    );
+    const serialized = JSON.stringify(run.batches.map((batch) => batch.body));
+    expect(serialized).not.toContain("EKU9003173C9");
+    expect(serialized).not.toContain("20250312345");
+    for (const batch of run.batches) {
+      expect(categorizeRequestSchema.safeParse(batch.body).success).toBe(true);
+    }
+  });
+
+  it("counts batches by the targets that are sent", () => {
+    const sendable = Array.from({ length: 5 }, (_unused, index) => supplierTarget(index));
+    const dirty: CategorizeTarget[] = Array.from({ length: 4 }, (_unused, index) => ({
+      kind: "supplier",
+      rfc: `D${String(index)}`,
+      name: `Cuenta 1234567${String(index)}0`,
+    }));
+    const run = buildCategorizeRun([...sendable, ...dirty], CATEGORIES, 3);
+    expect(run.batches.map((batch) => batch.body.suppliers.length)).toEqual([3, 2]);
+    expect(run.withheld).toHaveLength(4);
+  });
+
+  it("has an empty withheld list when nothing matches", () => {
+    expect(buildCategorizeRun([supplierTarget(1)], CATEGORIES).withheld).toEqual([]);
+    expect(buildCategorizeRun([], CATEGORIES).withheld).toEqual([]);
   });
 });

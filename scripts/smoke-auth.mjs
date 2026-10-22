@@ -61,6 +61,14 @@ const llmGroup = (token, body, contentType = "application/json") =>
     body,
   });
 
+const llmCategorize = (token, body, contentType = "application/json") =>
+  fetch(`${BASE}/api/llm/categorize`, {
+    method: "POST",
+    redirect: "manual",
+    headers: { "content-type": contentType, cookie: `session=${token}` },
+    body,
+  });
+
 const login = (password, contentType = "application/json") =>
   fetch(`${BASE}/api/auth/login`, {
     method: "POST",
@@ -105,6 +113,14 @@ try {
   check(
     "unauth /api/llm/group is 401 unauthorized",
     res.status === 401 && body401 && body401.error === "unauthorized",
+    `status ${res.status}`,
+  );
+
+  res = await fetch(`${BASE}/api/llm/categorize`, { method: "POST", redirect: "manual" });
+  const bodyCat401 = await res.json().catch(() => null);
+  check(
+    "unauth /api/llm/categorize is 401 unauthorized",
+    res.status === 401 && bodyCat401 && bodyCat401.error === "unauthorized",
     `status ${res.status}`,
   );
 
@@ -179,6 +195,37 @@ try {
       bodyNoKey &&
       bodyNoKey.error === "server_not_configured" &&
       !textNoKey.includes("DEEPSEEK"),
+    `status ${res.status}`,
+  );
+
+  // ACC-03: the categorize route behaves the same way, without reaching DeepSeek.
+  const validCategorize = {
+    suppliers: [{ id: "s1", name: "x" }],
+    products: [],
+    categories: [{ id: "c1", name: "y" }],
+  };
+  res = await llmCategorize(token, JSON.stringify(validCategorize), "text/plain");
+  const bodyCatPlain = await res.json().catch(() => null);
+  check(
+    "categorize route: text/plain is 400 bad_request",
+    res.status === 400 && bodyCatPlain && bodyCatPlain.error === "bad_request",
+    `status ${res.status}`,
+  );
+
+  res = await llmCategorize(token, JSON.stringify(validCategorize));
+  const textCatNoKey = await res.text();
+  let bodyCatNoKey = null;
+  try {
+    bodyCatNoKey = JSON.parse(textCatNoKey);
+  } catch {
+    // reported by the check below
+  }
+  check(
+    "categorize route: an empty key is 500 server_not_configured and the answer never names DeepSeek",
+    res.status === 500 &&
+      bodyCatNoKey &&
+      bodyCatNoKey.error === "server_not_configured" &&
+      !textCatNoKey.includes("DEEPSEEK"),
     `status ${res.status}`,
   );
 

@@ -131,6 +131,10 @@ import {
   bulkAcceptBody,
   bulkAcceptConfirm,
   bulkAcceptTitle,
+  categoryBulkBody,
+  categoryBulkTitle,
+  categoryBulkToast,
+  withheldHeading,
   bulkAcceptedToast,
   bulkRejectedToast,
   filterToggleLabel,
@@ -1256,5 +1260,40 @@ describe("Copy of the category suggestion table (Plan 04-19, UI-SPEC 276-294)", 
       category: "Categoría sugerida",
       actions: "Acciones",
     });
+  });
+});
+
+describe("«Aceptar todas» of the category table (D-23, UI-SPEC OQ6)", () => {
+  it("titles the dialog with the exact count", () => {
+    expect(categoryBulkTitle(1)).toBe("¿Aceptar 1 sugerencia de categoría?");
+    expect(categoryBulkTitle(12)).toBe("¿Aceptar 12 sugerencias de categoría?");
+  });
+
+  it("says how many rows are applied and, when there are, how many are skipped", () => {
+    expect(categoryBulkBody(1, 0)).toBe(
+      "La fila recibirá la categoría que muestra su selector. Una categoría nueva se crea una sola vez.",
+    );
+    expect(categoryBulkBody(4, 0)).toBe(
+      "Cada una de las 4 filas recibirá la categoría que muestra su selector. Una categoría nueva se crea una sola vez.",
+    );
+    expect(categoryBulkBody(4, 1)).toContain("Se omitirá 1 fila sin categoría elegida.");
+    expect(categoryBulkBody(4, 3)).toContain("Se omitirán 3 filas sin categoría elegida.");
+  });
+
+  it("toasts how many were applied and how many stayed", () => {
+    expect(categoryBulkToast(1, 0)).toBe("1 sugerencia aplicada");
+    expect(categoryBulkToast(5, 0)).toBe("5 sugerencias aplicadas");
+    expect(categoryBulkToast(5, 1)).toBe("5 sugerencias aplicadas; 1 quedó en la tabla");
+    expect(categoryBulkToast(0, 2)).toBe("0 sugerencias aplicadas; 2 quedaron en la tabla");
+  });
+
+  it("words the group of the send dialog that the sensitive-pattern guard keeps out (UI-SPEC OQ7)", () => {
+    expect(withheldHeading(3)).toBe(
+      "No se enviarán (3): contienen algo que parece un RFC, un UUID, un correo o un número largo.",
+    );
+  });
+
+  it("names the header button", () => {
+    expect(es.products.categoryAcceptAll).toBe("Aceptar todas");
   });
 });

@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { CategorySuggestion } from "@/domain/llm/suggestions";
 import { makeResolver } from "@/domain/settings/resolver";
 import {
@@ -150,7 +158,11 @@ beforeEach(() => {
   resetSettingsStore();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // The bulk action asks the tab for the focus on a zero-delay timer: let it fire in its own test.
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
   cleanup();
   window.localStorage.clear();
   resetSuggestionsStore();
@@ -499,24 +511,25 @@ describe("«Rechazar» and «Deshacer» (D-22)", () => {
 });
 
 describe("focus after a row leaves (a11y)", () => {
+  // The table lists suppliers by name, then products: «Tienda Dos», «Tienda Uno», «Leche entera».
   it("moves to the Select of the next row after «Aceptar»", () => {
     seed([ROW_UNO, ROW_DOS, ROW_LECHE]);
     render(<Harness />);
-    press(acceptButton("Tienda Uno"));
-    expect(selectOf("Tienda Dos")).toHaveFocus();
+    press(acceptButton("Tienda Dos"));
+    expect(selectOf("Tienda Uno")).toHaveFocus();
   });
 
   it("moves to the next row's Select after «Rechazar» too", () => {
     seed([ROW_UNO, ROW_DOS]);
     render(<Harness />);
-    press(rejectButton("Tienda Uno"));
-    expect(selectOf("Tienda Dos")).toHaveFocus();
+    press(rejectButton("Tienda Dos"));
+    expect(selectOf("Tienda Uno")).toHaveFocus();
   });
 
   it("moves to the heading when the row was the last of several", () => {
     seed([ROW_UNO, ROW_DOS]);
     render(<Harness />);
-    press(acceptButton("Tienda Dos"));
+    press(acceptButton("Tienda Uno"));
     expect(screen.getByRole("heading", { name: "Sugerencias de categoría · 1" })).toHaveFocus();
     expect(emptied).not.toHaveBeenCalled();
   });
@@ -535,16 +548,17 @@ describe("a row whose target got a category by other means (D-07, D-18, D-34, A-
     render(<Harness />);
     act(() => {
       useSettingsStore.setState({
-        supplierCategories: [{ rfc: UNO.rfc, name: UNO.nombre, categoryId: OTROS }],
+        supplierCategories: [{ rfc: DOS.rfc, name: DOS.nombre, categoryId: OTROS }],
       });
     });
-    press(acceptButton("Tienda Uno"));
+    // «Tienda Dos» is listed first, so the focus goes to «Tienda Uno».
+    press(acceptButton("Tienda Dos"));
     expect(useSettingsStore.getState().supplierCategories).toEqual([
-      { rfc: UNO.rfc, name: UNO.nombre, categoryId: OTROS },
+      { rfc: DOS.rfc, name: DOS.nombre, categoryId: OTROS },
     ]);
-    expect(useSuggestionsStore.getState().categories.map((row) => row.id)).toEqual(["cat_2"]);
+    expect(useSuggestionsStore.getState().categories.map((row) => row.id)).toEqual(["cat_1"]);
     expect(toastMock).not.toHaveBeenCalled();
-    expect(selectOf("Tienda Dos")).toHaveFocus();
+    expect(selectOf("Tienda Uno")).toHaveFocus();
   });
 
   it("is dropped by «Aceptar» when its product was deleted, creating nothing", () => {
@@ -639,5 +653,269 @@ describe("the table inside the tab (LLM-04)", () => {
     expect(
       screen.getByText("Categoría sugerida aceptada para «Tienda Uno». No quedan sugerencias."),
     ).toBeInTheDocument();
+  });
+});
+
+function supplierRow(n: number, name: string, choice: CategorySuggestion["choice"]): CategorySuggestion {
+  return {
+    id: `cat_s${String(n)}`,
+    kind: "supplier",
+    rfc: `RFC${String(n).padStart(9, "0")}`,
+    name,
+    choice,
+  };
+}
+
+function productRowOf(n: number, name: string): { row: CategorySuggestion; product: Product } {
+  const product: Product = {
+    id: `prod_${String(n)}`,
+    name,
+    categoryId: null,
+    members: [member(UNO.rfc, `desc ${String(n)}`, `DESC ${String(n)}`)],
+  };
+  return {
+    row: {
+      id: `cat_p${String(n)}`,
+      kind: "product",
+      productId: product.id,
+      name,
+      choice: { kind: "existing", categoryId: OTROS },
+    },
+    product,
+  };
+}
+
+/** The names of the rows on the page, in order, read from their Selects. */
+function shownNames(): string[] {
+  return screen
+    .getAllByRole("combobox")
+    .map((select) => (select.getAttribute("aria-label") ?? "").replace("Categoría sugerida para ", ""));
+}
+
+function dialogOf(): HTMLElement {
+  return screen.getByRole("alertdialog");
+}
+
+describe("order, «Mostrar más» and overflow (D-23, E5)", () => {
+  it("orders suppliers first, then products, each by name with the es collator", () => {
+    const leche = productRowOf(1, "Zeta");
+    const alfa = productRowOf(2, "alfa");
+    seed(
+      [
+        leche.row,
+        supplierRow(1, "Zorro", { kind: "existing", categoryId: OTROS }),
+        alfa.row,
+        supplierRow(2, "Beta", { kind: "existing", categoryId: OTROS }),
+        supplierRow(3, "Árbol", { kind: "existing", categoryId: OTROS }),
+      ],
+      [leche.product, alfa.product],
+    );
+    render(<Harness />);
+    expect(shownNames()).toEqual(["Árbol", "Beta", "Zorro", "alfa", "Zeta"]);
+  });
+
+  it("shows 50 rows at first and «Mostrar {n} más» adds up to 50 each time", () => {
+    seed(
+      Array.from({ length: 120 }, (_unused, index) =>
+        supplierRow(index, `Proveedor ${String(index).padStart(3, "0")}`, {
+          kind: "existing",
+          categoryId: OTROS,
+        }),
+      ),
+    );
+    render(<Harness />);
+    expect(shownNames()).toHaveLength(50);
+    expect(shownNames()[0]).toBe("Proveedor 000");
+    expect(screen.getByRole("heading", { name: "Sugerencias de categoría · 120" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar 50 más" }));
+    expect(shownNames()).toHaveLength(100);
+    expect(shownNames()[99]).toBe("Proveedor 099");
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar 20 más" }));
+    expect(shownNames()).toHaveLength(120);
+    expect(screen.queryByRole("button", { name: /Mostrar/ })).toBeNull();
+  });
+
+  it("puts the focus on the first new row after «Mostrar más»", async () => {
+    seed(
+      Array.from({ length: 60 }, (_unused, index) =>
+        supplierRow(index, `Proveedor ${String(index).padStart(3, "0")}`, {
+          kind: "existing",
+          categoryId: OTROS,
+        }),
+      ),
+    );
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar 10 más" }));
+    await waitFor(() => {
+      expect(selectOf("Proveedor 050")).toHaveFocus();
+    });
+  });
+
+  it("keeps the 760px table inside a horizontally scrollable container", () => {
+    seed([ROW_UNO]);
+    render(<Harness />);
+    const table = screen.getByRole("table");
+    expect(table.className).toContain("min-w-[760px]");
+    expect(table.closest("[data-slot=table-container]")?.className).toContain("overflow-x-auto");
+  });
+});
+
+describe("«Aceptar todas» (D-23, UI-SPEC OQ6)", () => {
+  const ROW_SIN: CategorySuggestion = { ...ROW_UNO, id: "cat_0", name: "Tienda Cero", choice: null };
+
+  it("is aria-disabled with no row that has a category, and opens nothing", () => {
+    seed([ROW_SIN]);
+    render(<Harness />);
+    const button = screen.getByRole("button", { name: "Aceptar todas" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(button);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("states the count, counts the rows without a category as skipped and focuses «Volver a revisar»", async () => {
+    seed([ROW_UNO, ROW_DOS, ROW_SIN]);
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar todas" }));
+    const dialog = dialogOf();
+    expect(within(dialog).getByText("¿Aceptar 2 sugerencias de categoría?")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Cada una de las 2 filas recibirá la categoría que muestra su selector. Una categoría nueva se crea una sola vez. Se omitirá 1 fila sin categoría elegida.",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(dialog).getByRole("button", { name: "Volver a revisar" })).toHaveFocus();
+    });
+    expect(within(dialog).getByRole("button", { name: "Aceptar 2 sugerencias" })).toBeInTheDocument();
+  });
+
+  it("says nothing about skipped rows when every row has a category", () => {
+    seed([ROW_UNO]);
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar todas" }));
+    const dialog = dialogOf();
+    expect(within(dialog).getByText("¿Aceptar 1 sugerencia de categoría?")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/omit/i)).toBeNull();
+  });
+
+  it("«Volver a revisar» closes it and changes nothing", () => {
+    seed([ROW_UNO, ROW_DOS]);
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar todas" }));
+    fireEvent.click(within(dialogOf()).getByRole("button", { name: "Volver a revisar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(useSuggestionsStore.getState().categories).toHaveLength(2);
+    expect(useSettingsStore.getState().supplierCategories).toEqual([]);
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("applies every row with its Select value, creating a shared new name once, and skips the empty ones", () => {
+    seed([ROW_UNO, ROW_DOS, ROW_LECHE, ROW_SIN]);
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar todas" }));
+    fireEvent.click(within(dialogOf()).getByRole("button", { name: "Aceptar 3 sugerencias" }));
+    const bebidas = storedCategories().filter((category) => category.name === "Bebidas");
+    expect(bebidas).toHaveLength(1);
+    expect(storedCategories()).toHaveLength(10);
+    expect(useSettingsStore.getState().supplierCategories).toEqual([
+      { rfc: DOS.rfc, name: DOS.nombre, categoryId: bebidas[0]?.id },
+      { rfc: UNO.rfc, name: UNO.nombre, categoryId: ABARROTES },
+    ]);
+    expect(useSettingsStore.getState().products[0]?.categoryId).toBe(bebidas[0]?.id);
+    expect(useSuggestionsStore.getState().categories.map((row) => row.id)).toEqual(["cat_0"]);
+    expect(toastMock).toHaveBeenCalledWith("3 sugerencias aplicadas");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("uses the category the user chose in the Select of a row, not the suggested one", () => {
+    seed([ROW_DOS]);
+    render(<Harness />);
+    choose("Tienda Dos", "Otros");
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar todas" }));
+    fireEvent.click(within(dialogOf()).getByRole("button", { name: "Aceptar 1 sugerencia" }));
+    expect(storedCategories()).toHaveLength(9);
+    expect(useSettingsStore.getState().supplierCategories).toEqual([
+      { rfc: DOS.rfc, name: DOS.nombre, categoryId: OTROS },
+    ]);
+  });
+
+  it("applies the rows that «Mostrar más» has not shown yet", () => {
+    seed(
+      Array.from({ length: 60 }, (_unused, index) =>
+        supplierRow(index, `Proveedor ${String(index).padStart(3, "0")}`, {
+          kind: "existing",
+          categoryId: OTROS,
+        }),
+      ),
+    );
+    render(<Harness />);
+    expect(shownNames()).toHaveLength(50);
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar todas" }));
+    expect(within(dialogOf()).getByText("¿Aceptar 60 sugerencias de categoría?")).toBeInTheDocument();
+    fireEvent.click(within(dialogOf()).getByRole("button", { name: "Aceptar 60 sugerencias" }));
+    expect(useSettingsStore.getState().supplierCategories).toHaveLength(60);
+    expect(useSuggestionsStore.getState().categories).toEqual([]);
+    expect(toastMock).toHaveBeenCalledWith("60 sugerencias aplicadas");
+  });
+
+  it("gives the focus to the tab heading when the last row leaves", async () => {
+    seed([ROW_UNO]);
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar todas" }));
+    fireEvent.click(within(dialogOf()).getByRole("button", { name: "Aceptar 1 sugerencia" }));
+    await waitFor(() => {
+      expect(emptied).toHaveBeenCalledTimes(1);
+    });
+    expect(announced.at(-1)).toBe("1 sugerencia aplicada");
+  });
+
+  it("leaves a row refused by the 200-category limit with its message and applies the others", () => {
+    seed([ROW_UNO, ROW_DOS]);
+    act(() => {
+      useSettingsStore.setState({
+        categories: Array.from({ length: LIMITS.categories }, (_unused, index) => ({
+          id: `cat_${String(index)}`,
+          name: `Categoría ${String(index)}`,
+        })),
+      });
+      useSuggestionsStore.setState({
+        categories: [
+          { ...ROW_UNO, choice: { kind: "existing", categoryId: "cat_3" } },
+          ROW_DOS,
+        ],
+      });
+    });
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar todas" }));
+    fireEvent.click(within(dialogOf()).getByRole("button", { name: "Aceptar 2 sugerencias" }));
+    expect(useSettingsStore.getState().supplierCategories).toEqual([
+      { rfc: UNO.rfc, name: UNO.nombre, categoryId: "cat_3" },
+    ]);
+    expect(useSuggestionsStore.getState().categories.map((row) => row.id)).toEqual(["cat_2"]);
+    expect(
+      within(rowOf("Tienda Dos")).getByText("Alcanzaste el límite de 200 categorías. Elige una existente."),
+    ).toBeInTheDocument();
+    expect(storedCategories()).toHaveLength(LIMITS.categories);
+    expect(toastMock).toHaveBeenCalledWith("1 sugerencia aplicada; 1 quedó en la tabla");
+    expect(emptied).not.toHaveBeenCalled();
+  });
+
+  it("drops, without applying, a row whose supplier got a category by other means", () => {
+    seed([ROW_UNO, ROW_DOS]);
+    render(<Harness />);
+    act(() => {
+      useSettingsStore.setState({
+        supplierCategories: [{ rfc: UNO.rfc, name: UNO.nombre, categoryId: OTROS }],
+      });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar todas" }));
+    fireEvent.click(within(dialogOf()).getByRole("button", { name: "Aceptar 2 sugerencias" }));
+    const bebidas = storedCategories().find((category) => category.name === "Bebidas");
+    expect(useSettingsStore.getState().supplierCategories).toEqual([
+      { rfc: UNO.rfc, name: UNO.nombre, categoryId: OTROS },
+      { rfc: DOS.rfc, name: DOS.nombre, categoryId: bebidas?.id },
+    ]);
+    expect(useSuggestionsStore.getState().categories).toEqual([]);
+    expect(toastMock).toHaveBeenCalledWith("1 sugerencia aplicada");
   });
 });
