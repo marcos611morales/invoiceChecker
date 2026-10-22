@@ -12,6 +12,17 @@ import type { Category, SettingsData } from "../settings/types";
 import { LLM_LIMITS, type CategorizeRequest, type GroupRequest } from "./contract";
 import type { PendingQueue, SuggestionMember } from "./suggestions";
 
+// RED stubs: replaced by the guard in the next commit.
+export function isSensitive(_text: string): boolean {
+  return false;
+}
+export function withheldItems(_items: readonly LlmItem[]): LlmItem[] {
+  return [];
+}
+export function withheldTargets(_targets: readonly CategorizeTarget[]): CategorizeTarget[] {
+  return [];
+}
+
 /** One distinct pair of supplier RFC and normalized description. */
 export interface LlmItem {
   rfc: string;
@@ -128,6 +139,8 @@ export interface GroupRun {
   suppliers: number;
   /** Product names that travel as context. */
   contextNames: number;
+  /** Items kept out of every body (sensitive pattern); shown in the dialog only, never sent. */
+  withheld: LlmItem[];
 }
 
 /**
@@ -189,6 +202,7 @@ export function buildGroupRun(
     items: total,
     suppliers: suppliers.size,
     contextNames: context.length,
+    withheld: [],
   };
 }
 
@@ -283,6 +297,8 @@ export interface CategorizeRun {
   members: number;
   /** The user's category names that travel on every batch. */
   categories: number;
+  /** Targets kept out of every body (sensitive pattern); shown in the dialog only, never sent. */
+  withheld: CategorizeTarget[];
 }
 
 /**
@@ -385,5 +401,12 @@ export function buildCategorizeRun(
     products += batch.body.products.length;
     for (const product of batch.body.products) members += product.members.length;
   }
-  return { batches: sent, suppliers, products, members, categories: sent.length === 0 ? 0 : sorted.length };
+  return {
+    batches: sent,
+    suppliers,
+    products,
+    members,
+    categories: sent.length === 0 ? 0 : sorted.length,
+    withheld: [],
+  };
 }
