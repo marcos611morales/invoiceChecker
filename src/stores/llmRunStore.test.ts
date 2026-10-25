@@ -440,17 +440,27 @@ describe("failure policy (D-27, T-04-29)", () => {
   });
 });
 
-describe("an apply that throws (WR-02)", () => {
-  it("counts the batch as failed, goes on with the next one and never rejects", async () => {
-    const throwing: RunBatch = {
+describe("an apply that throws (WR-02, IN-06)", () => {
+  function throwingBatch(error: Error): RunBatch {
+    return {
       send: () =>
         Promise.resolve({
           ok: true,
           apply: () => {
-            throw new Error("randomUUID is not available");
+            throw error;
           },
         }),
     };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("counts the batch as failed, goes on with the next one and never rejects", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const throwing = throwingBatch(new Error("randomUUID is not available"));
     const two = controlled();
     const done = useLlmRunStore.getState().startRun("group", [throwing, two.batch]);
     await started(two);
@@ -463,6 +473,23 @@ describe("an apply that throws (WR-02)", () => {
       lastError: "invalid_response",
     });
     expect(useLlmRunStore.getState().controller).toBeNull();
+    logged.mockRestore();
+  });
+
+  it("logs the real error outside production so a bug can be found (IN-06)", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const error = new Error("mapping failed");
+    await useLlmRunStore.getState().startRun("group", [throwingBatch(error)]);
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged).toHaveBeenCalledWith(error);
+  });
+
+  it("logs nothing in production (IN-06)", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await useLlmRunStore.getState().startRun("group", [throwingBatch(new Error("mapping failed"))]);
+    expect(logged).not.toHaveBeenCalled();
+    expect(useLlmRunStore.getState().status).toMatchObject({ phase: "partial", failed: 1 });
   });
 });
 
@@ -1062,5 +1089,49 @@ describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
       leftOut: 0,
     });
     expect(useSuggestionsStore.getState().categories).toHaveLength(2);
+  });
+});
+
+describe("groupBatches: the run state follows the store writes (IN-06)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    useSettingsStore.setState({ products: [] });
+  });
+
+  /** Makes the first `enqueueProducts` throw, after running the real one when `afterWrite` is set. */
+  function breakFirstEnqueue(afterWrite: boolean): void {
+    const original = useSuggestionsStore.getState().enqueueProducts;
+    let broken = false;
+    useSuggestionsStore.setState({
+      enqueueProducts: (incoming) => {
+        if (broken) return original(incoming);
+        broken = true;
+        if (!afterWrite) throw new Error("write failed");
+        original(incoming);
+        throw new Error("write failed after the write");
+      },
+    });
+  }
+
+  it("leaves the run state clean when the write throws first: batch 2 does not name batch 1's cards", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    breakFirstEnqueue(false);
+    vi.mocked(postGroup)
+      .mockResolvedValueOnce(answer([{ name: "Uno", ids: ["i1", "i2"], existing: null }]))
+      .mockResolvedValueOnce(answer([{ name: "Dos", ids: ["i1"], existing: null }]));
+    await useLlmRunStore.getState().startGroupRun(twoBatchRun());
+    expect(bodies()[1]?.existing).toEqual([]);
+    expect(useLlmRunStore.getState().status).toMatchObject({ phase: "partial", failed: 1 });
+  });
+
+  it("keeps the run state equal to the queue when the throw comes after the write: batch 2 names the cards that landed", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    breakFirstEnqueue(true);
+    vi.mocked(postGroup)
+      .mockResolvedValueOnce(answer([{ name: "Uno", ids: ["i1", "i2"], existing: null }]))
+      .mockResolvedValueOnce(answer([{ name: "Dos", ids: ["i1"], existing: null }]));
+    await useLlmRunStore.getState().startGroupRun(twoBatchRun());
+    expect(useSuggestionsStore.getState().products.map((card) => card.name)).toContain("Uno");
+    expect(bodies()[1]?.existing).toEqual([{ id: "p1", name: "Uno" }]);
   });
 });

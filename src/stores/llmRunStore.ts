@@ -221,21 +221,31 @@ export function groupBatches(run: GroupRun): RunBatch[] {
             productIdOfMember: acceptedProductOf(),
             runCards: new Map([...runCards].map(([id, card]) => [id, card.memberKeys])),
           });
-          for (const append of answer.appends) store.appendMembers(append.cardId, append.members);
-          const leftOut = store.enqueueProducts(answer.cards);
-          const after = useSuggestionsStore.getState().products;
-          // Only the cards that really entered the queue, and only new products: an «Agregar a»
-          // card is named after DeepSeek's group, its product is already in the context.
-          for (const card of answer.cards) {
-            if (card.target !== null) continue;
-            const stored = after.find((candidate) => candidate.id === card.id);
-            if (stored === undefined) continue;
-            runCards.set(card.id, {
-              suggestionId: card.id,
-              name: card.name,
-              memberKeys: stored.members.map(memberKey),
-            });
+          let leftOut = 0;
+          try {
+            for (const append of answer.appends) store.appendMembers(append.cardId, append.members);
+            leftOut = store.enqueueProducts(answer.cards);
+          } finally {
+            // The run state is built only after the store writes, from what really landed in the
+            // queue: a throw before any write leaves it untouched, and a throw half-way leaves it
+            // matching the queue, so later batches see the cards that are there (IN-06). Only new
+            // products count: an «Agregar a» card is named after DeepSeek's group, its product is
+            // already in the context.
+            const landed = useSuggestionsStore.getState().products;
+            const entries: RunCard[] = [];
+            for (const card of answer.cards) {
+              if (card.target !== null) continue;
+              const stored = landed.find((candidate) => candidate.id === card.id);
+              if (stored === undefined) continue;
+              entries.push({
+                suggestionId: card.id,
+                name: card.name,
+                memberKeys: stored.members.map(memberKey),
+              });
+            }
+            for (const entry of entries) runCards.set(entry.suggestionId, entry);
           }
+          const after = useSuggestionsStore.getState().products;
           return { added: after.length - before, leftOut };
         },
       };
@@ -385,9 +395,11 @@ export const useLlmRunStore = create<LlmRunState>()((set, get) => ({
           const applied = outcome.apply();
           received += applied.added;
           leftOut += applied.leftOut;
-        } catch {
+        } catch (error) {
           // An apply that throws (a failed mapping or write) is an unusable answer too: the batch
-          // fails, the run goes on and `startRun` keeps its promise of never throwing.
+          // fails, the run goes on and `startRun` keeps its promise of never throwing. The error
+          // itself is shown in development only, so a bug in the mapping can be found.
+          if (process.env.NODE_ENV !== "production") console.error(error);
           failed += 1;
           lastError = "invalid_response";
         }
