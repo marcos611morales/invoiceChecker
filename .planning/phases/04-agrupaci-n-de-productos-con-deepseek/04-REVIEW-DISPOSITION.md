@@ -9,7 +9,7 @@ findings:
     title: "Supplier names are truncated to 60 characters and then persisted into the settings"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`startRun` does not guard `outcome.apply()`, so a throwing apply rejects the run promise and loses the run state"
   - id: WR-03
     severity: warning
@@ -21,7 +21,7 @@ findings:
     title: "Sensitive-pattern guard does not cover every text that reaches DeepSeek, and the server enforces no content rule"
   - id: WR-05
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A late batch answer is enqueued without re-checking the accepted products and «No agrupar» marks"
   - id: IN-01
     severity: info
@@ -39,9 +39,9 @@ findings:
     severity: info
     disposition: open
     title: "One empty group makes the whole grouping batch fail"
-open: 6
+open: 4
 total: 9
-recorded: 2026-10-25T14:42:53.649Z
+recorded: 2026-10-25T14:43:07.176Z
 ---
 
 # Phase 04: Code Review Disposition
@@ -49,10 +49,10 @@ recorded: 2026-10-25T14:42:53.649Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | WR-01 | warning | skipped | 04-REVIEW-FIX.md |
-| WR-02 | warning | open | - |
+| WR-02 | warning | fixed | 04-REVIEW-FIX.md |
 | WR-03 | warning | fixed | 04-REVIEW-FIX.md |
 | WR-04 | warning | skipped | 04-REVIEW-FIX.md |
-| WR-05 | warning | open | - |
+| WR-05 | warning | fixed | 04-REVIEW-FIX.md |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
