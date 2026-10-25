@@ -260,28 +260,38 @@ export function pendingMemberKeys(queue: readonly ProductSuggestion[]): Set<stri
   return keys;
 }
 
+/** The queue after `enqueueProductSuggestionsWithOverflow` and how many cards did not fit. */
+export interface ProductEnqueue {
+  products: ProductSuggestion[];
+  /** Incoming cards that still had a new member but passed `PENDING_LIMITS` (cards or members). */
+  leftOut: number;
+}
+
 /**
  * The queue as it was, then each incoming card without the members already
  * pending in the queue or earlier in the incoming list; a card left with no
  * member is dropped. Returns a new array; the queued cards are not changed (D-25).
- * It stops adding once a card would pass `PENDING_LIMITS` (cards or members), so a queue
- * that was valid in memory is always valid when it is stored (D-24); the descriptions of
- * the cards left out stay free and can be asked again.
+ * A card that would pass `PENDING_LIMITS` (cards or members) is left out, so a queue
+ * that was valid in memory is always valid when it is stored (D-24); a smaller card
+ * after it still gets in. The members of a card left out stay free (they do not count as
+ * taken for the cards after it) and can be asked again; `leftOut` says how many cards that was.
  */
-export function enqueueProductSuggestions(
+export function enqueueProductSuggestionsWithOverflow(
   queue: readonly ProductSuggestion[],
   incoming: readonly ProductSuggestion[],
-): ProductSuggestion[] {
+): ProductEnqueue {
   const taken = pendingMemberKeys(queue);
   const next = [...queue];
   let memberCount = 0;
   for (const card of queue) memberCount += card.members.length;
+  let leftOut = 0;
   for (const card of incoming) {
     const members: SuggestionMember[] = [];
+    const keys = new Set<string>();
     for (const member of card.members) {
       const key = memberKey(member);
-      if (taken.has(key)) continue;
-      taken.add(key);
+      if (taken.has(key) || keys.has(key)) continue;
+      keys.add(key);
       members.push(member);
     }
     if (members.length === 0) continue;
@@ -289,12 +299,22 @@ export function enqueueProductSuggestions(
       next.length >= PENDING_LIMITS.productCards ||
       memberCount + members.length > PENDING_LIMITS.members
     ) {
-      break;
+      leftOut += 1;
+      continue;
     }
+    for (const key of keys) taken.add(key);
     memberCount += members.length;
     next.push({ ...card, members });
   }
-  return next;
+  return { products: next, leftOut };
+}
+
+/** The queue part of `enqueueProductSuggestionsWithOverflow`, for callers that do not need the count. */
+export function enqueueProductSuggestions(
+  queue: readonly ProductSuggestion[],
+  incoming: readonly ProductSuggestion[],
+): ProductSuggestion[] {
+  return enqueueProductSuggestionsWithOverflow(queue, incoming).products;
 }
 
 /**

@@ -107,6 +107,7 @@ import {
   categorizeSendSummary,
   categoryRowsHeading,
   failedBatchesText,
+  leftOutText,
   newCategoryLabel,
   productsGroupHeading,
   suppliersGroupHeading,
@@ -942,6 +943,13 @@ describe("Run card, cancel and result copy (Plan 04-12, UI-SPEC Run progress, ca
       `Proceso cancelado. Llegó 1 sugerencia nueva y está en la cola; ${rest}`,
     );
     expect(canceledText(0)).toBe(`Proceso cancelado. No llegó ninguna sugerencia nueva; ${rest}`);
+  });
+
+  it("says how many suggestions did not fit in the queue, singular for one (IN-03)", () => {
+    expect(leftOutText(1)).toBe("1 sugerencia no cupo en la cola; revisa la cola y vuelve a intentarlo.");
+    expect(leftOutText(7)).toBe(
+      "7 sugerencias no cupieron en la cola; revisa la cola y vuelve a intentarlo.",
+    );
   });
 
   it("counts the failed batches: «1 lote falló», «{n} lotes fallaron»", () => {

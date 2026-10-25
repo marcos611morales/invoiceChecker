@@ -7,6 +7,7 @@ import {
   dropMember,
   enqueueCategorySuggestions,
   enqueueProductSuggestions,
+  enqueueProductSuggestionsWithOverflow,
   memberKey,
   mergeSuggestions,
   pendingQueueSchema,
@@ -430,7 +431,7 @@ describe("resolvePendingQueue", () => {
 });
 
 describe("enqueueProductSuggestions caps (D-24)", () => {
-  it("adds cards up to the limit of members and then stops adding", () => {
+  it("adds cards up to the limit of cards and leaves the rest out", () => {
     const queued = oneMemberCards(PENDING_LIMITS.productCards - 2, "q");
     const incoming = oneMemberCards(3, "n");
     const next = enqueueProductSuggestions(queued, incoming);
@@ -450,6 +451,47 @@ describe("enqueueProductSuggestions caps (D-24)", () => {
     const queued = oneMemberCards(PENDING_LIMITS.members - 1, "q");
     const wide = card("sug_wide", "Ancha", [member("AAA010101AAA", "w1"), member("AAA010101AAA", "w2")]);
     expect(enqueueProductSuggestions(queued, [wide])).toHaveLength(PENDING_LIMITS.members - 1);
+  });
+
+  it("adds a smaller card after one that does not fit the limit of members, and counts the one left out (IN-03)", () => {
+    const queued = oneMemberCards(PENDING_LIMITS.members - 2, "q");
+    const wide = card("sug_wide", "Ancha", [
+      member("AAA010101AAA", "w1"),
+      member("AAA010101AAA", "w2"),
+      member("AAA010101AAA", "w3"),
+    ]);
+    const small = card("sug_small", "Chica", [member("AAA010101AAA", "s1")]);
+    const result = enqueueProductSuggestionsWithOverflow(queued, [wide, small]);
+    expect(result.leftOut).toBe(1);
+    expect(result.products.map((entry) => entry.id)).toContain("sug_small");
+    expect(result.products.some((entry) => entry.id === "sug_wide")).toBe(false);
+    expect(result.products).toHaveLength(PENDING_LIMITS.members - 2 + 1);
+  });
+
+  it("keeps the members of a card left out free for the cards after it (IN-03)", () => {
+    const queued = oneMemberCards(PENDING_LIMITS.members - 1, "q");
+    const shared = member("AAA010101AAA", "shared");
+    const wide = card("sug_wide", "Ancha", [shared, member("AAA010101AAA", "w2")]);
+    const small = card("sug_small", "Chica", [shared]);
+    const result = enqueueProductSuggestionsWithOverflow(queued, [wide, small]);
+    expect(result.leftOut).toBe(1);
+    const added = result.products.find((entry) => entry.id === "sug_small");
+    expect(added?.members).toEqual([shared]);
+  });
+
+  it("counts every card left out when the queue is at the card limit, and none when all fit (IN-03)", () => {
+    const full = oneMemberCards(PENDING_LIMITS.productCards, "q");
+    expect(enqueueProductSuggestionsWithOverflow(full, oneMemberCards(3, "n")).leftOut).toBe(3);
+    expect(enqueueProductSuggestionsWithOverflow([], oneMemberCards(3, "n")).leftOut).toBe(0);
+  });
+
+  it("does not count a card whose members were all pending already as left out (IN-03)", () => {
+    const result = enqueueProductSuggestionsWithOverflow(
+      [card("sug_a", "Leche", [LECHE_UNO])],
+      [card("sug_b", "Otra", [LECHE_UNO])],
+    );
+    expect(result.leftOut).toBe(0);
+    expect(result.products).toHaveLength(1);
   });
 
   it("still skips members that are already pending", () => {

@@ -495,7 +495,7 @@ describe("AppShell end-of-run toast (RunWatcher, UI-SPEC finished toast)", () =>
   function finishRun(): void {
     act(() => {
       useLlmRunStore.setState({
-        status: { phase: "finished", kind: "group", total: 1, received: 2 },
+        status: { phase: "finished", kind: "group", total: 1, received: 2, leftOut: 0 },
       });
     });
   }

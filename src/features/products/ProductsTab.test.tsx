@@ -500,6 +500,7 @@ describe("Agrupar productos: the round trip through the real route (LLM-01, LLM-
         batch: 1,
         total: 1,
         received: 0,
+        leftOut: 0,
         error: "upstream_auth",
       });
     });

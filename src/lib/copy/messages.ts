@@ -883,6 +883,16 @@ export function canceledText(n: number): string {
   return `Proceso cancelado. Llegaron ${String(n)} sugerencias nuevas y están en la cola; ${rest}`;
 }
 
+/**
+ * Line of the run result when valid suggestions did not fit in the queue (IN-03). Shown only for
+ * n > 0; the singular is the grammatical form of the same sentence.
+ */
+export function leftOutText(n: number): string {
+  return n === 1
+    ? "1 sugerencia no cupo en la cola; revisa la cola y vuelve a intentarlo."
+    : `${String(n)} sugerencias no cupieron en la cola; revisa la cola y vuelve a intentarlo.`;
+}
+
 /** Partial-failure Alert: «{n} lotes fallaron» or «1 lote falló»; «Reintentar» is a button beside it. */
 export function failedBatchesText(n: number): string {
   return n === 1 ? "1 lote falló" : `${String(n)} lotes fallaron`;

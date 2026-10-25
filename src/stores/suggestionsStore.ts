@@ -5,7 +5,7 @@ import {
   appendSuggestionMembers,
   dropMember,
   enqueueCategorySuggestions,
-  enqueueProductSuggestions,
+  enqueueProductSuggestionsWithOverflow,
   mergeSuggestions,
   pruneCategoryRows,
   removeCategoryRow,
@@ -48,8 +48,11 @@ interface SuggestionsState {
   products: ProductSuggestion[];
   /** Pending category rows (Plan 04-18), one per supplier or product. */
   categories: CategorySuggestion[];
-  /** Adds the cards, skipping every member already pending (idempotent per member, D-25). */
-  enqueueProducts: (incoming: readonly ProductSuggestion[]) => void;
+  /**
+   * Adds the cards, skipping every member already pending (idempotent per member, D-25). Returns
+   * how many cards did not fit in the queue limits (IN-03); those are not added.
+   */
+  enqueueProducts: (incoming: readonly ProductSuggestion[]) => number;
   /** Adds the category rows, skipping every target that already has one (idempotent per target, A-2). */
   enqueueCategories: (incoming: readonly CategorySuggestion[]) => void;
   /**
@@ -133,10 +136,11 @@ export const useSuggestionsStore = create<SuggestionsState>()(
     (set, get) => ({
       products: [],
       categories: [],
-      enqueueProducts: (incoming) =>
-        set((current) => ({
-          products: enqueueProductSuggestions(current.products, incoming),
-        })),
+      enqueueProducts: (incoming) => {
+        const result = enqueueProductSuggestionsWithOverflow(get().products, incoming);
+        set({ products: result.products });
+        return result.leftOut;
+      },
       enqueueCategories: (incoming) =>
         set((current) => ({
           categories: enqueueCategorySuggestions(current.categories, incoming),

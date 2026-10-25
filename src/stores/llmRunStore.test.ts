@@ -8,6 +8,7 @@ import {
 } from "@/domain/llm/candidates";
 import type { GroupResponse } from "@/domain/llm/contract";
 import { LLM_LIMITS } from "@/domain/llm/contract";
+import { PENDING_LIMITS, type ProductSuggestion } from "@/domain/llm/suggestions";
 import { postCategorize, postGroup, type LlmFailure } from "@/lib/client/llmClient";
 import { resetSuggestionsStore } from "../../tests/support/suggestionsStorage";
 import { categorizeBatches, groupBatches, useLlmRunStore, type RunBatch } from "./llmRunStore";
@@ -22,8 +23,8 @@ type SendResult = Awaited<ReturnType<RunBatch["send"]>>;
 interface Controlled {
   batch: RunBatch;
   state: { sends: number; signal: AbortSignal | null; applied: number };
-  /** Resolves the pending send with an answer whose apply adds `added` suggestions. */
-  ok: (added: number) => void;
+  /** Resolves the pending send with an answer whose apply adds `added` suggestions and leaves `leftOut` out. */
+  ok: (added: number, leftOut?: number) => void;
   fail: (error: LlmFailure) => void;
   reject: (reason: Error) => void;
 }
@@ -45,12 +46,12 @@ function controlled(): Controlled {
         });
       },
     },
-    ok: (added) => {
+    ok: (added, leftOut = 0) => {
       release({
         ok: true,
         apply: () => {
           state.applied += 1;
-          return added;
+          return { added, leftOut };
         },
       });
     },
@@ -109,8 +110,67 @@ describe("startRun order and success (D-26)", () => {
       kind: "group",
       total: 2,
       received: 7,
+      leftOut: 0,
     });
     expect(useLlmRunStore.getState().controller).toBeNull();
+  });
+
+  it("adds up what each apply left out and ends finished with the total (IN-03)", async () => {
+    const one = controlled();
+    const two = controlled();
+    const done = useLlmRunStore.getState().startRun("group", [one.batch, two.batch]);
+    await started(one);
+    one.ok(3, 2);
+    await started(two);
+    two.ok(4, 1);
+    await done;
+    expect(useLlmRunStore.getState().status).toEqual({
+      phase: "finished",
+      kind: "group",
+      total: 2,
+      received: 7,
+      leftOut: 3,
+    });
+  });
+
+  it("keeps the left-out count in a partial end and in a stopped end (IN-03)", async () => {
+    const one = controlled();
+    const two = controlled();
+    const partial = useLlmRunStore.getState().startRun("group", [one.batch, two.batch]);
+    await started(one);
+    one.ok(1, 5);
+    await started(two);
+    two.fail("upstream_timeout");
+    await partial;
+    expect(useLlmRunStore.getState().status).toMatchObject({ phase: "partial", received: 1, leftOut: 5 });
+
+    const three = controlled();
+    const four = controlled();
+    const stopped = useLlmRunStore.getState().startRun("group", [three.batch, four.batch]);
+    await started(three);
+    three.ok(2, 3);
+    await started(four);
+    four.fail("upstream_auth");
+    await stopped;
+    expect(useLlmRunStore.getState().status).toMatchObject({ phase: "stopped", received: 2, leftOut: 3 });
+  });
+
+  it("keeps the left-out count in a canceled end (IN-03)", async () => {
+    const one = controlled();
+    const two = controlled();
+    const done = useLlmRunStore.getState().startRun("group", [one.batch, two.batch]);
+    await started(one);
+    one.ok(2, 4);
+    await started(two);
+    useLlmRunStore.getState().cancel();
+    two.ok(5, 9);
+    await done;
+    expect(useLlmRunStore.getState().status).toEqual({
+      phase: "canceled",
+      kind: "group",
+      received: 2,
+      leftOut: 4,
+    });
   });
 
   it("does nothing for an empty list", async () => {
@@ -181,6 +241,7 @@ describe("cancel (LLM-05, D-26, Pitfall 6)", () => {
       phase: "canceled",
       kind: "group",
       received: 3,
+      leftOut: 0,
     });
     expect(useLlmRunStore.getState().controller).toBeNull();
   });
@@ -281,6 +342,7 @@ describe("failure policy (D-27, T-04-29)", () => {
       kind: "group",
       total: 3,
       received: 5,
+      leftOut: 0,
       failed: 1,
       lastError: "upstream_timeout",
     });
@@ -308,6 +370,7 @@ describe("failure policy (D-27, T-04-29)", () => {
       kind: "group",
       total: 2,
       received: 0,
+      leftOut: 0,
       failed: 2,
       lastError: error,
     });
@@ -335,6 +398,7 @@ describe("failure policy (D-27, T-04-29)", () => {
       batch: 1,
       total: 3,
       received: 0,
+      leftOut: 0,
       error,
     });
   });
@@ -460,15 +524,42 @@ describe("groupBatches", () => {
     expect(useSuggestionsStore.getState().products).toEqual([]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.apply()).toBe(2);
+    expect(result.apply().added).toBe(2);
     expect(useSuggestionsStore.getState().products.map((card) => card.name)).toEqual([
       "Uno y dos",
       "Tres",
     ]);
     expect(useSuggestionsStore.getState().products.every((card) => card.id.startsWith("sug_"))).toBe(true);
     // Idempotent per member: applying the same answer again adds nothing.
-    expect(result.apply()).toBe(0);
+    expect(result.apply().added).toBe(0);
     expect(useSuggestionsStore.getState().products).toHaveLength(2);
+  });
+
+  it("reports the cards that did not fit in a full queue as left out, and queues the ones that fit (IN-03)", async () => {
+    const full: ProductSuggestion[] = Array.from({ length: PENDING_LIMITS.productCards }, (_unused, index) => ({
+      id: `sug_full${String(index)}`,
+      name: "Lleno",
+      target: null,
+      members: [{ rfc: "ZZZ010101ZZZ", key: `lleno ${String(index)}`, description: "Lleno", supplierName: "Z" }],
+    }));
+    useSuggestionsStore.setState({ products: full });
+    const run = buildGroupRun([sampleItem(1), sampleItem(2)], []);
+    const first = groupBatches(run)[0];
+    if (first === undefined) throw new Error("expected a batch");
+    vi.mocked(postGroup).mockResolvedValue({
+      ok: true,
+      data: {
+        groups: [
+          { name: "Uno", ids: ["i1"], existing: null },
+          { name: "Dos", ids: ["i2"], existing: null },
+        ],
+        meta: metaOf(),
+      },
+    });
+    const result = await first.send(new AbortController().signal);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.apply()).toEqual({ added: 0, leftOut: 2 });
+    expect(useSuggestionsStore.getState().products).toHaveLength(PENDING_LIMITS.productCards);
   });
 
   it("checks the coverage again: an answer that omits an id is an incomplete_response and adds nothing", async () => {
@@ -794,7 +885,7 @@ describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
     expect(useSuggestionsStore.getState().categories).toEqual([]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.apply()).toBe(2);
+    expect(result.apply().added).toBe(2);
     const rows = useSuggestionsStore.getState().categories;
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
@@ -811,7 +902,7 @@ describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
     });
     expect(rows.every((row) => row.id.startsWith("cat_"))).toBe(true);
     // Idempotent per target: applying the same answer again adds nothing.
-    expect(result.apply()).toBe(0);
+    expect(result.apply().added).toBe(0);
     expect(useSuggestionsStore.getState().categories).toHaveLength(2);
   });
 
@@ -879,7 +970,7 @@ describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
     );
     const result = await batch.send(new AbortController().signal);
     if (!result.ok) throw new Error("expected ok");
-    expect(result.apply()).toBe(1);
+    expect(result.apply().added).toBe(1);
     expect(useSuggestionsStore.getState().categories.map((row) => row.id)[0]).toBe("cat_old");
   });
 
@@ -968,6 +1059,7 @@ describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
       kind: "categorize",
       total: 1,
       received: 2,
+      leftOut: 0,
     });
     expect(useSuggestionsStore.getState().categories).toHaveLength(2);
   });

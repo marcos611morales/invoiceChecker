@@ -34,12 +34,13 @@ export type RunStatus =
       lastError: LlmFailure | null;
     }
   | { phase: "cancelling"; kind: RunKind; batch: number; total: number; received: number }
-  | { phase: "finished"; kind: RunKind; total: number; received: number }
+  | { phase: "finished"; kind: RunKind; total: number; received: number; leftOut: number }
   | {
       phase: "partial";
       kind: RunKind;
       total: number;
       received: number;
+      leftOut: number;
       failed: number;
       lastError: LlmFailure;
     }
@@ -49,20 +50,31 @@ export type RunStatus =
       batch: number;
       total: number;
       received: number;
+      leftOut: number;
       error: LlmFailure;
     }
-  | { phase: "canceled"; kind: RunKind; received: number };
+  | { phase: "canceled"; kind: RunKind; received: number; leftOut: number };
+
+/**
+ * What `apply` did: how many suggestions entered the queue and how many valid ones were left out
+ * because the queue is full (`leftOut`, IN-03). The ended states of a run carry the total of
+ * `leftOut`, so the user is told to look at the queue and try again.
+ */
+export interface ApplyResult {
+  added: number;
+  leftOut: number;
+}
 
 /**
  * One request of a run. `send` does the request, the coverage re-check and the mapping, and
  * enqueues nothing; `apply` enqueues what `send` produced and returns how many suggestions it
- * added. The runner calls `apply` only when the run was not canceled and the session did not
- * change while the request was in flight (Pitfall 6).
+ * added and how many it could not queue. The runner calls `apply` only when the run was not
+ * canceled and the session did not change while the request was in flight (Pitfall 6).
  */
 export interface RunBatch {
   send: (
     signal: AbortSignal,
-  ) => Promise<{ ok: true; apply: () => number } | { ok: false; error: LlmFailure }>;
+  ) => Promise<{ ok: true; apply: () => ApplyResult } | { ok: false; error: LlmFailure }>;
 }
 
 interface LlmRunState {
@@ -210,7 +222,7 @@ export function groupBatches(run: GroupRun): RunBatch[] {
             runCards: new Map([...runCards].map(([id, card]) => [id, card.memberKeys])),
           });
           for (const append of answer.appends) store.appendMembers(append.cardId, append.members);
-          store.enqueueProducts(answer.cards);
+          const leftOut = store.enqueueProducts(answer.cards);
           const after = useSuggestionsStore.getState().products;
           // Only the cards that really entered the queue, and only new products: an «Agregar a»
           // card is named after DeepSeek's group, its product is already in the context.
@@ -224,7 +236,7 @@ export function groupBatches(run: GroupRun): RunBatch[] {
               memberKeys: stored.members.map(memberKey),
             });
           }
-          return after.length - before;
+          return { added: after.length - before, leftOut };
         },
       };
     },
@@ -286,7 +298,7 @@ export function categorizeBatches(run: CategorizeRun): RunBatch[] {
           const store = useSuggestionsStore.getState();
           const before = store.categories.length;
           store.enqueueCategories(rows);
-          return useSuggestionsStore.getState().categories.length - before;
+          return { added: useSuggestionsStore.getState().categories.length - before, leftOut: 0 };
         },
       };
     },
@@ -326,6 +338,7 @@ export const useLlmRunStore = create<LlmRunState>()((set, get) => ({
     });
     const cleared = () => useSessionStore.getState().generation !== generation;
     let received = 0;
+    let leftOut = 0;
     let failed = 0;
     let lastError: LlmFailure | null = null;
     try {
@@ -357,6 +370,7 @@ export const useLlmRunStore = create<LlmRunState>()((set, get) => ({
                 batch: k,
                 total,
                 received,
+                leftOut,
                 error: outcome.error,
               },
             });
@@ -368,7 +382,9 @@ export const useLlmRunStore = create<LlmRunState>()((set, get) => ({
         }
         // The cards of each batch enter the queue as soon as that batch lands (D-26).
         try {
-          received += outcome.apply();
+          const applied = outcome.apply();
+          received += applied.added;
+          leftOut += applied.leftOut;
         } catch {
           // An apply that throws (a failed mapping or write) is an unusable answer too: the batch
           // fails, the run goes on and `startRun` keeps its promise of never throwing.
@@ -379,11 +395,13 @@ export const useLlmRunStore = create<LlmRunState>()((set, get) => ({
       if (cleared()) {
         set({ status: { phase: "idle" } });
       } else if (controller.signal.aborted) {
-        set({ status: { phase: "canceled", kind, received } });
+        set({ status: { phase: "canceled", kind, received, leftOut } });
       } else if (lastError !== null) {
-        set({ status: { phase: "partial", kind, total, received, failed, lastError } });
+        set({
+          status: { phase: "partial", kind, total, received, leftOut, failed, lastError },
+        });
       } else {
-        set({ status: { phase: "finished", kind, total, received } });
+        set({ status: { phase: "finished", kind, total, received, leftOut } });
       }
     } finally {
       unsubscribe();
