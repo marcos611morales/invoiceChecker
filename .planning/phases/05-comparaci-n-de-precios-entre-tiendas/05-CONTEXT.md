@@ -66,6 +66,17 @@ Siguen vigentes las decisiones de las Fases 1–4 (01..04-CONTEXT.md). Las más 
 - **D-23:** Los productos comparados **«por pieza, sin tamaño verificado»** (D-10) **sí entran** en el ahorro de su fila y en el total, con su aviso. La nota del total dice que incluye comparaciones por pieza.
 - **D-24:** **Historial (PREC-06):** dentro del detalle del producto hay una **gráfica de puntos y líneas por tienda**. El eje X es la fecha y el eje Y el precio normalizado, con una serie de color por tienda y un punto por compra. Debajo va la lista de compras (D-08).
 
+### Respuestas a las preguntas abiertas del research (2026-10-25, Q1–Q7 de 05-RESEARCH.md)
+- **D-25 (Q1):** El lector de tamaños **también lee conteos de piezas** en la descripción («50PZ», «4PK») como contenido en piezas, además de peso y volumen.
+- **D-26 (Q2):** Las líneas con **monto neto 0 o negativo no entran al precio**: quedan «no normalizado» con un motivo propio (monto en cero / monto no utilizable).
+- **D-27 (Q3):** El default «no comparable» de combustibles incluye **1510xxxx y el gas LP 151115**.
+- **D-28 (Q4):** Un contenido **capturado por el usuario en piezas cuenta como tamaño verificado** para D-10.
+- **D-29 (Q5a):** Empate de familias en D-12: gana la familia con **más tiendas distintas**; si sigue el empate, **kg > L > pieza**.
+- **D-30 (Q5b):** Empate final de la tienda más barata en D-20 (misma mediana y mismas compras): **orden alfabético (es) del nombre de la tienda**.
+- **D-31 (Q7):** El default «no comparable» de D-17 se calcula con **todas las compras del producto, sin filtros**, para que no cambie al filtrar.
+- **D-32 (Q6):** Además de H87, XUN, XPK y E48, cuentan como pieza: **EA, ACT, XBX, X4G, XBJ, XBO, XBG, XCT, XCS, XPA, SET, KT, XKI**.
+- Q8 (textos de los motivos nuevos y límites de las listas persistidas) queda a criterio del planner, según D-15 y Claude's Discretion.
+
 ### Claude's Discretion
 - Textos exactos de la pestaña, columnas, avisos, etiquetas («detectado», «no normalizado», «por pieza, sin tamaño verificado») y estados vacíos, más allá de los citados. El UI-SPEC de la fase puede afinarlos.
 - El estado vacío de Precios cuando no hay productos agrupados (sugerido: invitar a ir a Productos → «Agrupar productos»).
