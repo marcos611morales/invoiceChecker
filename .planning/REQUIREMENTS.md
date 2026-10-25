@@ -9,8 +9,8 @@
 
 - [x] **ACC-01**: Usuario debe ingresar una contraseña compartida (variable de entorno en Vercel) antes de ver cualquier página
 - [x] **ACC-02**: La sesión persiste vía cookie firmada HttpOnly; el usuario puede cerrar sesión
-- [ ] **ACC-03**: Las rutas del LLM rechazan (401) cualquier llamada sin sesión válida, verificado dentro de cada handler
-- [ ] **ACC-04**: La API key de DeepSeek nunca llega al navegador ni al bundle del cliente
+- [x] **ACC-03**: Las rutas del LLM rechazan (401) cualquier llamada sin sesión válida, verificado dentro de cada handler
+- [x] **ACC-04**: La API key de DeepSeek nunca llega al navegador ni al bundle del cliente
 
 ### Carga de facturas (CARGA)
 
@@ -59,7 +59,7 @@
 - [x] **CAT-01**: Usuario puede crear, renombrar y borrar categorías propias desde la página
 - [x] **CAT-02**: Usuario puede asignar una categoría por defecto a cada proveedor
 - [x] **CAT-03**: Usuario puede cambiar la categoría de un concepto individual
-- [ ] **CAT-04**: Precedencia: ajuste del concepto > categoría del producto agrupado > categoría del proveedor > "Sin categoría"
+- [x] **CAT-04**: Precedencia: ajuste del concepto > categoría del producto agrupado > categoría del proveedor > "Sin categoría"
 - [x] **CAT-05**: Al borrar una categoría, sus asignaciones pasan a "Sin categoría" (o a otra que el usuario elija)
 
 ### Ajustes y respaldo (AJUS)
@@ -69,12 +69,12 @@
 
 ### LLM DeepSeek (LLM)
 
-- [ ] **LLM-01**: Usuario puede pedir que DeepSeek agrupe como "mismo producto" conceptos con descripciones distintas entre tiendas
-- [ ] **LLM-02**: Usuario puede pedir que DeepSeek sugiera categoría por proveedor y por producto
-- [ ] **LLM-03**: Al LLM solo se envían descripciones de conceptos y nombres de proveedor; nunca RFC, UUID ni montos (validado por esquema)
-- [ ] **LLM-04**: Usuario revisa las sugerencias en una cola: aceptar, renombrar, separar, unir o rechazar; nada se aplica sin revisión
-- [ ] **LLM-05**: Usuario ve el progreso, puede cancelar, y un fallo parcial no pierde lo ya procesado
-- [ ] **LLM-06**: Antes de enviar, se informa al usuario qué datos se mandarán a DeepSeek
+- [x] **LLM-01**: Usuario puede pedir que DeepSeek agrupe como "mismo producto" conceptos con descripciones distintas entre tiendas
+- [x] **LLM-02**: Usuario puede pedir que DeepSeek sugiera categoría por proveedor y por producto
+- [x] **LLM-03**: Al LLM solo se envían descripciones de conceptos y nombres de proveedor; nunca RFC, UUID ni montos (validado por esquema)
+- [x] **LLM-04**: Usuario revisa las sugerencias en una cola: aceptar, renombrar, separar, unir o rechazar; nada se aplica sin revisión
+- [x] **LLM-05**: Usuario ve el progreso, puede cancelar, y un fallo parcial no pierde lo ya procesado
+- [x] **LLM-06**: Antes de enviar, se informa al usuario qué datos se mandarán a DeepSeek
 
 ### Comparación de precios (PREC)
 
@@ -129,8 +129,8 @@
 |-------------|-------|--------|
 | ACC-01 | Phase 1 | Complete |
 | ACC-02 | Phase 1 | Complete |
-| ACC-03 | Phase 4 | Pending |
-| ACC-04 | Phase 4 | Pending |
+| ACC-03 | Phase 4 | Complete |
+| ACC-04 | Phase 4 | Complete |
 | CARGA-01 | Phase 1 | Complete |
 | CARGA-02 | Phase 1 | Complete |
 | CARGA-03 | Phase 1 | Complete |
@@ -164,16 +164,16 @@
 | CAT-01 | Phase 3 | Complete |
 | CAT-02 | Phase 3 | Complete |
 | CAT-03 | Phase 3 | Complete |
-| CAT-04 | Phase 4 | Pending |
+| CAT-04 | Phase 4 | Complete |
 | CAT-05 | Phase 3 | Complete |
 | AJUS-01 | Phase 3 | Complete |
 | AJUS-02 | Phase 3 | Complete |
-| LLM-01 | Phase 4 | Pending |
-| LLM-02 | Phase 4 | Pending |
-| LLM-03 | Phase 4 | Pending |
-| LLM-04 | Phase 4 | Pending |
-| LLM-05 | Phase 4 | Pending |
-| LLM-06 | Phase 4 | Pending |
+| LLM-01 | Phase 4 | Complete |
+| LLM-02 | Phase 4 | Complete |
+| LLM-03 | Phase 4 | Complete |
+| LLM-04 | Phase 4 | Complete |
+| LLM-05 | Phase 4 | Complete |
+| LLM-06 | Phase 4 | Complete |
 | PREC-01 | Phase 5 | Pending |
 | PREC-02 | Phase 5 | Pending |
 | PREC-03 | Phase 5 | Pending |

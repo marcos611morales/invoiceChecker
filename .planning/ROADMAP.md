@@ -15,7 +15,7 @@ Las fases decimales aparecen entre sus enteros vecinos en orden numérico.
 - [x] **Phase 1: Acceso protegido y carga de facturas** - Contraseña compartida, app desplegada en Vercel y carga de XML en el navegador con reporte de importación (completed 2026-10-14)
 - [x] **Phase 2: Dashboard de gasto confiable** - Reglas de montos (I/E/P, con/sin IVA, $0, excluidas), KPIs, tendencia mensual, ranking por proveedor, filtros y calidad de datos (completed 2026-10-16)
 - [x] **Phase 3: Categorías propias y exportación a Excel** - Categorías editables por proveedor y por concepto, persistidas y respaldables, vistas por categoría y Excel de varias hojas (completed 2026-10-19)
-- [ ] **Phase 4: Agrupación de productos con DeepSeek** - Agrupación de "mismo producto" y sugerencias de categoría por una ruta protegida, con cola de revisión
+- [x] **Phase 4: Agrupación de productos con DeepSeek** - Agrupación de "mismo producto" y sugerencias de categoría por una ruta protegida, con cola de revisión (completed 2026-10-25)
 - [ ] **Phase 5: Comparación de precios entre tiendas** - Precio unitario neto por producto y tienda, tienda más barata, ahorro estimado e historial de precio
 
 ## Phase Details
@@ -234,7 +234,7 @@ Plans:
   4. Al aceptar un producto agrupado con categoría, sus conceptos toman esa categoría salvo los que el usuario ajustó a mano; los conceptos sin grupo usan la categoría de su proveedor o quedan en "Sin categoría".
   5. Una llamada a las rutas del LLM sin sesión válida recibe 401, y la API key de DeepSeek no aparece en ningún archivo del bundle del cliente ni en ninguna respuesta al navegador.
 
-**Plans:** 21/21 plans executed
+**Plans:** 21/21 plans complete
 
 Plans:
 **Wave 1**
@@ -325,5 +325,5 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | 1. Acceso protegido y carga de facturas | 16/16 | Complete    | 2026-10-14 |
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
 | 3. Categorías propias y exportación a Excel | 20/20 | Complete    | 2026-10-19 |
-| 4. Agrupación de productos con DeepSeek | 21/21 | In Progress | - |
+| 4. Agrupación de productos con DeepSeek | 21/21 | Complete    | 2026-10-25 |
 | 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
