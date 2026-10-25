@@ -5,16 +5,16 @@ titles: json
 findings:
   - id: IN-01
     severity: info
-    disposition: fixed
-    title: "The two LLM routes duplicate about 70 lines"
+    disposition: open
+    title: "The «no cupo en la cola» notice covers product cards only"
   - id: IN-02
     severity: info
-    disposition: fixed
-    title: "Once the user picks an existing category on a row, the model's proposed «Nueva: X» choice cannot be selected again"
+    disposition: open
+    title: "A batch whose `apply` throws after writing is counted as failed and loses its `received`/`leftOut`"
   - id: IN-03
     severity: info
-    disposition: fixed
-    title: "`enqueueProductSuggestions` stops at the first card that does not fit, and nothing tells the user"
+    disposition: open
+    title: "Long doc comment line in `RunResult`"
   - id: IN-04
     severity: info
     disposition: fixed
@@ -47,21 +47,21 @@ findings:
     severity: warning
     disposition: fixed
     title: "A late batch answer is enqueued without re-checking the accepted products and «No agrupar» marks"
-open: 0
+open: 3
 total: 11
-recorded: 2026-10-25T16:16:55.184Z
+recorded: 2026-10-25T18:52:49.289Z
 ---
 
 # Phase 04: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| IN-01 | info | fixed | 04-REVIEW-FIX.md |
-| IN-02 | info | fixed | 04-REVIEW-FIX.md |
-| IN-03 | info | fixed | 04-REVIEW-FIX.md |
-| IN-04 | info | fixed | 04-REVIEW-FIX.md |
-| IN-05 | info | skipped | 04-REVIEW-FIX.md |
-| IN-06 | info | fixed | 04-REVIEW-FIX.md |
+| IN-01 | info | open | - |
+| IN-02 | info | open | - |
+| IN-03 | info | open | - |
+| IN-04 | info | fixed | 04-REVIEW-FIX.md (not in the current review) |
+| IN-05 | info | skipped | 04-REVIEW-FIX.md (not in the current review) |
+| IN-06 | info | fixed | 04-REVIEW-FIX.md (not in the current review) |
 | WR-01 | warning | fixed | 04-REVIEW-FIX.md (not in the current review) |
 | WR-02 | warning | fixed | 04-REVIEW-FIX.md (not in the current review) |
 | WR-03 | warning | fixed | 04-REVIEW-FIX.md (not in the current review) |
