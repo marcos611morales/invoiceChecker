@@ -22,7 +22,7 @@ status: partial
 
 ## Fixed Issues
 
-### WR-02: `startRun` does not guard `outcome.apply()`
+### WR-02: `startRun` does not guard `outcome.apply()`, so a throwing apply rejects the run promise and loses the run state
 
 **Files modified:** `src/stores/llmRunStore.ts`, `src/stores/llmRunStore.test.ts`
 **Commit:** 2cc343b
@@ -34,7 +34,7 @@ status: partial
 **Commit:** f771b69
 **Applied fix:** Both routes now compare the media type exactly (`content-type` split at `;`, trimmed, lowercased, must equal `application/json`). The shared-helper extraction (IN-01) was not done: it is out of scope (Info). New tests in both route suites: `text/plain; application/json` gives 400 and never calls DeepSeek; `Application/JSON; charset=utf-8` is accepted (200).
 
-### WR-05: A late batch answer is enqueued without re-checking accepted products and «No agrupar» marks
+### WR-05: A late batch answer is enqueued without re-checking the accepted products and «No agrupar» marks
 
 **Files modified:** `src/stores/llmRunStore.ts`, `src/stores/llmRunStore.test.ts`
 **Commit:** a6f302f
