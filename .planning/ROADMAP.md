@@ -311,7 +311,31 @@ Plans:
   3. Servicios, gasolina, comisiones y similares no aparecen por defecto en la comparación, y el usuario puede cambiar la marca "no comparable" de un producto.
   4. El usuario ve un ahorro estimado, etiquetado como estimado, de haber comprado en la tienda más barata, y el historial del precio de un producto en el tiempo.
 
-**Plans**: TBD
+**Plans:** 9 plans
+
+Plans:
+**Wave 1** *(the two plans run in parallel)*
+- [ ] 05-01-PLAN.md — Tracer: pestaña Precios, compras de productos agrupados, contenido por unidad SAT, mediana por tienda, tienda más barata, ahorro estimado y reglas completas de comparación
+- [ ] 05-02-PLAN.md — Ajustes versión 4 y archivo de ajustes versión 3 con correcciones de contenido y marcas «no comparable» (decisión de forma antes de escribir; D-15, D-19)
+
+**Wave 2** *(blocked on Wave 1 completion; the two plans run in parallel)*
+- [ ] 05-03-PLAN.md — Tabla y pestaña completas: filtros, tarjeta, buscador, orden, paginación, insignias y estados vacíos
+- [ ] 05-04-PLAN.md — Lector de tamaños en la descripción (peso, volumen y conteos de piezas, D-25) con prueba sobre la muestra real
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 05-05-PLAN.md — Panel del producto: resumen, tabla por tienda con la más barata resaltada, avisos y lista de compras
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 05-06-PLAN.md — Historial de precio por tienda (PREC-06) con colores y formas estables (decisión del tipo de gráfica antes de construirla)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 05-07-PLAN.md — «No comparable»: valor por defecto por ClaveProdServ, menú «⋯» con Deshacer y casilla «Mostrar los no comparables»
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 05-08-PLAN.md — Corrección y captura del contenido por descripción con recálculo inmediato
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 05-09-PLAN.md — Verificación en el build de producción: flujo completo, privacidad, persistencia, anchos y capturas para la revisión final
 **UI hint**: yes
 **Research flag**: sí — normalización de unidades (ClaveUnidad SAT, presentaciones dentro de la descripción como "1 kg" o "pza") y qué familias de ClaveProdServ son "no comparables" por defecto.
 
@@ -326,4 +350,4 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
 | 3. Categorías propias y exportación a Excel | 20/20 | Complete    | 2026-10-19 |
 | 4. Agrupación de productos con DeepSeek | 21/21 | Complete    | 2026-10-25 |
-| 5. Comparación de precios entre tiendas | 0/TBD | Not started | - |
+| 5. Comparación de precios entre tiendas | 0/9 | Not started | - |
