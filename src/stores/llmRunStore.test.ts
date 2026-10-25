@@ -704,6 +704,57 @@ function categorizeAnswer(answers: CategorizeAnswers): Awaited<ReturnType<typeof
   return { ok: true, data: { answers, meta: metaOf() } };
 }
 
+describe("groupBatches: descriptions taken while the request was in flight (WR-05, D-22)", () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ products: [], ungroupedConcepts: [] });
+  });
+  afterEach(() => {
+    useSettingsStore.setState({ products: [], ungroupedConcepts: [] });
+  });
+
+  it("leaves out a description that got a «No agrupar» mark and a card left empty", async () => {
+    const run = buildGroupRun([sampleItem(1), sampleItem(2), sampleItem(3)], []);
+    vi.mocked(postGroup).mockImplementationOnce(() => {
+      useSettingsStore.setState({
+        ungroupedConcepts: [
+          { rfc: "AAA010101AAA", key: "descripcion 3", description: "Descripción 3", supplierName: "Tienda Uno" },
+        ],
+      });
+      return Promise.resolve(
+        answer([
+          { name: "Uno y dos", ids: ["i1", "i2"], existing: null },
+          { name: "Tres", ids: ["i3"], existing: null },
+        ]),
+      );
+    });
+    await useLlmRunStore.getState().startGroupRun(run);
+    const queue = useSuggestionsStore.getState().products;
+    expect(queue.map((card) => card.name)).toEqual(["Uno y dos"]);
+    expect(useLlmRunStore.getState().status).toMatchObject({ phase: "finished", received: 1 });
+  });
+
+  it("leaves out a description that became a member of an accepted product", async () => {
+    const run = buildGroupRun([sampleItem(1), sampleItem(2)], []);
+    vi.mocked(postGroup).mockImplementationOnce(() => {
+      useSettingsStore.setState({
+        products: [
+          {
+            id: "prod_uno",
+            name: "Uno",
+            categoryId: null,
+            members: [{ rfc: "AAA010101AAA", key: "descripcion 1", description: "Descripción 1", supplierName: "Tienda Uno" }],
+          },
+        ],
+      });
+      return Promise.resolve(answer([{ name: "Uno y dos", ids: ["i1", "i2"], existing: null }]));
+    });
+    await useLlmRunStore.getState().startGroupRun(run);
+    const queue = useSuggestionsStore.getState().products;
+    expect(queue).toHaveLength(1);
+    expect(queue[0]?.members.map((m) => m.description)).toEqual(["Descripción 2"]);
+  });
+});
+
 describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
   function firstBatch(): { batch: RunBatch; run: ReturnType<typeof buildCategorizeRun> } {
     const run = buildCategorizeRun(CATEGORY_TARGETS, USER_CATEGORIES);

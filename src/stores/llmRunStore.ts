@@ -114,6 +114,21 @@ function acceptedProductOf(): (key: string) => string | null {
 }
 
 /**
+ * The member keys the live settings hold now: those of every accepted product and every
+ * «No agrupar» mark. A batch answer arrives long after its request was built, so what it names
+ * is checked against this again before it is queued (D-22).
+ */
+function takenBySettings(): ReadonlySet<string> {
+  const { products, ungroupedConcepts } = useSettingsStore.getState();
+  const keys = new Set<string>();
+  for (const product of products) {
+    for (const member of product.members) keys.add(ruleMapKey(member.rfc, member.key));
+  }
+  for (const mark of ungroupedConcepts) keys.add(ruleMapKey(mark.rfc, mark.key));
+  return keys;
+}
+
+/**
  * The request of batch k of a run (D-28, D-33): the body built at send time plus, after the
  * accepted names, the names of the cards the earlier batches of this run enqueued, as p(K+1)..
  * and never more than `LLM_LIMITS.contextNames` in all. With no earlier card the built body and
@@ -169,7 +184,17 @@ export function groupBatches(run: GroupRun): RunBatch[] {
         apply: () => {
           const store = useSuggestionsStore.getState();
           const before = store.products.length;
-          const answer = resolveProductAnswer(groups, batch.idMap, request.targets, newSuggestionId, {
+          // A description that became a product member or got a «No agrupar» mark while the
+          // request was in flight is left out: it must not come back as a card (D-22).
+          const taken = takenBySettings();
+          const open = groups.map((group) => ({
+            ...group,
+            ids: group.ids.filter((id) => {
+              const member = batch.idMap.get(id);
+              return member === undefined || !taken.has(memberKey(member));
+            }),
+          }));
+          const answer = resolveProductAnswer(open, batch.idMap, request.targets, newSuggestionId, {
             queue: store.products,
             productIdOfMember: acceptedProductOf(),
             runCards: new Map([...runCards].map(([id, card]) => [id, card.memberKeys])),
