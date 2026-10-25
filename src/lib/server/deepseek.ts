@@ -319,6 +319,8 @@ function interpretGroups(request: GroupRequest): (output: unknown) => AttemptOut
     const mapped: Groups = [];
     let unnamed = false;
     for (const group of model.data.g) {
+      // A group with no id carries nothing: it is dropped here, before the coverage check (IN-04).
+      if (group.i.length === 0) continue;
       const firstId = group.i[0];
       const fallback = firstId === undefined ? undefined : descriptions.get(firstId);
       const name =

@@ -118,13 +118,15 @@ export type GroupRequest = z.infer<typeof groupRequestSchema>;
 
 /**
  * Compact answer of the model: {"g":[{"n":"Leche entera","i":["i1","i7"],"e":null}]}
- * where `e` is the id (p#) of an existing product, or null.
+ * where `e` is the id (p#) of an existing product, or null. A group with no id is accepted here
+ * and dropped by the caller before the coverage check, so one empty group does not lose the
+ * valid groups of its batch (IN-04).
  */
 export const groupModelOutputSchema = z.object({
   g: z.array(
     z.object({
       n: z.string(),
-      i: z.array(z.string()).min(1),
+      i: z.array(z.string()),
       e: z.string().nullable().optional(),
     }),
   ),

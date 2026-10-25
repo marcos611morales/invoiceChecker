@@ -370,6 +370,73 @@ describe("same-name groups of one answer are merged (A-5)", () => {
   });
 });
 
+describe("a group with no ids is dropped, not fatal (IN-04)", () => {
+  it("keeps the valid groups of the batch and answers ok on the first attempt", async () => {
+    fetchMock.mockResolvedValueOnce(
+      completion({
+        g: [
+          { n: "Leche entera", i: ["i1", "i2"], e: null },
+          { n: "Vacío", i: [], e: null },
+          { n: "Azúcar", i: ["i3"], e: null },
+        ],
+      }),
+    );
+    const result = await run();
+    expect(result).toMatchObject({
+      ok: true,
+      data: [
+        { name: "Leche entera", ids: ["i1", "i2"], existing: null },
+        { name: "Azúcar", ids: ["i3"], existing: null },
+      ],
+      meta: { attempts: 1 },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not merge an empty group into a group of the same name", async () => {
+    fetchMock.mockResolvedValueOnce(
+      completion({
+        g: [
+          { n: "Leche entera", i: ["i1", "i2"], e: null },
+          { n: "leche entera", i: [], e: null },
+          { n: "Azúcar", i: ["i3"], e: null },
+        ],
+      }),
+    );
+    const result = await run();
+    expect(result).toMatchObject({
+      ok: true,
+      data: [
+        { name: "Leche entera", ids: ["i1", "i2"], existing: null },
+        { name: "Azúcar", ids: ["i3"], existing: null },
+      ],
+    });
+  });
+
+  it("still checks the coverage after the empty group is dropped: a missing id is incomplete_response", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        completion({
+          g: [
+            { n: "Leche entera", i: ["i1", "i2"], e: null },
+            { n: "Vacío", i: [], e: null },
+          ],
+        }),
+      ),
+    );
+    const result = await run();
+    expect(result).toMatchObject({ ok: false, error: "incomplete_response", meta: { attempts: 2 } });
+  });
+
+  it("answers invalid_response only when the shape is really wrong, not for an empty id list", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(completion({ g: [{ n: "Leche", i: "i1", e: null }] })),
+    );
+    const result = await run();
+    expect(result).toMatchObject({ ok: false, error: "invalid_response" });
+  });
+});
+
 describe("one content-free log line per call (Pitfall 1, T-04-12)", () => {
   it("logs exactly one [llm] line with codes and counts only", async () => {
     fetchMock.mockResolvedValueOnce(completion("")).mockResolvedValueOnce(good());
