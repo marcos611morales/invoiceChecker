@@ -328,7 +328,14 @@ export const useLlmRunStore = create<LlmRunState>()((set, get) => ({
           continue;
         }
         // The cards of each batch enter the queue as soon as that batch lands (D-26).
-        received += outcome.apply();
+        try {
+          received += outcome.apply();
+        } catch {
+          // An apply that throws (a failed mapping or write) is an unusable answer too: the batch
+          // fails, the run goes on and `startRun` keeps its promise of never throwing.
+          failed += 1;
+          lastError = "invalid_response";
+        }
       }
       if (cleared()) {
         set({ status: { phase: "idle" } });

@@ -375,6 +375,32 @@ describe("failure policy (D-27, T-04-29)", () => {
   });
 });
 
+describe("an apply that throws (WR-02)", () => {
+  it("counts the batch as failed, goes on with the next one and never rejects", async () => {
+    const throwing: RunBatch = {
+      send: () =>
+        Promise.resolve({
+          ok: true,
+          apply: () => {
+            throw new Error("randomUUID is not available");
+          },
+        }),
+    };
+    const two = controlled();
+    const done = useLlmRunStore.getState().startRun("group", [throwing, two.batch]);
+    await started(two);
+    two.ok(3);
+    await expect(done).resolves.toBeUndefined();
+    expect(useLlmRunStore.getState().status).toMatchObject({
+      phase: "partial",
+      failed: 1,
+      received: 3,
+      lastError: "invalid_response",
+    });
+    expect(useLlmRunStore.getState().controller).toBeNull();
+  });
+});
+
 describe("startGroupRun stays a thin wrapper", () => {
   it("runs the group batches of a GroupRun through startRun", async () => {
     vi.mocked(postGroup).mockResolvedValue({ ok: false, error: "upstream_auth" });
