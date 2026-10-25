@@ -60,13 +60,13 @@ status: all_fixed
 
 ## Verification
 
-Run in the isolated worktree of quick task 261025-cgg (`.claude/worktrees/agent-a851fe94ebda7ded2`), through the main checkout's binaries (`node_modules/.bin/tsc`, `eslint`, `vitest`) because pnpm refuses the worktree's symlinked `node_modules`. The worktree has no `.next/types`, so `tsc` shows the expected generated-type error `LayoutProps` in `src/app/layout.tsx` (it does not occur in the main checkout). The three gates still have to be re-run in the main checkout after the merge.
+Run in the main checkout after the quick task 261025-cgg worktree was merged into `main` (merge commit 83466f9):
 
-- `tsc --noEmit`: only the expected `src/app/layout.tsx(24,50): error TS2304: Cannot find name 'LayoutProps'.`; no other error.
-- `eslint .`: 0 errors, 1 warning (pre-existing, unrelated: unused `eslint-disable` directive in `src/lib/client/navigation.ts:6`).
-- `vitest run`: 93 test files passed, 6 skipped; 2846 tests passed, 75 skipped. The extra skips versus the main checkout are the `*.realdata.test.ts` suites (the untracked `Facturas/` data is not in the worktree) plus the 10 live-LLM tests that always skip.
+- `pnpm tsc --noEmit`: passed, no output.
+- `pnpm eslint .`: 0 errors, 1 warning (pre-existing, unrelated: unused `eslint-disable` directive in `src/lib/client/navigation.ts:6`).
+- `pnpm vitest run`: 98 test files passed, 1 skipped; 2911 tests passed, 10 skipped (the live-LLM tests).
 
-Not in scope here: Info findings (IN-01 to IN-04), because `fix_scope` is `critical_warning`.
+Not yet checked by hand: rename a category to include an RFC (for example «Pagos EKU9003173C9») and confirm the «Sugerir categorías» dialog shows the red sentence and disables «Enviar a DeepSeek».
 
 ---
 
