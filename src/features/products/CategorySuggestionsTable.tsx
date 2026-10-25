@@ -130,7 +130,7 @@ function planAccept(settings: SettingsData, row: CategorySuggestion): AcceptPlan
     }
   }
   if (row.kind === "supplier") {
-    const assigned = setSupplierCategory(draft, row.rfc, row.name, categoryId);
+    const assigned = setSupplierCategory(draft, row.rfc, row.fullName ?? row.name, categoryId);
     if (!assigned.ok) {
       return { ok: false, reason: assigned.reason === "limit" ? "supplier-limit" : "choose" };
     }
@@ -265,7 +265,11 @@ export function CategorySuggestionsTable({ rows, onAnnounce, onEmptied }: Catego
     }
     if (name === null) return { kind: "ignored" };
     if (row.kind === "supplier") {
-      const result = useSettingsStore.getState().setSupplierCategory(row.rfc, row.name, categoryId);
+      const result = useSettingsStore.getState().setSupplierCategory(
+        row.rfc,
+        row.fullName ?? row.name,
+        categoryId,
+      );
       if (!result.ok) return { kind: "ignored" };
     } else {
       const result = useSettingsStore.getState().setProductCategory(row.productId, categoryId);

@@ -10,6 +10,7 @@ import { orderedCategories } from "../settings/categories";
 import { normalizeDescription, ruleMapKey } from "../settings/normalize";
 import type { Category, SettingsData } from "../settings/types";
 import { LLM_LIMITS, type CategorizeRequest, type GroupRequest } from "./contract";
+import { isSensitive } from "./sensitive";
 import type { PendingQueue, SuggestionMember } from "./suggestions";
 
 /** One distinct pair of supplier RFC and normalized description. */
@@ -87,42 +88,16 @@ export function freeItems(
   return items.filter((item) => !taken.has(ruleMapKey(item.rfc, item.key)));
 }
 
-// ---------------------------------------------------------------------------------------
-// The sensitive-pattern guard (UI-SPEC OQ7, LLM-03, T-04-40). Vendor text can carry identifiers
-// typed by the issuer; the request schemas only stop fields, not what a description says. So every
-// text that would leave the browser is checked here, and what matches is kept out of every body.
-
-/** An RFC: 3 or 4 letters (Ñ and & included), 6 digits (the date) and 3 letters or digits. */
-const RFC_PATTERN = /(?<![\p{L}\d])[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}(?![\p{L}\d])/iu;
-/** A UUID, 8-4-4-4-12 hexadecimal. */
-const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-/** An e-mail address. */
-const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+/i;
-/** A long number: 8 or more consecutive digits. */
-const LONG_NUMBER_PATTERN = /\d{8,}/;
-
-/**
- * True when `text` has something shaped like an RFC, a UUID, an e-mail address or a run of 8 or
- * more digits. It errs on the side of withholding: a product code that happens to look like an RFC
- * is kept in the browser and listed in the dialog, never sent. The patterns carry no `g` flag, so
- * they hold no state between calls.
- */
-export function isSensitive(text: string): boolean {
-  return (
-    RFC_PATTERN.test(text) ||
-    UUID_PATTERN.test(text) ||
-    LONG_NUMBER_PATTERN.test(text) ||
-    // The `@` check first keeps the e-mail pattern from scanning long texts that cannot match.
-    (text.includes("@") && EMAIL_PATTERN.test(text))
-  );
-}
+// The sensitive-pattern guard (UI-SPEC OQ7, LLM-03, T-04-40): `isSensitive` and its patterns live
+// in ./sensitive.ts, which has no imports so the request schemas can use it too (WR-04).
+export { isSensitive };
 
 /**
  * True when the text or its cut version is sensitive: the version that is sent is what matters,
  * but a cut can leave a pattern's start in the body (an RFC followed by «…» reads as a whole one),
  * so the whole text counts too.
  */
-function looksSensitive(text: string, max: number): boolean {
+export function looksSensitive(text: string, max: number): boolean {
   return isSensitive(text) || isSensitive(cutText(text, max));
 }
 
@@ -348,6 +323,12 @@ export interface CategorizeRun {
   categories: number;
   /** Targets kept out of every body (sensitive pattern); shown in the dialog only, never sent. */
   withheld: CategorizeTarget[];
+  /**
+   * The names of the user's categories that would travel and look sensitive (the name or its cut
+   * version), in the order they would travel. While it is not empty the run must not be sent: the
+   * dialog tells the user which category to rename and the store refuses to start it (WR-04).
+   */
+  sensitiveCategories: string[];
 }
 
 /**
@@ -479,5 +460,8 @@ export function buildCategorizeRun(
     members,
     categories: sent.length === 0 ? 0 : sorted.length,
     withheld,
+    sensitiveCategories: sorted
+      .filter((category) => looksSensitive(category.name, LLM_LIMITS.productName))
+      .map((category) => category.name),
   };
 }

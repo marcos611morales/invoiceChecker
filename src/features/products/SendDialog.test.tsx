@@ -218,6 +218,42 @@ describe("the categorize dialog lists what is sent (LLM-06)", () => {
     ).toBeInTheDocument();
   });
 
+  describe("a category name that looks sensitive (WR-04)", () => {
+    const BLOCKING =
+      "No se puede enviar: la categoría «Pagos EKU9003173C9» contiene algo que parece un RFC, un UUID, un correo o un número largo. Cámbiale el nombre en la pestaña Categorías y vuelve a intentarlo.";
+
+    it("shows the blocking sentence and disables «Enviar a DeepSeek», which sends nothing", () => {
+      const run = buildCategorizeRun(TARGETS, [
+        ...CATEGORIES,
+        { id: "cat_pagos", name: "Pagos EKU9003173C9" },
+      ]);
+      expect(run.sensitiveCategories).toEqual(["Pagos EKU9003173C9"]);
+      const onConfirm = vi.fn<() => void>();
+      render(<CategorizeSendDialog run={run} open onOpenChange={noop} onConfirm={onConfirm} />);
+      const alert = within(dialog()).getByRole("alert");
+      expect(alert).toHaveTextContent(BLOCKING);
+      expect(alert).toHaveClass("text-destructive");
+      const confirm = within(dialog()).getByRole("button", { name: "Enviar a DeepSeek" });
+      expect(confirm).toBeDisabled();
+      fireEvent.click(confirm);
+      expect(onConfirm).not.toHaveBeenCalled();
+      expect(within(dialog()).getByRole("button", { name: "No enviar" })).toBeEnabled();
+    });
+
+    it("shows no sentence and keeps the button enabled for a clean run", () => {
+      const run = buildCategorizeRun(TARGETS, CATEGORIES);
+      expect(run.sensitiveCategories).toEqual([]);
+      const onConfirm = vi.fn<() => void>();
+      render(<CategorizeSendDialog run={run} open onOpenChange={noop} onConfirm={onConfirm} />);
+      expect(within(dialog()).queryByRole("alert")).toBeNull();
+      expect(within(dialog()).queryByText(/No se puede enviar/)).toBeNull();
+      const confirm = within(dialog()).getByRole("button", { name: "Enviar a DeepSeek" });
+      expect(confirm).toBeEnabled();
+      fireEvent.click(confirm);
+      expect(onConfirm).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("closing with «No enviar» calls onOpenChange and sends nothing", () => {
     const run = buildCategorizeRun(TARGETS, CATEGORIES);
     const onOpenChange = vi.fn<(open: boolean) => void>();

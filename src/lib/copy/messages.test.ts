@@ -135,6 +135,7 @@ import {
   categoryBulkTitle,
   categoryBulkToast,
   withheldHeading,
+  sensitiveCategoriesText,
   bulkAcceptedToast,
   bulkRejectedToast,
   filterToggleLabel,
@@ -1290,6 +1291,18 @@ describe("«Aceptar todas» of the category table (D-23, UI-SPEC OQ6)", () => {
   it("words the group of the send dialog that the sensitive-pattern guard keeps out (UI-SPEC OQ7)", () => {
     expect(withheldHeading(3)).toBe(
       "No se enviarán (3): contienen algo que parece un RFC, un UUID, un correo o un número largo.",
+    );
+  });
+
+  it("words the sentence that blocks the send when a category name looks sensitive (WR-04)", () => {
+    expect(sensitiveCategoriesText(["Pagos EKU9003173C9"])).toBe(
+      "No se puede enviar: la categoría «Pagos EKU9003173C9» contiene algo que parece un RFC, un UUID, un correo o un número largo. Cámbiale el nombre en la pestaña Categorías y vuelve a intentarlo.",
+    );
+    expect(sensitiveCategoriesText(["A", "B"])).toBe(
+      "No se puede enviar: las categorías «A» y «B» contienen algo que parece un RFC, un UUID, un correo o un número largo. Cámbiales el nombre en la pestaña Categorías y vuelve a intentarlo.",
+    );
+    expect(sensitiveCategoriesText(["A", "B", "C"])).toBe(
+      "No se puede enviar: las categorías «A», «B» y «C» contienen algo que parece un RFC, un UUID, un correo o un número largo. Cámbiales el nombre en la pestaña Categorías y vuelve a intentarlo.",
     );
   });
 

@@ -247,6 +247,44 @@ describe("POST /api/llm/categorize: the request checks (LLM-03, T-04-37)", () =>
   });
 });
 
+describe("POST /api/llm/categorize: the sensitive-pattern guard (WR-04)", () => {
+  async function expectRefused(body: unknown): Promise<void> {
+    const result = await answer(await POST(request(JSON.stringify(body))));
+    expect(result.status).toBe(400);
+    expect(result.json).toEqual({ error: "bad_request", retryable: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  }
+
+  it("answers 400 bad_request, without calling DeepSeek, to a supplier name that holds an RFC", async () => {
+    await expectRefused({ ...BODY, suppliers: [{ id: "s1", name: "Tienda EKU9003173C9" }] });
+  });
+
+  it("answers 400 bad_request to a product name with a long number", async () => {
+    await expectRefused({
+      ...BODY,
+      products: [{ id: "q1", name: "Leche 12345678", members: ["MM LECHE ENT"] }],
+    });
+  });
+
+  it("answers 400 bad_request to a member that is a UUID", async () => {
+    await expectRefused({
+      ...BODY,
+      products: [{ id: "q1", name: "Leche entera", members: ["3F2504E0-4F89-41D3-9A0C-0305E82C3301"] }],
+    });
+  });
+
+  it("answers 400 bad_request to a category name that is an e-mail address", async () => {
+    await expectRefused({ ...BODY, categories: [{ id: "c1", name: "pedidos@tienda.mx" }] });
+  });
+
+  it("still answers 200 to a clean request", async () => {
+    fetchMock.mockResolvedValueOnce(goodAnswer());
+    const result = await answer(await POST(request(JSON.stringify(BODY))));
+    expect(result.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("POST /api/llm/categorize: the DeepSeek call and our own answer (D-17, D-27)", () => {
   it("maps a valid answer to our codes, in the order the ids were sent, with the meta", async () => {
     fetchMock.mockResolvedValueOnce(goodAnswer());

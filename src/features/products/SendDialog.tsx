@@ -30,6 +30,7 @@ import {
   groupSendSummary,
   itemsGroupHeading,
   productsGroupHeading,
+  sensitiveCategoriesText,
   suppliersGroupHeading,
   withheldHeading,
 } from "@/lib/copy/messages";
@@ -79,6 +80,11 @@ interface ShellProps {
   lines: ReactNode;
   /** The groups of the disclosure, each a `<section>`, rendered from the bodies that are sent. */
   groups: ReactNode;
+  /**
+   * The sentence that says why the run cannot be sent, or null when it can. While it is set, it is
+   * shown under the summary and «Enviar a DeepSeek» is disabled (WR-04).
+   */
+  blocked: string | null;
 }
 
 /**
@@ -86,7 +92,15 @@ interface ShellProps {
  * never sends by accident. Descriptions, supplier names and product names are vendor or user text
  * and only ever rendered as React text.
  */
-function SendDialogShell({ open, onOpenChange, onConfirm, summary, lines, groups }: ShellProps) {
+function SendDialogShell({
+  open,
+  onOpenChange,
+  onConfirm,
+  summary,
+  lines,
+  groups,
+  blocked,
+}: ShellProps) {
   const dismissRef = useRef<HTMLButtonElement>(null);
   // Set by the confirm button: once the run is started, closing the dialog hands focus to the
   // run card's stop button instead of the entry button (UI-SPEC send flow, step 3).
@@ -108,6 +122,11 @@ function SendDialogShell({ open, onOpenChange, onConfirm, summary, lines, groups
             {es.products.dialog.title}
           </AlertDialogTitle>
           <AlertDialogDescription>{summary}</AlertDialogDescription>
+          {blocked === null ? null : (
+            <p role="alert" className="text-sm text-destructive break-words">
+              {blocked}
+            </p>
+          )}
           {lines}
           <p className="text-sm text-muted-foreground">{es.products.dialog.peopleLine}</p>
         </AlertDialogHeader>
@@ -132,7 +151,9 @@ function SendDialogShell({ open, onOpenChange, onConfirm, summary, lines, groups
           </AlertDialogCancel>
           <AlertDialogAction
             className="max-sm:h-11"
+            disabled={blocked !== null}
             onClick={() => {
+              if (blocked !== null) return;
               confirmed.current = true;
               onConfirm();
             }}
@@ -170,6 +191,7 @@ export function SendDialog({
       onOpenChange={onOpenChange}
       onConfirm={onConfirm}
       summary={groupSendSummary(sent, run.suppliers)}
+      blocked={null}
       lines={
         <>
           {context.length > 0 ? (
@@ -283,6 +305,9 @@ export function CategorizeSendDialog({
       onOpenChange={onOpenChange}
       onConfirm={onConfirm}
       summary={categorizeSendSummary(suppliers.length, products.length, members, categories.length)}
+      blocked={
+        run.sensitiveCategories.length > 0 ? sensitiveCategoriesText(run.sensitiveCategories) : null
+      }
       lines={
         run.batches.length > 1 ? (
           <p className="text-sm text-muted-foreground">{batchesLine(run.batches.length)}</p>

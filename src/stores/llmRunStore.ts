@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import {
   cutText,
+  isSensitive,
+  looksSensitive,
   type CategorizeRun,
   type ContextTarget,
   type GroupBatch,
@@ -74,7 +76,12 @@ interface LlmRunState {
   startRun: (kind: RunKind, batches: readonly RunBatch[]) => Promise<void>;
   /** The tracer entry point: a thin wrapper of `startRun("group", groupBatches(run))`. */
   startGroupRun: (run: GroupRun) => Promise<void>;
-  /** The same for «Sugerir categorías»: a thin wrapper of `startRun("categorize", categorizeBatches(run))`. */
+  /**
+   * The same for «Sugerir categorías»: a thin wrapper of `startRun("categorize", categorizeBatches(run))`.
+   * It sends nothing, and changes no status, for a run with a user category name that looks
+   * sensitive (`run.sensitiveCategories`, or a name in any batch body when the run was built or
+   * altered elsewhere): the send dialog is where the user is told which category to rename (WR-04).
+   */
   startCategorizeRun: (run: CategorizeRun) => Promise<void>;
   /** Stops the batch in flight and every later one; keeps what already arrived. */
   cancel: () => void;
@@ -133,7 +140,9 @@ function takenBySettings(): ReadonlySet<string> {
  * accepted names, the names of the cards the earlier batches of this run enqueued, as p(K+1)..
  * and never more than `LLM_LIMITS.contextNames` in all. With no earlier card the built body and
  * targets come back as they are. The result is for the request only: the dialog keeps listing the
- * bodies built at send time.
+ * bodies built at send time. A card name that looks sensitive (an RFC, a UUID, an e-mail or a
+ * long number, name or cut version) is left out without a word, and the ids of the names that
+ * are sent stay consecutive (LLM-03, WR-04).
  */
 function composeRequest(
   batch: GroupBatch,
@@ -144,6 +153,7 @@ function composeRequest(
   const targets = new Map(batch.targets);
   for (const card of earlier) {
     if (accepted + extra.length >= LLM_LIMITS.contextNames) break;
+    if (looksSensitive(card.name, LLM_LIMITS.productName)) continue;
     const name = cutText(card.name, LLM_LIMITS.productName);
     if (name === "") continue;
     const id = `p${String(accepted + extra.length + 1)}`;
@@ -262,7 +272,7 @@ export function categorizeBatches(run: CategorizeRun): RunBatch[] {
         const id = newCategoryRowId();
         rows.push(
           target.kind === "supplier"
-            ? { id, kind: "supplier", rfc: target.rfc, name, choice }
+            ? { id, kind: "supplier", rfc: target.rfc, name, fullName: target.name, choice }
             : { id, kind: "product", productId: target.productId, name, choice },
         );
       }
@@ -384,7 +394,13 @@ export const useLlmRunStore = create<LlmRunState>()((set, get) => ({
     }
   },
   startGroupRun: (run) => get().startRun("group", groupBatches(run)),
-  startCategorizeRun: (run) => get().startRun("categorize", categorizeBatches(run)),
+  startCategorizeRun: (run) => {
+    const blocked =
+      run.sensitiveCategories.length > 0 ||
+      run.batches.some((batch) => batch.body.categories.some((category) => isSensitive(category.name)));
+    if (blocked) return Promise.resolve();
+    return get().startRun("categorize", categorizeBatches(run));
+  },
   cancel: () => {
     const { status, controller } = get();
     if (status.phase !== "running" || controller === null) return;

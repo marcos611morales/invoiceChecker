@@ -3,9 +3,12 @@
  *
  * Every request schema is a `z.strictObject`: any key beyond the ones listed is
  * rejected at every level, so nothing but an opaque id, a description and a
- * supplier display name can reach the route or DeepSeek. Pure: zod only.
+ * supplier display name can reach the route or DeepSeek. The free-text fields of the request
+ * schemas also refuse a text that looks like an RFC, a UUID, an e-mail or a long number (LLM-03,
+ * WR-04). Pure: depends on zod and on the import-free `sensitive.ts` only.
  */
 import { z } from "zod";
+import { isSensitive } from "./sensitive";
 
 export const LLM_LIMITS = {
   groupItems: 120,
@@ -74,13 +77,29 @@ export const llmMetaSchema = z.object({
 
 export type LlmMeta = z.infer<typeof llmMetaSchema>;
 
+/**
+ * A free-text field of a request: trimmed, 1 to `max` characters, and not sensitive (RFC, UUID,
+ * e-mail or long number, see `sensitive.ts`). The browser withholds such texts before building a
+ * body, so a body made by the app never trips the rule; a tampered body does, and the route
+ * answers 400 before DeepSeek is called (LLM-03, WR-04).
+ */
+function safeText(max: number) {
+  return z
+    .string()
+    .trim()
+    .min(1)
+    .max(max)
+    .refine((text) => !isSensitive(text), { message: "sensitive" });
+}
+
+/** A request whose free text looks like an RFC, a UUID, an e-mail or a long number is invalid. */
 export const groupRequestSchema = z.strictObject({
   items: z
     .array(
       z.strictObject({
         id: z.string().regex(/^i\d{1,4}$/),
-        description: z.string().trim().min(1).max(LLM_LIMITS.description),
-        supplier: z.string().trim().min(1).max(LLM_LIMITS.supplier),
+        description: safeText(LLM_LIMITS.description),
+        supplier: safeText(LLM_LIMITS.supplier),
       }),
     )
     .min(1)
@@ -89,7 +108,7 @@ export const groupRequestSchema = z.strictObject({
     .array(
       z.strictObject({
         id: z.string().regex(/^p\d{1,4}$/),
-        name: z.string().trim().min(1).max(LLM_LIMITS.productName),
+        name: safeText(LLM_LIMITS.productName),
       }),
     )
     .max(LLM_LIMITS.contextNames),
@@ -135,15 +154,15 @@ export const categorizeRequestSchema = z
     suppliers: z.array(
       z.strictObject({
         id: z.string().regex(/^s\d{1,4}$/),
-        name: z.string().trim().min(1).max(LLM_LIMITS.supplier),
+        name: safeText(LLM_LIMITS.supplier),
       }),
     ),
     products: z.array(
       z.strictObject({
         id: z.string().regex(/^q\d{1,4}$/),
-        name: z.string().trim().min(1).max(LLM_LIMITS.productName),
+        name: safeText(LLM_LIMITS.productName),
         members: z
-          .array(z.string().trim().min(1).max(LLM_LIMITS.description))
+          .array(safeText(LLM_LIMITS.description))
           .min(1)
           .max(LLM_LIMITS.membersPerProduct),
       }),
@@ -152,7 +171,7 @@ export const categorizeRequestSchema = z
       .array(
         z.strictObject({
           id: z.string().regex(/^c\d{1,3}$/),
-          name: z.string().trim().min(1).max(LLM_LIMITS.productName),
+          name: safeText(LLM_LIMITS.productName),
         }),
       )
       .max(LLM_LIMITS.categories),

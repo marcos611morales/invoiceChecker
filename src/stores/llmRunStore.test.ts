@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildCategorizeRun,
   buildGroupRun,
+  cutText,
   type CategorizeTarget,
   type LlmItem,
 } from "@/domain/llm/candidates";
@@ -558,6 +559,23 @@ describe("groupBatches: earlier-batch names on later batches (D-28, D-33)", () =
     expect(run.batches[1]?.body.existing).toEqual([{ id: "p1", name: "Leche" }]);
   });
 
+  it("leaves out an earlier card whose name looks sensitive, with the ids still consecutive (WR-04)", async () => {
+    const run = twoBatchRun([{ productId: "prod_a", name: "Leche" }]);
+    vi.mocked(postGroup)
+      .mockResolvedValueOnce(
+        answer([
+          { name: "PEDIDO 12345678", ids: ["i1"], existing: null },
+          { name: "Uno", ids: ["i2"], existing: null },
+        ]),
+      )
+      .mockResolvedValueOnce(answer([{ name: "Dos", ids: ["i1"], existing: null }]));
+    await useLlmRunStore.getState().startGroupRun(run);
+    expect(bodies()[1]?.existing).toEqual([
+      { id: "p1", name: "Leche" },
+      { id: "p2", name: "Uno" },
+    ]);
+  });
+
   it("caps the context at 400 names in all, accepted first", async () => {
     const accepted = Array.from({ length: LLM_LIMITS.contextNames - 1 }, (_, index) => ({
       productId: `prod_${String(index)}`,
@@ -797,6 +815,39 @@ describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
     expect(useSuggestionsStore.getState().categories).toHaveLength(2);
   });
 
+  it("keeps the full supplier name next to the cut display name; a product row has no fullName (WR-01)", async () => {
+    const longName = `Comercializadora ${"Internacional ".repeat(6)}SA de CV`.slice(0, 90);
+    expect(longName).toHaveLength(90);
+    const run = buildCategorizeRun(
+      [
+        { kind: "supplier", rfc: "AAA010101AAA", name: longName },
+        { kind: "product", productId: "prod_a", name: "Leche entera", members: ["MM LECHE ENT"] },
+      ],
+      USER_CATEGORIES,
+    );
+    const batch = categorizeBatches(run)[0];
+    if (batch === undefined) throw new Error("expected a batch");
+    vi.mocked(postCategorize).mockResolvedValue(
+      categorizeAnswer([
+        { id: "s1", choice: { kind: "code", code: "c1" } },
+        { id: "q1", choice: { kind: "code", code: "c1" } },
+      ]),
+    );
+    const result = await batch.send(new AbortController().signal);
+    if (!result.ok) throw new Error("expected ok");
+    result.apply();
+    const rows = useSuggestionsStore.getState().categories;
+    const supplier = rows[0];
+    const product = rows[1];
+    if (supplier === undefined || supplier.kind !== "supplier") throw new Error("expected a supplier row");
+    expect(supplier.name).toBe(cutText(longName, LLM_LIMITS.productName));
+    expect(supplier.name.length).toBeLessThanOrEqual(LLM_LIMITS.productName);
+    expect(supplier.name.endsWith("…")).toBe(true);
+    expect(supplier.fullName).toBe(longName);
+    if (product === undefined) throw new Error("expected a product row");
+    expect("fullName" in product).toBe(false);
+  });
+
   it("skips a target that already has a row from another run", async () => {
     useSuggestionsStore.getState().enqueueCategories([
       { id: "cat_old", kind: "supplier", rfc: "AAA010101AAA", name: "Tienda Uno", choice: null },
@@ -856,6 +907,33 @@ describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
     const { batch } = firstBatch();
     vi.mocked(postCategorize).mockResolvedValue({ ok: false, error: "offline" });
     expect(await batch.send(new AbortController().signal)).toEqual({ ok: false, error: "offline" });
+  });
+
+  describe("a user category name that looks sensitive (WR-04)", () => {
+    const SENSITIVE_CATEGORIES = [...USER_CATEGORIES, { id: "cat_pagos", name: "Pagos EKU9003173C9" }];
+
+    it("lists it in run.sensitiveCategories, and the list is empty for clean categories", () => {
+      expect(buildCategorizeRun(CATEGORY_TARGETS, SENSITIVE_CATEGORIES).sensitiveCategories).toEqual([
+        "Pagos EKU9003173C9",
+      ]);
+      expect(buildCategorizeRun(CATEGORY_TARGETS, USER_CATEGORIES).sensitiveCategories).toEqual([]);
+    });
+
+    it("startCategorizeRun sends nothing and leaves the status idle", async () => {
+      const run = buildCategorizeRun(CATEGORY_TARGETS, SENSITIVE_CATEGORIES);
+      await useLlmRunStore.getState().startCategorizeRun(run);
+      expect(vi.mocked(postCategorize)).not.toHaveBeenCalled();
+      expect(useLlmRunStore.getState().status).toEqual({ phase: "idle" });
+    });
+
+    it("startCategorizeRun refuses a run whose body carries the name even when sensitiveCategories was emptied", async () => {
+      const built = buildCategorizeRun(CATEGORY_TARGETS, SENSITIVE_CATEGORIES);
+      expect(JSON.stringify(built.batches.map((batch) => batch.body))).toContain("EKU9003173C9");
+      const run = { ...built, sensitiveCategories: [] };
+      await useLlmRunStore.getState().startCategorizeRun(run);
+      expect(vi.mocked(postCategorize)).not.toHaveBeenCalled();
+      expect(useLlmRunStore.getState().status).toEqual({ phase: "idle" });
+    });
   });
 
   it("startCategorizeRun runs the batches as a «categorize» run and ends finished with the rows added", async () => {

@@ -679,6 +679,20 @@ function joinParts(parts: readonly string[]): string {
 }
 
 /**
+ * The sentence of the «Sugerir categorías» send dialog when the name of a user category looks like
+ * an RFC, a UUID, an e-mail or a long number, so the run cannot be sent (WR-04). The sentences are
+ * the user's, as decided on 2026-10-25: one category in the singular, two or more in the plural
+ * with the names in « » joined as «A», «B» y «C». The caller only uses it with at least one name.
+ */
+export function sensitiveCategoriesText(names: readonly string[]): string {
+  if (names.length === 1) {
+    return `No se puede enviar: la categoría «${names[0] ?? ""}» contiene algo que parece un RFC, un UUID, un correo o un número largo. Cámbiale el nombre en la pestaña Categorías y vuelve a intentarlo.`;
+  }
+  const list = joinParts(names.map((name) => `«${name}»`));
+  return `No se puede enviar: las categorías ${list} contienen algo que parece un RFC, un UUID, un correo o un número largo. Cámbiales el nombre en la pestaña Categorías y vuelve a intentarlo.`;
+}
+
+/**
  * Summary of the send dialog of «Sugerir categorías» (D-07, UI-SPEC line 204): «Se enviarán a
  * DeepSeek {m} nombres de proveedor, {p} nombres de producto con las descripciones de sus {k}
  * miembros y los nombres de tus {c} categorías. No se envían RFC, UUID, montos, fechas ni
