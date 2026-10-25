@@ -1,7 +1,8 @@
 ---
 phase: "05"
 slug: comparacion-de-precios-entre-tiendas
-status: draft
+status: approved
+reviewed_at: "2026-10-25"
 shadcn_initialized: true
 preset: "base-nova (preset code b2fA, neutral, geist, lucide)"
 created: "2026-10-25"
@@ -78,7 +79,7 @@ Same scale as Phases 1 to 4 (multiples of 4; Tailwind 1 unit = 4px): xs 4 · sm 
 | 2xl | 48px | Empty-state vertical padding |
 | 3xl | 64px | Page bottom padding |
 
-Exceptions (all multiples of 4, outside the 7-step scale on purpose):
+Exceptions (all spacing and dimension values are multiples of 4, outside the 7-step scale on purpose; chart mark sizes and strokes are listed separately below and are not spacing):
 
 - Everything listed as an exception in Phases 1 to 4 stays (top bar 56px, `max-w-6xl` 1152px, 44px touch targets under 640px, table row 40-56px, 288px list max height, tab list 44px under 640px).
 - Products table: row min height 56px; table min width 880px inside `overflow-x-auto` (the page never scrolls horizontally); expand column 48px; actions column 48px.
@@ -86,7 +87,9 @@ Exceptions (all multiples of 4, outside the 7-step scale on purpose):
 - Per-store table: min width 640px inside `overflow-x-auto`; row min height 48px.
 - Purchases list: min width 880px inside `overflow-x-auto`; row min height 48px.
 - Content table: min width 760px inside `overflow-x-auto`; row min height 56px; inline editor fields: quantity `Input` 120px, unit `Select` trigger 120px, pieces-per-pack `Input` 96px, all 36px tall (44px under 640px, full width each, stacked).
-- History chart: height 288px (`h-72`, same as the trend chart); Y axis width 64px (unit prices carry cents); data markers 10px with a 2px `background` ring; lines 2px.
+- History chart: height 288px (`h-72`, same as the trend chart); Y axis width 64px (unit prices carry cents).
+
+Chart mark sizes (not spacing values, so outside the 4-multiple rule): data markers 10px with a 2px `background` ring; lines 2px.
 - **Tab list: the horizontal scroll that Phase 3 applied under 640px now applies under 768px** (six triggers do not fit between 640 and 767px; STATE.md already records a 17px overflow at 640px with five). Mechanically: the `max-sm:` modifiers on `TabsList` (`max-sm:justify-start max-sm:overflow-x-auto` and the hidden scrollbar) become `max-md:`; the 44px height stays `max-sm:` (touch targets), and the active trigger is still scrolled into view on change. No label is shortened.
 
 ---
@@ -209,6 +212,7 @@ All strings are final unless marked `{…}` (interpolated) or `[OQn]`. Plurals: 
 | Cheapest store cell, one store only [D-02] | Solo en {tienda} (muted) |
 | Price cell | {precio} / {kg \| L \| pieza} (14/600) with 12px muted caption «mediana · {n} compras» ("mediana · 1 compra") |
 | Price cell, only non-normalizable purchases | No normalizado (muted) |
+| Product with no normalized purchase (Alert replacing the per-store table and the chart) | Ninguna compra de este producto tiene un contenido que se pueda comparar. Captura el contenido abajo para compararlo. |
 | Stores cell | {n} (right-aligned; "1" for one store) |
 | Savings cell | {monto}; «—» (muted) when one store, not compared or not normalizable |
 | Per-piece label under the product name [D-10] | `Badge` outline «por pieza, sin tamaño verificado» |
@@ -389,16 +393,16 @@ A `secondary` panel, padding 16px under 640px and 24px from 640px, sections sepa
 - Editor: labels on every field, `aria-invalid` + `aria-describedby`, the preview is a polite live region.
 - Live regions (polite): the product count after search/marking, the "marcado como no comparable" announcement, "Contenido guardado".
 - Toasts with actions stay 6 s and are keyboard reachable [P2]. Transitions 150 ms removed under `prefers-reduced-motion`; the chart is not animated. No new animation is introduced.
-- Contrast: AA in both themes; the only sub-3:1 graphic colors are the light-mode series slots 3 to 5, with the relief listed under Color.
+- Contrast: text and UI components meet AA in both themes. **Known deviation (accepted):** in light mode the chart series slots 3, 4 and 5 are 2.82, 2.17 and 2.69:1 against `#FFFFFF`, below the WCAG 1.4.11 3:1 floor for graphics; store identity never depends on that color alone (marker shape per store, always-present HTML legend, store name in the tooltip, the purchases list as the table view). All slots pass in dark mode.
 - Vendor descriptions and supplier names are untrusted: React text only, no `dangerouslySetInnerHTML`, no markdown, and never used as chart-config keys.
 
 ---
 
 ## UI Considerations
 
-Probe run 2026-10-25 by the researcher without an interactive session (8 categories over 9 elements: E1 tab shell and filters, E2 «Ahorro estimado» card, E3 tools row, E4 products table, E5 row menu «⋯», E6 per-store table, E7 history chart, E8 content editor, E9 purchases list). Element kinds and the dismissals below are the researcher's proposal and **still need the user's confirmation** (OQ8). Empty/error COPY lives in the Copywriting Contract; rows reference it.
+Probe run 2026-10-25 by the researcher without an interactive session (8 categories over 9 elements: E1 tab shell and filters, E2 «Ahorro estimado» card, E3 tools row, E4 products table, E5 row menu «⋯», E6 per-store table, E7 history chart, E8 content editor, E9 purchases list). Element kinds and the dismissals below were proposed by the researcher and **confirmed by the user on 2026-10-25** (OQ8). Empty/error COPY lives in the Copywriting Contract; rows reference it.
 
-Applicable state considerations resolved: 32 covered, 3 backstop, 0 unresolved, 8 dismissed with a reason (43 considerations).
+Applicable state considerations resolved: 34 covered, 3 backstop, 0 unresolved, 11 dismissed with a reason (48 rows). Post-verification probe re-run by the orchestrator on 2026-10-25 against the approved spec (56 engine-proposed considerations over E1–E9; E7 unclassified by the engine and covered manually); two gaps it surfaced were decided by the user and added below, the rest map onto existing rows or the grouped dismissals.
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
@@ -445,6 +449,11 @@ Applicable state considerations resolved: 32 covered, 3 backstop, 0 unresolved, 
 | long-text | E8 Content editor | 🧪 backstop | 120-character descriptions wrap in the table and the `aria-label` caps at 60; verified visually in a held-out UI-state check. |
 | populated | E9 Purchases list | ✅ covered | Fecha, Tienda, Folio, Descripción, Cantidad (XML), Contenido, Precio unitario; non-normalized rows muted with reason. |
 | overflow | E9 Purchases list | ✅ covered | 20 rows then «Mostrar {n} más»; min width 880px inside `overflow-x-auto`. |
+| empty | E6 Per-store table + E7 History chart | ✅ covered | Product with zero normalized purchases (user decision 2026-10-25): both the per-store table and the chart are hidden and replaced by one `Alert` (copy row «Product with no normalized purchase» in the Copywriting Contract); the content editor and the purchases list stay visible below. |
+| long-text | E9 Purchases list | ✅ covered | Descriptions (up to 120 characters) wrap to 2 lines then truncate with `TruncatedText` (full text on hover/focus), same as the products table (user decision 2026-10-25). |
+| loading, error | E2–E9 | dismissed | Same reason as E1, confirmed by the user (OQ8): everything is computed synchronously in memory and no element of this tab makes a network call; the only failure path is the storage-write Alert (E4/E5/E8). |
+| empty, partial, overflow, long-text | E5 Row menu | dismissed | Fixed menu items for one product; no data list. |
+| partial, overflow | E3 Tools row | dismissed | Fixed controls; the count line is numeric. |
 
 ---
 
@@ -475,9 +484,9 @@ No third-party registries declared; the vetting gate does not apply. No package 
 
 ---
 
-## Open questions for the user (answers pending; the draft already applies the recommended option)
+## Open questions for the user (RESOLVED 2026-10-25: the user chose the recommended option for OQ1–OQ8; these rows are locked)
 
-| # | Question | Recommended (applied here) | Alternative |
+| # | Question | Recommended (applied here, user-confirmed) | Alternative (rejected) |
 |---|----------|----------------------------|-------------|
 | OQ1 | The history chart needs one color per store (D-24) but the app has only a neutral chart color. Add six validated hues (blue, orange, aqua, yellow, pink, green) as `--series-1..6`, each with its own marker shape, a legend and a fold into «Otras tiendas» after six stores? | Yes: six validated hues + marker shapes + fold | Keep the app monochrome: series told apart only by marker shape and line dash (harder to read) |
 | OQ2 | Where do the global filters live for this tab (D-03)? | Show the same `FilterBar` (and IVA captions) at the top of Precios, bound to the same filters as the Dashboard | Filters only on the Dashboard; Precios just shows a caption of the active filters and a link back |
@@ -492,12 +501,12 @@ No third-party registries declared; the vetting gate does not apply. No package 
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: FLAG (non-blocking; contrast wording corrected to state the light-mode series 3–5 deviation)
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: FLAG (non-blocking; exceptions header corrected, chart mark sizes separated from spacing)
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-10-25 (gsd-ui-checker: 5 PASS, 2 FLAG non-blocking)
