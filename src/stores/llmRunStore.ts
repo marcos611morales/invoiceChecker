@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   cutText,
+  isSensitive,
   looksSensitive,
   type CategorizeRun,
   type ContextTarget,
@@ -75,7 +76,12 @@ interface LlmRunState {
   startRun: (kind: RunKind, batches: readonly RunBatch[]) => Promise<void>;
   /** The tracer entry point: a thin wrapper of `startRun("group", groupBatches(run))`. */
   startGroupRun: (run: GroupRun) => Promise<void>;
-  /** The same for «Sugerir categorías»: a thin wrapper of `startRun("categorize", categorizeBatches(run))`. */
+  /**
+   * The same for «Sugerir categorías»: a thin wrapper of `startRun("categorize", categorizeBatches(run))`.
+   * It sends nothing, and changes no status, for a run with a user category name that looks
+   * sensitive (`run.sensitiveCategories`, or a name in any batch body when the run was built or
+   * altered elsewhere): the send dialog is where the user is told which category to rename (WR-04).
+   */
   startCategorizeRun: (run: CategorizeRun) => Promise<void>;
   /** Stops the batch in flight and every later one; keeps what already arrived. */
   cancel: () => void;
@@ -388,7 +394,13 @@ export const useLlmRunStore = create<LlmRunState>()((set, get) => ({
     }
   },
   startGroupRun: (run) => get().startRun("group", groupBatches(run)),
-  startCategorizeRun: (run) => get().startRun("categorize", categorizeBatches(run)),
+  startCategorizeRun: (run) => {
+    const blocked =
+      run.sensitiveCategories.length > 0 ||
+      run.batches.some((batch) => batch.body.categories.some((category) => isSensitive(category.name)));
+    if (blocked) return Promise.resolve();
+    return get().startRun("categorize", categorizeBatches(run));
+  },
   cancel: () => {
     const { status, controller } = get();
     if (status.phase !== "running" || controller === null) return;

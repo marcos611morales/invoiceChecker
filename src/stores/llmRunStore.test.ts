@@ -909,6 +909,33 @@ describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
     expect(await batch.send(new AbortController().signal)).toEqual({ ok: false, error: "offline" });
   });
 
+  describe("a user category name that looks sensitive (WR-04)", () => {
+    const SENSITIVE_CATEGORIES = [...USER_CATEGORIES, { id: "cat_pagos", name: "Pagos EKU9003173C9" }];
+
+    it("lists it in run.sensitiveCategories, and the list is empty for clean categories", () => {
+      expect(buildCategorizeRun(CATEGORY_TARGETS, SENSITIVE_CATEGORIES).sensitiveCategories).toEqual([
+        "Pagos EKU9003173C9",
+      ]);
+      expect(buildCategorizeRun(CATEGORY_TARGETS, USER_CATEGORIES).sensitiveCategories).toEqual([]);
+    });
+
+    it("startCategorizeRun sends nothing and leaves the status idle", async () => {
+      const run = buildCategorizeRun(CATEGORY_TARGETS, SENSITIVE_CATEGORIES);
+      await useLlmRunStore.getState().startCategorizeRun(run);
+      expect(vi.mocked(postCategorize)).not.toHaveBeenCalled();
+      expect(useLlmRunStore.getState().status).toEqual({ phase: "idle" });
+    });
+
+    it("startCategorizeRun refuses a run whose body carries the name even when sensitiveCategories was emptied", async () => {
+      const built = buildCategorizeRun(CATEGORY_TARGETS, SENSITIVE_CATEGORIES);
+      expect(JSON.stringify(built.batches.map((batch) => batch.body))).toContain("EKU9003173C9");
+      const run = { ...built, sensitiveCategories: [] };
+      await useLlmRunStore.getState().startCategorizeRun(run);
+      expect(vi.mocked(postCategorize)).not.toHaveBeenCalled();
+      expect(useLlmRunStore.getState().status).toEqual({ phase: "idle" });
+    });
+  });
+
   it("startCategorizeRun runs the batches as a «categorize» run and ends finished with the rows added", async () => {
     const run = buildCategorizeRun(CATEGORY_TARGETS, USER_CATEGORIES);
     vi.mocked(postCategorize).mockResolvedValue(

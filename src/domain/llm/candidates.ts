@@ -323,6 +323,12 @@ export interface CategorizeRun {
   categories: number;
   /** Targets kept out of every body (sensitive pattern); shown in the dialog only, never sent. */
   withheld: CategorizeTarget[];
+  /**
+   * The names of the user's categories that would travel and look sensitive (the name or its cut
+   * version), in the order they would travel. While it is not empty the run must not be sent: the
+   * dialog tells the user which category to rename and the store refuses to start it (WR-04).
+   */
+  sensitiveCategories: string[];
 }
 
 /**
@@ -454,5 +460,8 @@ export function buildCategorizeRun(
     members,
     categories: sent.length === 0 ? 0 : sorted.length,
     withheld,
+    sensitiveCategories: sorted
+      .filter((category) => looksSensitive(category.name, LLM_LIMITS.productName))
+      .map((category) => category.name),
   };
 }
