@@ -122,6 +122,40 @@ describe("resolvePendingQueue", () => {
     expect(resolvePendingQueue(queue(), undefined).status).toBe("ok");
   });
 
+  it("still reads a queue saved before fullName existed (supplier row without it), unchanged (WR-01)", () => {
+    const saved = queue();
+    const supplier = saved.categories[0];
+    if (supplier === undefined || supplier.kind !== "supplier") throw new Error("expected a supplier row");
+    expect("fullName" in supplier).toBe(false);
+    const result = resolvePendingQueue(saved, SUGGESTIONS_VERSION);
+    expect(result.status).toBe("ok");
+    expect(result.data).toEqual(saved);
+    const back = result.data.categories[0];
+    expect(back !== undefined && "fullName" in back).toBe(false);
+  });
+
+  it("keeps the fullName of a supplier row, even a 120-character one (WR-01)", () => {
+    const fullName = "Z".repeat(120);
+    const stored: PendingQueue = {
+      products: [],
+      categories: [
+        {
+          id: "cat_a",
+          kind: "supplier",
+          rfc: "AAA010101AAA",
+          name: cutText(fullName, 60),
+          fullName,
+          choice: null,
+        },
+      ],
+    };
+    const result = resolvePendingQueue(stored, SUGGESTIONS_VERSION);
+    expect(result.status).toBe("ok");
+    expect(result.data).toEqual(stored);
+    const row = result.data.categories[0];
+    expect(row !== undefined && row.kind === "supplier" ? row.fullName : null).toBe(fullName);
+  });
+
   it("accepts an empty queue, empty card names and the exact limits of a name", () => {
     expect(resolvePendingQueue(EMPTY, 1).status).toBe("ok");
     const long = "x".repeat(60);
@@ -1436,6 +1470,32 @@ describe("removeCategoryRow and restoreCategoryRow (D-18, D-22)", () => {
       ),
     };
     expect(restoreCategoryRow(full, result.removed)).toBe(full);
+  });
+
+  it("gives back a supplier row with its fullName intact (WR-01)", () => {
+    const fullName = "Comercializadora ".repeat(6).trim();
+    const withFull: PendingQueue = {
+      products: [],
+      categories: [
+        {
+          id: "r1",
+          kind: "supplier",
+          rfc: "AAA",
+          name: cutText(fullName, 60),
+          fullName,
+          choice: null,
+        },
+        row("r2", "BBB"),
+      ],
+    };
+    const result = removeCategoryRow(withFull, "r1");
+    if (result === null) throw new Error("expected a removal");
+    expect(result.removed.row).toEqual(withFull.categories[0]);
+    expect(restoreCategoryRow(result.next, result.removed)).toEqual(withFull);
+    // A row without fullName stays without the key.
+    const plain = removeCategoryRow(threeRows(), "r2");
+    if (plain === null) throw new Error("expected a removal");
+    expect("fullName" in plain.removed.row).toBe(false);
   });
 
   it("gives an undo value that shares nothing with the queue and never mutates its input", () => {

@@ -262,7 +262,7 @@ export function categorizeBatches(run: CategorizeRun): RunBatch[] {
         const id = newCategoryRowId();
         rows.push(
           target.kind === "supplier"
-            ? { id, kind: "supplier", rfc: target.rfc, name, choice }
+            ? { id, kind: "supplier", rfc: target.rfc, name, fullName: target.name, choice }
             : { id, kind: "product", productId: target.productId, name, choice },
         );
       }

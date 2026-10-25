@@ -56,7 +56,19 @@ export type CategoryChoice =
  * Plan 04-18, so the stored contract does not change again inside this phase.
  */
 export type CategorySuggestion =
-  | { id: string; kind: "supplier"; rfc: string; name: string; choice: CategoryChoice | null }
+  | {
+      id: string;
+      kind: "supplier";
+      rfc: string;
+      name: string;
+      /**
+       * The uncut supplier name, written to the settings when the suggestion is accepted (`name`
+       * is cut to the product-name limit and only meant for display). Absent on rows saved before
+       * it existed: accepting those writes `name`.
+       */
+      fullName?: string;
+      choice: CategoryChoice | null;
+    }
   | { id: string; kind: "product"; productId: string; name: string; choice: CategoryChoice | null };
 
 /**
@@ -345,7 +357,14 @@ function copyCategoryRow(row: CategorySuggestion): CategorySuggestion {
         ? { kind: "existing", categoryId: row.choice.categoryId }
         : { kind: "new", name: row.choice.name };
   return row.kind === "supplier"
-    ? { id: row.id, kind: "supplier", rfc: row.rfc, name: row.name, choice }
+    ? {
+        id: row.id,
+        kind: "supplier",
+        rfc: row.rfc,
+        name: row.name,
+        ...(row.fullName === undefined ? {} : { fullName: row.fullName }),
+        choice,
+      }
     : { id: row.id, kind: "product", productId: row.productId, name: row.name, choice };
 }
 
@@ -830,6 +849,7 @@ const categoryRowSchema = z.discriminatedUnion("kind", [
     kind: z.literal("supplier"),
     rfc: z.string(),
     name: z.string().max(NAME_MAX),
+    fullName: z.string().optional(),
     choice: categoryChoiceSchema.nullable(),
   }),
   z.strictObject({

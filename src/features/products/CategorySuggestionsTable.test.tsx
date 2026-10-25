@@ -9,6 +9,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { cutText } from "@/domain/llm/candidates";
 import type { CategorySuggestion } from "@/domain/llm/suggestions";
 import { makeResolver } from "@/domain/settings/resolver";
 import {
@@ -309,6 +310,32 @@ describe("«Aceptar» on a supplier row (D-18)", () => {
     render(<Harness />);
     press(acceptButton(long));
     expect(toastMock).toHaveBeenCalledWith(`Categoría de «${"T".repeat(39)}…»: Abarrotes y despensa`);
+  });
+
+  it("stores the full supplier name when the displayed name is the cut one, and keeps showing the cut name (WR-01)", () => {
+    const full = `Comercializadora de Abarrotes y Servicios Integrales del Centro ${"X".repeat(26)}`;
+    expect(full).toHaveLength(90);
+    const cut = cutText(full, 60);
+    expect(cut).not.toBe(full);
+    seed([{ ...ROW_UNO, name: cut, fullName: full }]);
+    render(<Harness />);
+    press(acceptButton(cut));
+    expect(useSettingsStore.getState().supplierCategories).toEqual([
+      { rfc: UNO.rfc, name: full, categoryId: ABARROTES },
+    ]);
+    expect(toastMock).toHaveBeenCalledWith(
+      `Categoría de «${cut.slice(0, 39)}…»: Abarrotes y despensa`,
+    );
+  });
+
+  it("stores row.name when the row has no fullName (a queue saved before it existed) (WR-01)", () => {
+    seed([ROW_UNO]);
+    render(<Harness />);
+    expect("fullName" in ROW_UNO).toBe(false);
+    press(acceptButton("Tienda Uno"));
+    expect(useSettingsStore.getState().supplierCategories).toEqual([
+      { rfc: UNO.rfc, name: "Tienda Uno", categoryId: ABARROTES },
+    ]);
   });
 
   it("announces the acceptance and how many suggestions remain", () => {

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildCategorizeRun,
   buildGroupRun,
+  cutText,
   type CategorizeTarget,
   type LlmItem,
 } from "@/domain/llm/candidates";
@@ -795,6 +796,39 @@ describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
     // Idempotent per target: applying the same answer again adds nothing.
     expect(result.apply()).toBe(0);
     expect(useSuggestionsStore.getState().categories).toHaveLength(2);
+  });
+
+  it("keeps the full supplier name next to the cut display name; a product row has no fullName (WR-01)", async () => {
+    const longName = `Comercializadora ${"Internacional ".repeat(6)}SA de CV`.slice(0, 90);
+    expect(longName).toHaveLength(90);
+    const run = buildCategorizeRun(
+      [
+        { kind: "supplier", rfc: "AAA010101AAA", name: longName },
+        { kind: "product", productId: "prod_a", name: "Leche entera", members: ["MM LECHE ENT"] },
+      ],
+      USER_CATEGORIES,
+    );
+    const batch = categorizeBatches(run)[0];
+    if (batch === undefined) throw new Error("expected a batch");
+    vi.mocked(postCategorize).mockResolvedValue(
+      categorizeAnswer([
+        { id: "s1", choice: { kind: "code", code: "c1" } },
+        { id: "q1", choice: { kind: "code", code: "c1" } },
+      ]),
+    );
+    const result = await batch.send(new AbortController().signal);
+    if (!result.ok) throw new Error("expected ok");
+    result.apply();
+    const rows = useSuggestionsStore.getState().categories;
+    const supplier = rows[0];
+    const product = rows[1];
+    if (supplier === undefined || supplier.kind !== "supplier") throw new Error("expected a supplier row");
+    expect(supplier.name).toBe(cutText(longName, LLM_LIMITS.productName));
+    expect(supplier.name.length).toBeLessThanOrEqual(LLM_LIMITS.productName);
+    expect(supplier.name.endsWith("…")).toBe(true);
+    expect(supplier.fullName).toBe(longName);
+    if (product === undefined) throw new Error("expected a product row");
+    expect("fullName" in product).toBe(false);
   });
 
   it("skips a target that already has a row from another run", async () => {
