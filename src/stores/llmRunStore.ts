@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   cutText,
+  looksSensitive,
   type CategorizeRun,
   type ContextTarget,
   type GroupBatch,
@@ -133,7 +134,9 @@ function takenBySettings(): ReadonlySet<string> {
  * accepted names, the names of the cards the earlier batches of this run enqueued, as p(K+1)..
  * and never more than `LLM_LIMITS.contextNames` in all. With no earlier card the built body and
  * targets come back as they are. The result is for the request only: the dialog keeps listing the
- * bodies built at send time.
+ * bodies built at send time. A card name that looks sensitive (an RFC, a UUID, an e-mail or a
+ * long number, name or cut version) is left out without a word, and the ids of the names that
+ * are sent stay consecutive (LLM-03, WR-04).
  */
 function composeRequest(
   batch: GroupBatch,
@@ -144,6 +147,7 @@ function composeRequest(
   const targets = new Map(batch.targets);
   for (const card of earlier) {
     if (accepted + extra.length >= LLM_LIMITS.contextNames) break;
+    if (looksSensitive(card.name, LLM_LIMITS.productName)) continue;
     const name = cutText(card.name, LLM_LIMITS.productName);
     if (name === "") continue;
     const id = `p${String(accepted + extra.length + 1)}`;

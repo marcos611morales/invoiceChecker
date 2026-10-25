@@ -559,6 +559,23 @@ describe("groupBatches: earlier-batch names on later batches (D-28, D-33)", () =
     expect(run.batches[1]?.body.existing).toEqual([{ id: "p1", name: "Leche" }]);
   });
 
+  it("leaves out an earlier card whose name looks sensitive, with the ids still consecutive (WR-04)", async () => {
+    const run = twoBatchRun([{ productId: "prod_a", name: "Leche" }]);
+    vi.mocked(postGroup)
+      .mockResolvedValueOnce(
+        answer([
+          { name: "PEDIDO 12345678", ids: ["i1"], existing: null },
+          { name: "Uno", ids: ["i2"], existing: null },
+        ]),
+      )
+      .mockResolvedValueOnce(answer([{ name: "Dos", ids: ["i1"], existing: null }]));
+    await useLlmRunStore.getState().startGroupRun(run);
+    expect(bodies()[1]?.existing).toEqual([
+      { id: "p1", name: "Leche" },
+      { id: "p2", name: "Uno" },
+    ]);
+  });
+
   it("caps the context at 400 names in all, accepted first", async () => {
     const accepted = Array.from({ length: LLM_LIMITS.contextNames - 1 }, (_, index) => ({
       productId: `prod_${String(index)}`,

@@ -219,6 +219,47 @@ describe("POST /api/llm/group: the request checks (LLM-03, D-05)", () => {
   });
 });
 
+describe("POST /api/llm/group: the sensitive-pattern guard (WR-04)", () => {
+  function withItem(patch: Partial<(typeof BODY.items)[number]>): string {
+    const [first, ...rest] = BODY.items;
+    return JSON.stringify({ ...BODY, items: [{ ...first, ...patch }, ...rest] });
+  }
+
+  async function expectRefused(body: string): Promise<void> {
+    const result = await answer(await POST(request(body)));
+    expect(result.status).toBe(400);
+    expect(result.json).toEqual({ error: "bad_request", retryable: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  }
+
+  it("answers 400 bad_request, without calling DeepSeek, to a description that holds an RFC", async () => {
+    await expectRefused(withItem({ description: "PAGO RFC EKU9003173C9" }));
+  });
+
+  it("answers 400 bad_request to a supplier that is an e-mail address", async () => {
+    await expectRefused(withItem({ supplier: "ventas@tienda.mx" }));
+  });
+
+  it("answers 400 bad_request to a context name that is a UUID", async () => {
+    await expectRefused(
+      JSON.stringify({ ...BODY, existing: [{ id: "p1", name: "3f2504e0-4f89-41d3-9a0c-0305e82c3301" }] }),
+    );
+  });
+
+  it("answers 400 bad_request to a context name with a long number", async () => {
+    await expectRefused(JSON.stringify({ ...BODY, existing: [{ id: "p1", name: "Pedido 12345678" }] }));
+  });
+
+  it("still answers 200 to a clean request", async () => {
+    fetchMock.mockResolvedValueOnce(oneGroup("Leche entera"));
+    const result = await answer(
+      await POST(request(JSON.stringify({ ...BODY, existing: [{ id: "p1", name: "Leche" }] }))),
+    );
+    expect(result.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("POST /api/llm/group: the DeepSeek call (ACC-04, D-29)", () => {
   it("calls DeepSeek once with the documented request and answers 200 with the groups", async () => {
     fetchMock.mockResolvedValueOnce(oneGroup("Leche entera"));
