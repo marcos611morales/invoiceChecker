@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: skipped
+    disposition: fixed
     title: "Supplier names are truncated to 60 characters and then persisted into the settings"
   - id: WR-02
     severity: warning
@@ -17,7 +17,7 @@ findings:
     title: "Weak content-type check on both LLM routes"
   - id: WR-04
     severity: warning
-    disposition: skipped
+    disposition: fixed
     title: "Sensitive-pattern guard does not cover every text that reaches DeepSeek, and the server enforces no content rule"
   - id: WR-05
     severity: warning
@@ -41,17 +41,17 @@ findings:
     title: "One empty group makes the whole grouping batch fail"
 open: 4
 total: 9
-recorded: 2026-10-25T14:43:07.176Z
+recorded: 2026-10-25T15:49:56.330Z
 ---
 
 # Phase 04: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | skipped | 04-REVIEW-FIX.md |
+| WR-01 | warning | fixed | 04-REVIEW-FIX.md |
 | WR-02 | warning | fixed | 04-REVIEW-FIX.md |
 | WR-03 | warning | fixed | 04-REVIEW-FIX.md |
-| WR-04 | warning | skipped | 04-REVIEW-FIX.md |
+| WR-04 | warning | fixed | 04-REVIEW-FIX.md |
 | WR-05 | warning | fixed | 04-REVIEW-FIX.md |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
