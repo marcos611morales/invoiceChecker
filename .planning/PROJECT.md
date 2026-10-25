@@ -24,13 +24,14 @@ Ver con claridad, a partir de las facturas XML, **en qué gastamos más y dónde
 - ✓ Categoría por proveedor por defecto, ajustable por concepto (precedencia concepto > proveedor; el nivel producto llega en la Fase 4) — Phase 3
 - ✓ Exportar a Excel con seis hojas (facturas, conceptos, resúmenes por categoría, proveedor y mes, parámetros) respetando los filtros — Phase 3
 - ✓ Ajustes de categorías persistidos en localStorage, con archivo de respaldo para llevarlos a otro navegador — Phase 3
+- ✓ LLM (DeepSeek) que agrupa como "mismo producto" conceptos con descripciones distintas entre tiendas y sugiere categorías; el usuario revisa cada sugerencia antes de aplicarla — Phase 4
+- ✓ Las agrupaciones del LLM se guardan en el navegador (productos y marcas «No agrupar» en los ajustes; cola de revisión propia en localStorage) — Phase 4
+- ✓ La contraseña compartida también protege el uso del LLM (401 en la ruta sin sesión; key fuera del bundle) — Phase 4
+- ✓ Precedencia completa de categoría: concepto > producto > proveedor — Phase 4
 
 ### Active
 
-- [ ] LLM (DeepSeek) que agrupa como "mismo producto" conceptos con descripciones distintas entre tiendas y sugiere categorías; el usuario revisa y ajusta
 - [ ] Comparación de precio unitario del mismo producto entre tiendas/proveedores ("dónde sale más económico")
-- [ ] Las agrupaciones del LLM se guardan en el navegador (localStorage)
-- [ ] La contraseña compartida también protege el uso del LLM (401 en la ruta sin sesión; key fuera del bundle)
 
 ### Out of Scope
 
@@ -65,7 +66,7 @@ Ver con claridad, a partir de las facturas XML, **en qué gastamos más y dónde
 |----------|-----------|---------|
 | Solo XML como fuente de datos | Los XML son estructurados y completos; los PDF son duplicados | — Pending |
 | Carga en el navegador, sin DB | Requisito del usuario: procesamiento local y sin persistencia en servidor | ✓ Good (Phase 1) |
-| DeepSeek para agrupar productos y sugerir categorías | Elección del usuario; las descripciones varían entre tiendas | — Pending |
+| DeepSeek para agrupar productos y sugerir categorías | Elección del usuario; las descripciones varían entre tiendas | ✓ Good (Phase 4) — fetch + zod sin SDK; prompt por marca validado con el set dorado |
 | API key en variable de Vercel + contraseña simple | Evita exponer la key y que terceros gasten el saldo | ✓ Good (Phase 1) |
 | Ajustes en localStorage | Persistencia sin DB; el usuario aceptó que es por navegador | ✓ Good (Phase 3) — con archivo de respaldo de 1 MB máx. validado con zod |
 | Categoría por proveedor, ajustable por concepto | Equilibrio entre esfuerzo y precisión (en Walmart se compran cosas de varias categorías) | ✓ Good (Phase 3) |
@@ -77,8 +78,8 @@ Ver con claridad, a partir de las facturas XML, **en qué gastamos más y dónde
 | Promedio mensual sobre meses del calendario del rango | Elección del usuario | — Pending |
 | Facturas solo en memoria (recargar = volver a cargar) | Elección del usuario; ajustes sí persisten | ✓ Good (Phase 1) |
 | Canceladas: botón manual "Excluir", sin consulta al SAT | Mantiene procesamiento local | — Pending |
-| Precedencia categoría: concepto > producto > proveedor | Elección del usuario | — Pending |
-| Se envía nombre de proveedor (no RFC) a DeepSeek | Mejora sugerencias de categoría | — Pending |
+| Precedencia categoría: concepto > producto > proveedor | Elección del usuario | ✓ Good (Phase 4) |
+| Se envía nombre de proveedor (no RFC) a DeepSeek | Mejora sugerencias de categoría | ✓ Good (Phase 4) — solo descripciones, nombres de proveedor, de producto y de categoría |
 | Servicios/combustible excluidos de comparación de precios | No son productos comparables | — Pending |
 | Solo CFDI 4.0; otras monedas se convierten con TipoCambio | Elección del usuario | ✓ 4.0-only rejection shipped (Phase 1); TipoCambio pending |
 | write-excel-file, DOMParser nativo, big.js | Elegidos tras research (estilos, robustez de namespaces, exactitud decimal) | ✓ Good (Phase 3) — write-excel-file 4.1.1 fijado; CSP solo añade `worker-src 'self' blob:` |
@@ -88,6 +89,10 @@ Ver con claridad, a partir de las facturas XML, **en qué gastamos más y dónde
 | Todo texto en el Excel es celda de texto con formato @ | Evita inyección de fórmulas y que RFC/UUID/folio se conviertan en números | ✓ Good (Phase 3) |
 | Montos del Excel redondeados por fila, con nota en Parámetros | Las sumas de columna pueden diferir por centavos del Gasto total; se avisa en lugar de escribir valores sin redondear (WR-02, D-20) | ✓ Good (Phase 3) |
 | Al restaurar ajustes se depura el filtro de categorías | El chip y Parámetros nunca muestran un id crudo (WR-01) | ✓ Good (Phase 3) |
+| Cola de revisión: nada del LLM entra a los ajustes sin «Aceptar» | El usuario revisa cada sugerencia; la cola sobrevive a recargas y no toca el dashboard | ✓ Good (Phase 4) |
+| Textos con apariencia de RFC, UUID, correo o número largo no salen del navegador; el servidor también los rechaza (400) | Privacidad por construcción en dos capas (WR-04, 2026-10-25) | ✓ Good (Phase 4) |
+| Nombres de categoría sensibles bloquean «Sugerir categorías» con aviso; nombres de tarjetas previas sensibles se omiten en silencio | Decisión del usuario (WR-04, 2026-10-25) | ✓ Good (Phase 4) |
+| Las filas de proveedor guardan el nombre completo (`fullName`); filas encoladas antes del 2026-10-25 conservan el nombre cortado | Decisión del usuario (WR-01, IN-05) | ✓ Good (Phase 4) — riesgo aceptado para filas viejas |
 
 ## Evolution
 
@@ -107,4 +112,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-19 after Phase 3*
+*Last updated: 2026-10-25 after Phase 4*

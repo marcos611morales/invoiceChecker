@@ -20,10 +20,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-19)
+See: .planning/PROJECT.md (updated 2026-10-25)
 
 **Core value:** Ver con claridad, a partir de las facturas XML, en qué gastamos más y dónde nos sale más barato cada producto, sin subir los datos a una base de datos.
-**Current focus:** Phase 04 — Agrupación de productos con DeepSeek
+**Current focus:** Phase 5 — Comparación de precios entre tiendas
 
 ## Current Position
 
@@ -72,6 +72,9 @@ Recent decisions affecting current work:
 - [Phase 1]: Store de sesión en memoria (zustand sin persist) con generación para descartar lotes viejos; dedupe por UUID en mayúsculas.
 - [Phase 3]: Ajustes en localStorage validados con zod (límites D-30) y respaldo por archivo; precedencia concepto > proveedor (producto llega en Fase 4).
 - [Phase 3]: Excel con write-excel-file/universal, seis hojas, texto siempre como celda @, nota de redondeo en Parámetros.
+- [Phase 4]: DeepSeek por fetch + zod (sin SDK) en dos rutas protegidas (`/api/llm/group`, `/api/llm/categorize`) con pipeline compartido `llmRoute.ts` (sesión primero).
+- [Phase 4]: Cola de revisión persistida aparte de los ajustes; los ajustes solo cambian al «Aceptar»; ajustes v3 con productos y marcas «No agrupar».
+- [Phase 4]: Guardia de textos sensibles en el navegador y en el servidor (`sensitive.ts`); categorías sensibles bloquean el envío.
 
 ### Pending Todos
 
@@ -79,11 +82,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 4]: Spike de DeepSeek antes de planear (calidad en español, JSON vacío, thinking deshabilitado + JSON, latencia, tamaño de lote, `maxDuration`).
 - [Phase 5]: Investigar normalización de unidades y familias ClaveProdServ "no comparables" por defecto.
 - [Phase 2]: Verificar etiquetas c_FormaPago contra catCFDI oficial y semántica TipoRelación 04/07 (Anexo 20).
-- Parámetros menores para el planner (preguntar al usuario si son ambiguos): tamaño de lote LLM, `maxDuration`, texto del aviso de privacidad (LLM-06). (jose, TanStack v9 y pnpm 11.5.2 quedaron resueltos en la Fase 1.)
 - [Phase 1]: Paquetes añadidos por shadcn usan rangos `^` en package.json; el lockfile fija versiones (ver 01-SECURITY.md, Notes).
+- [Phase 4]: Correr `node scripts/check-bundle-secrets.mjs` antes de desplegar (el verificador lo pasó en 003c2fe; repetir tras cambios).
+- [Phase 4]: La lista de pestañas desborda ~17 px a exactamente 640 px (AppShell `max-sm:overflow-x-auto`); ver 04-UI-REVIEW.md y deferred-items.md.
+- [Phase 4]: 3 hallazgos info abiertos en 04-REVIEW.md (aviso «no cupo» solo para tarjetas de producto, `received` perdido si `apply` falla, línea larga de JSDoc).
 
 ### Quick Tasks Completed
 
@@ -101,6 +105,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-19T18:18:01.952Z
+Last session: 2026-10-25T19:10:00Z
 Stopped at: Phase 04 complete, ready to plan Phase 5
-Resume file: .planning/phases/04-agrupaci-n-de-productos-con-deepseek/04-UI-SPEC.md
+Resume file: None
