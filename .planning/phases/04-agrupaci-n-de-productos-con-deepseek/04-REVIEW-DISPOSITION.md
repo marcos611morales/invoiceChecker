@@ -3,6 +3,30 @@ phase: 04
 review: 04-REVIEW.md
 titles: json
 findings:
+  - id: IN-01
+    severity: info
+    disposition: fixed
+    title: "The two LLM routes duplicate about 70 lines"
+  - id: IN-02
+    severity: info
+    disposition: fixed
+    title: "Once the user picks an existing category on a row, the model's proposed «Nueva: X» choice cannot be selected again"
+  - id: IN-03
+    severity: info
+    disposition: fixed
+    title: "`enqueueProductSuggestions` stops at the first card that does not fit, and nothing tells the user"
+  - id: IN-04
+    severity: info
+    disposition: fixed
+    title: "One empty group makes the whole grouping batch fail"
+  - id: IN-05
+    severity: info
+    disposition: skipped
+    title: "A supplier row saved before WR-01 still writes the cut name, ending in «…», to the settings"
+  - id: IN-06
+    severity: info
+    disposition: fixed
+    title: "A throwing `apply` is swallowed with no trace, and a half-done apply leaves run state behind"
   - id: WR-01
     severity: warning
     disposition: fixed
@@ -23,40 +47,26 @@ findings:
     severity: warning
     disposition: fixed
     title: "A late batch answer is enqueued without re-checking the accepted products and «No agrupar» marks"
-  - id: IN-01
-    severity: info
-    disposition: open
-    title: "The two LLM routes duplicate about 70 lines"
-  - id: IN-02
-    severity: info
-    disposition: open
-    title: "Once the user picks an existing category on a row, the model's proposed «Nueva: X» choice cannot be selected again"
-  - id: IN-03
-    severity: info
-    disposition: open
-    title: "`enqueueProductSuggestions` stops at the first card that does not fit, and nothing tells the user"
-  - id: IN-04
-    severity: info
-    disposition: open
-    title: "One empty group makes the whole grouping batch fail"
-open: 4
-total: 9
-recorded: 2026-10-25T15:49:56.330Z
+open: 0
+total: 11
+recorded: 2026-10-25T16:16:55.184Z
 ---
 
 # Phase 04: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | fixed | 04-REVIEW-FIX.md |
-| WR-02 | warning | fixed | 04-REVIEW-FIX.md |
-| WR-03 | warning | fixed | 04-REVIEW-FIX.md |
-| WR-04 | warning | fixed | 04-REVIEW-FIX.md |
-| WR-05 | warning | fixed | 04-REVIEW-FIX.md |
-| IN-01 | info | open | - |
-| IN-02 | info | open | - |
-| IN-03 | info | open | - |
-| IN-04 | info | open | - |
+| IN-01 | info | fixed | 04-REVIEW-FIX.md |
+| IN-02 | info | fixed | 04-REVIEW-FIX.md |
+| IN-03 | info | fixed | 04-REVIEW-FIX.md |
+| IN-04 | info | fixed | 04-REVIEW-FIX.md |
+| IN-05 | info | skipped | 04-REVIEW-FIX.md |
+| IN-06 | info | fixed | 04-REVIEW-FIX.md |
+| WR-01 | warning | fixed | 04-REVIEW-FIX.md (not in the current review) |
+| WR-02 | warning | fixed | 04-REVIEW-FIX.md (not in the current review) |
+| WR-03 | warning | fixed | 04-REVIEW-FIX.md (not in the current review) |
+| WR-04 | warning | fixed | 04-REVIEW-FIX.md (not in the current review) |
+| WR-05 | warning | fixed | 04-REVIEW-FIX.md (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
