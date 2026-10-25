@@ -157,6 +157,15 @@ function selectValue(row: CategorySuggestion, categories: readonly Category[]): 
     : `${CATEGORY_PREFIX}${choice.categoryId}`;
 }
 
+/**
+ * The new category name a row offers as «Nueva: …»: the one it has chosen now, or else the one
+ * the model proposed (kept so the user can come back to it), or null when it has none.
+ */
+function newCategoryName(row: CategorySuggestion): string | null {
+  if (row.choice !== null && row.choice.kind === "new") return row.choice.name;
+  return row.proposedNew ?? null;
+}
+
 /** The first two member descriptions of an accepted product and how many more it has. */
 function memberPreview(products: readonly Product[], productId: string): { text: string; more: number } {
   const product = products.find((candidate) => candidate.id === productId);
@@ -367,7 +376,17 @@ export function CategorySuggestionsTable({ rows, onAnnounce, onEmptied }: Catego
   };
 
   const choose = (row: CategorySuggestion, value: string | null) => {
-    if (value === null || !value.startsWith(CATEGORY_PREFIX)) return;
+    if (value === null) return;
+    if (value === NEW_VALUE) {
+      // The model's own proposal: the row keeps its name, so it can be chosen again (IN-02). A row
+      // whose choice is already «Nueva» has nothing to change.
+      const name = newCategoryName(row);
+      if (name === null) return;
+      useSuggestionsStore.getState().setCategoryChoice(row.id, { kind: "new", name });
+      clearError(row.id);
+      return;
+    }
+    if (!value.startsWith(CATEGORY_PREFIX)) return;
     useSuggestionsStore
       .getState()
       .setCategoryChoice(row.id, { kind: "existing", categoryId: value.slice(CATEGORY_PREFIX.length) });
@@ -414,10 +433,9 @@ export function CategorySuggestionsTable({ rows, onAnnounce, onEmptied }: Catego
         <TableBody>
           {shown.map((row) => {
             const value = selectValue(row, categories);
+            const newName = newCategoryName(row);
             const items = [
-              ...(row.choice !== null && row.choice.kind === "new"
-                ? [{ value: NEW_VALUE, label: newCategoryLabel(row.choice.name) }]
-                : []),
+              ...(newName === null ? [] : [{ value: NEW_VALUE, label: newCategoryLabel(newName) }]),
               ...ordered.map((category) => ({
                 value: `${CATEGORY_PREFIX}${category.id}`,
                 label: category.name,

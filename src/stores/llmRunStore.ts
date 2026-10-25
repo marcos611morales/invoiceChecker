@@ -261,19 +261,23 @@ export function categorizeBatches(run: CategorizeRun): RunBatch[] {
         const target = batch.idMap.get(answer.id);
         if (target === undefined) return { ok: false, error: "incomplete_response" };
         let choice: CategorySuggestion["choice"];
+        let proposedNew: string | undefined;
         if (answer.choice.kind === "code") {
           const categoryId = batch.codeMap.get(answer.choice.code);
           if (categoryId === undefined) return { ok: false, error: "invalid_response" };
           choice = { kind: "existing", categoryId };
         } else {
           choice = { kind: "new", name: answer.choice.name };
+          // Kept on the row so «Nueva: …» stays selectable after the user picks another category.
+          proposedNew = answer.choice.name;
         }
         const name = cutText(target.name, LLM_LIMITS.productName);
         const id = newCategoryRowId();
+        const proposal = proposedNew === undefined ? {} : { proposedNew };
         rows.push(
           target.kind === "supplier"
-            ? { id, kind: "supplier", rfc: target.rfc, name, fullName: target.name, choice }
-            : { id, kind: "product", productId: target.productId, name, choice },
+            ? { id, kind: "supplier", rfc: target.rfc, name, fullName: target.name, ...proposal, choice }
+            : { id, kind: "product", productId: target.productId, name, ...proposal, choice },
         );
       }
       return {

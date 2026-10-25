@@ -848,6 +848,24 @@ describe("categorizeBatches (LLM-02, D-23, D-27)", () => {
     expect("fullName" in product).toBe(false);
   });
 
+  it("keeps the model's proposed new category name on the row; a row answered with a code has none (IN-02)", async () => {
+    const { batch } = firstBatch();
+    vi.mocked(postCategorize).mockResolvedValue(
+      categorizeAnswer([
+        { id: "s1", choice: { kind: "code", code: "c1" } },
+        { id: "q1", choice: { kind: "new", name: "Bebidas" } },
+      ]),
+    );
+    const result = await batch.send(new AbortController().signal);
+    if (!result.ok) throw new Error("expected ok");
+    result.apply();
+    const [supplier, product] = useSuggestionsStore.getState().categories;
+    if (supplier === undefined || product === undefined) throw new Error("expected two rows");
+    expect("proposedNew" in supplier).toBe(false);
+    expect(product.choice).toEqual({ kind: "new", name: "Bebidas" });
+    expect(product.proposedNew).toBe("Bebidas");
+  });
+
   it("skips a target that already has a row from another run", async () => {
     useSuggestionsStore.getState().enqueueCategories([
       { id: "cat_old", kind: "supplier", rfc: "AAA010101AAA", name: "Tienda Uno", choice: null },

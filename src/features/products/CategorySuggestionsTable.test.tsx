@@ -278,6 +278,46 @@ describe("changing the Select (D-17)", () => {
   });
 });
 
+describe("the model's proposed new category stays selectable (IN-02)", () => {
+  const ROW_PROPOSED: CategorySuggestion = { ...ROW_DOS, proposedNew: "Bebidas" };
+
+  it("lists «Nueva: …» for a row whose choice is an existing category but that has a proposal", () => {
+    seed([{ ...ROW_PROPOSED, choice: { kind: "existing", categoryId: OTROS } }]);
+    render(<Harness />);
+    expect(selectOf("Tienda Dos")).toHaveTextContent("Otros");
+    fireEvent.click(selectOf("Tienda Dos"));
+    expect(optionTexts()[0]).toBe("Nueva: Bebidas");
+  });
+
+  it("goes back to the proposal after the user picked an existing category, without changing the settings", () => {
+    seed([ROW_PROPOSED]);
+    render(<Harness />);
+    const before = storedCategories();
+    choose("Tienda Dos", "Otros");
+    expect(useSuggestionsStore.getState().categories[0]?.choice).toEqual({
+      kind: "existing",
+      categoryId: OTROS,
+    });
+    choose("Tienda Dos", "Nueva: Bebidas");
+    expect(useSuggestionsStore.getState().categories[0]?.choice).toEqual({
+      kind: "new",
+      name: "Bebidas",
+    });
+    expect(selectOf("Tienda Dos")).toHaveTextContent("Nueva: Bebidas");
+    expect(storedCategories()).toEqual(before);
+  });
+
+  it("works the same on a product row", () => {
+    seed([{ ...ROW_LECHE, proposedNew: "Lácteos", choice: { kind: "existing", categoryId: OTROS } }]);
+    render(<Harness />);
+    choose("Leche entera", "Nueva: Lácteos");
+    expect(useSuggestionsStore.getState().categories[0]?.choice).toEqual({
+      kind: "new",
+      name: "Lácteos",
+    });
+  });
+});
+
 describe("«Aceptar» on a supplier row (D-18)", () => {
   it("stores the supplier's default category with its RFC and name and moves its lines", () => {
     seed([ROW_UNO]);

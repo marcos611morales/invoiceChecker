@@ -67,9 +67,23 @@ export type CategorySuggestion =
        * it existed: accepting those writes `name`.
        */
       fullName?: string;
+      /** The new category name the model proposed; see `proposedNew` on the product row. */
+      proposedNew?: string;
       choice: CategoryChoice | null;
     }
-  | { id: string; kind: "product"; productId: string; name: string; choice: CategoryChoice | null };
+  | {
+      id: string;
+      kind: "product";
+      productId: string;
+      name: string;
+      /**
+       * The new category name the model proposed for this row, kept after the user picks an
+       * existing category so «Nueva: …» can be chosen again. Absent when the model answered with
+       * an existing category and on rows saved before it existed.
+       */
+      proposedNew?: string;
+      choice: CategoryChoice | null;
+    };
 
 /**
  * The key under which a supplier or a product counts as pending for a category (A-2, D-23): one
@@ -363,9 +377,17 @@ function copyCategoryRow(row: CategorySuggestion): CategorySuggestion {
         rfc: row.rfc,
         name: row.name,
         ...(row.fullName === undefined ? {} : { fullName: row.fullName }),
+        ...(row.proposedNew === undefined ? {} : { proposedNew: row.proposedNew }),
         choice,
       }
-    : { id: row.id, kind: "product", productId: row.productId, name: row.name, choice };
+    : {
+        id: row.id,
+        kind: "product",
+        productId: row.productId,
+        name: row.name,
+        ...(row.proposedNew === undefined ? {} : { proposedNew: row.proposedNew }),
+        choice,
+      };
 }
 
 /**
@@ -850,6 +872,7 @@ const categoryRowSchema = z.discriminatedUnion("kind", [
     rfc: z.string(),
     name: z.string().max(NAME_MAX),
     fullName: z.string().optional(),
+    proposedNew: z.string().min(1).max(NAME_MAX).optional(),
     choice: categoryChoiceSchema.nullable(),
   }),
   z.strictObject({
@@ -857,6 +880,7 @@ const categoryRowSchema = z.discriminatedUnion("kind", [
     kind: z.literal("product"),
     productId: z.string().min(1),
     name: z.string().max(NAME_MAX),
+    proposedNew: z.string().min(1).max(NAME_MAX).optional(),
     choice: categoryChoiceSchema.nullable(),
   }),
 ]);

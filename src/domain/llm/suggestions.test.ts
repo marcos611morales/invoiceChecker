@@ -156,6 +156,37 @@ describe("resolvePendingQueue", () => {
     expect(row !== undefined && row.kind === "supplier" ? row.fullName : null).toBe(fullName);
   });
 
+  it("keeps the proposedNew of either kind of row and rejects an empty or over-long one (IN-02)", () => {
+    const stored: PendingQueue = {
+      products: [],
+      categories: [
+        {
+          id: "cat_a",
+          kind: "supplier",
+          rfc: "AAA010101AAA",
+          name: "Tienda Uno",
+          proposedNew: "Bebidas",
+          choice: { kind: "existing", categoryId: "cat_x" },
+        },
+        {
+          id: "cat_b",
+          kind: "product",
+          productId: "prod_a",
+          name: "Leche",
+          proposedNew: "x".repeat(60),
+          choice: { kind: "new", name: "x".repeat(60) },
+        },
+      ],
+    };
+    const result = resolvePendingQueue(stored, SUGGESTIONS_VERSION);
+    expect(result.status).toBe("ok");
+    expect(result.data).toEqual(stored);
+    for (const bad of ["", "x".repeat(61)]) {
+      const broken = { ...stored, categories: [{ ...stored.categories[1], proposedNew: bad }] };
+      expect(pendingQueueSchema.safeParse(broken).success).toBe(false);
+    }
+  });
+
   it("accepts an empty queue, empty card names and the exact limits of a name", () => {
     expect(resolvePendingQueue(EMPTY, 1).status).toBe("ok");
     const long = "x".repeat(60);
@@ -1496,6 +1527,40 @@ describe("removeCategoryRow and restoreCategoryRow (D-18, D-22)", () => {
     const plain = removeCategoryRow(threeRows(), "r2");
     if (plain === null) throw new Error("expected a removal");
     expect("fullName" in plain.removed.row).toBe(false);
+  });
+
+  it("gives back a row with its proposedNew intact, and a row without it stays without the key (IN-02)", () => {
+    const withProposal: PendingQueue = {
+      products: [],
+      categories: [
+        {
+          id: "r1",
+          kind: "supplier",
+          rfc: "AAA",
+          name: "Tienda",
+          proposedNew: "Bebidas",
+          choice: { kind: "existing", categoryId: "cat_x" },
+        },
+        {
+          id: "r2",
+          kind: "product",
+          productId: "prod_a",
+          name: "Leche",
+          proposedNew: "Lácteos",
+          choice: null,
+        },
+        row("r3", "CCC"),
+      ],
+    };
+    for (const id of ["r1", "r2"]) {
+      const result = removeCategoryRow(withProposal, id);
+      if (result === null) throw new Error("expected a removal");
+      expect(result.removed.row).toEqual(withProposal.categories.find((candidate) => candidate.id === id));
+      expect(restoreCategoryRow(result.next, result.removed)).toEqual(withProposal);
+    }
+    const plain = removeCategoryRow(withProposal, "r3");
+    if (plain === null) throw new Error("expected a removal");
+    expect("proposedNew" in plain.removed.row).toBe(false);
   });
 
   it("gives an undo value that shares nothing with the queue and never mutates its input", () => {
