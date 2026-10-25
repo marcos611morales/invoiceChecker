@@ -52,7 +52,10 @@ export async function POST(request: NextRequest) {
   const denied = await requireSession(request);
   if (denied) return denied;
 
-  if (!request.headers.get("content-type")?.includes("application/json")) {
+  // The media type must be exactly application/json: a substring match would let a CORS-simple
+  // «text/plain; application/json» request through.
+  const mediaType = request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
+  if (mediaType !== "application/json") {
     return failure("bad_request");
   }
   const declared = Number(request.headers.get("content-length"));

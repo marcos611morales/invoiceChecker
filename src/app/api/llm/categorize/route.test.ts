@@ -153,6 +153,23 @@ describe("POST /api/llm/categorize: the request checks (LLM-03, T-04-37)", () =>
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("answers 400 bad_request to a content type that only contains application/json", async () => {
+    const result = await answer(
+      await POST(request(JSON.stringify(BODY), { contentType: "text/plain; application/json" })),
+    );
+    expect(result.status).toBe(400);
+    expect(result.json).toEqual({ error: "bad_request", retryable: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts application/json with a charset parameter, in any case", async () => {
+    fetchMock.mockResolvedValueOnce(goodAnswer());
+    const result = await answer(
+      await POST(request(JSON.stringify(BODY), { contentType: "Application/JSON; charset=utf-8" })),
+    );
+    expect(result.status).toBe(200);
+  });
+
   it("answers 400 bad_request to invalid JSON", async () => {
     const result = await answer(await POST(request("{ not json")));
     expect(result.status).toBe(400);
