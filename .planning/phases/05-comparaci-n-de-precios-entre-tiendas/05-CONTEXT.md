@@ -75,6 +75,9 @@ Siguen vigentes las decisiones de las Fases 1–4 (01..04-CONTEXT.md). Las más 
 - **D-30 (Q5b):** Empate final de la tienda más barata en D-20 (misma mediana y mismas compras): **orden alfabético (es) del nombre de la tienda**.
 - **D-31 (Q7):** El default «no comparable» de D-17 se calcula con **todas las compras del producto, sin filtros**, para que no cambie al filtrar.
 - **D-32 (Q6):** Además de H87, XUN, XPK y E48, cuentan como pieza: **EA, ACT, XBX, X4G, XBJ, XBO, XBG, XCT, XCS, XPA, SET, KT, XKI**.
+- **D-33 (planeación, gráfica):** El historial usa un **ScatterChart con líneas por tienda** (tooltip por compra), no un LineChart, porque Recharts 3.8 solo da tooltip por fecha en LineChart.
+- **D-34 (planeación, A-1):** Un conteo de piezas **leído de la descripción** («50PZ») cuenta como **tamaño verificado** para D-10, igual que D-28.
+- **D-35 (planeación, A-2):** Se leen como conteo: **PZ, PZA, PZAS, PZS, PIEZA, PIEZAS, PK, PKS**. «P» sola y palabras de paquete (PACK, PAQ, PQ, CJ, CAJA, FAJILLA, DOCENA), así como peso/volumen junto a un conteo («AGUA 600ML 24PK»), son ambiguas: sin tamaño, para captura manual.
 - Q8 (textos de los motivos nuevos y límites de las listas persistidas) queda a criterio del planner, según D-15 y Claude's Discretion.
 
 ### Claude's Discretion

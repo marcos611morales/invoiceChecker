@@ -326,7 +326,7 @@ Plans:
 - [ ] 05-05-PLAN.md — Panel del producto: resumen, tabla por tienda con la más barata resaltada, avisos y lista de compras
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 05-06-PLAN.md — Historial de precio por tienda (PREC-06) con colores y formas estables (decisión del tipo de gráfica antes de construirla)
+- [ ] 05-06-PLAN.md — Historial de precio por tienda (PREC-06) con colores y formas estables: ScatterChart con líneas por tienda y tooltip por compra (D-33)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 05-07-PLAN.md — «No comparable»: valor por defecto por ClaveProdServ, menú «⋯» con Deshacer y casilla «Mostrar los no comparables»
