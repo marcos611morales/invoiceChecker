@@ -4,11 +4,12 @@
  * quantity (D-09 step 2) and never calls this module.
  *
  * It reads a weight or volume with an explicit unit («12/1L», «2KG», «375G», «1.730K»,
- * «12/355CCSAB», or a fraction of a kilo or litre such as «1/2 KG» = 0.5 kg) and a single piece count with an explicit token («50PZ», «BONAFO18PK»,
- * «300 Piezas»). Bare numbers without a unit are never read. Anything with two different
- * readings, a weight or volume next to a piece count, or a single reading next to a pack word
- * (PACK, PAQ, PQ, CJ, CAJA, FAJILLA, DOCENA, or a bare «N P») gives no size: a guessed
- * presentation must never reach a compared price (RESEARCH Pitfalls 2-5).
+ * «12/355CCSAB», or a fraction of a kilo or litre such as «1/2 KG» = 0.5 kg) and a single piece
+ * count with an explicit token («50PZ», «BONAFO18PK», «300 Piezas»). Bare numbers without a unit
+ * are never read. Anything with two different readings, a weight or volume next to a piece count,
+ * or a single reading next to a pack word (PACK, PAQ, PQ, CJ, CAJA, FAJILLA, DOCENA, PAQUETE,
+ * PQTE, UDS, «C/6», a trailing «X 12», or a bare «N P») gives no size: a guessed presentation must
+ * never reach a compared price (RESEARCH Pitfalls 2-5).
  *
  * Descriptions are untrusted vendor text: they are cut to MAX_DESCRIPTION_LENGTH before any
  * pattern runs, every quantifier is bounded and no pattern nests repetition, so matching is linear.
@@ -87,12 +88,22 @@ const GLUED = new RegExp(
 );
 // [1] pack count (1-2 digits), [2] piece count (1-4 digits), [3] token (D-35).
 const PIECE = /(?<![\d.,])(?:(\d{1,2})\s*[/X]\s*)?(\d{1,4})\s?(PZAS|PZA|PZS|PZ|PIEZAS|PIEZA|PKS|PK)(?![A-Z0-9])/g;
-// Pack words of a weight or volume reading (RESEARCH). It also matches PZ/PK counts, which is
-// harmless there: a piece count next to a weight or volume is already a conflict.
-const PACK_TOKEN =
-  /\b(PACK|PAQ|PQ|CJ|CAJA|FAJILLAS?|DOCENA)\b|\b\d+\s*(PZ|PZA|PZAS|PIEZAS|PK|P)\b|\dPK\b/;
+// Pack words (RESEARCH, D-35 and WR-01): «12PACK» (count glued to PACK, no word boundary), «PAQUETE»,
+// «PQTE», «UDS» («12 UDS»), «C/6» (caja con 6) and a trailing «X 12» count after a size
+// («5 G x 100»). The «X n» count is not a pack word when a unit follows it («AZUCAR X 5 KG»).
+const PACK_WORD = "PACK|PAQ|PQ|CJ|CAJA|FAJILLAS?|DOCENA|PAQUETE|PQTE|UDS";
+const PIECE_TOKEN = "PZAS|PZA|PZS|PZ|PIEZAS|PIEZA|PKS|PK";
+const PACK_COUNT = [
+  `\\b(?:${PACK_WORD})\\b`,
+  "\\dPACK\\b",
+  "\\bC/\\s?\\d{1,4}",
+  `\\bX\\s?\\d{1,3}(?!\\d|[.,]\\d|\\s?(?:${UNIT_ALT}|${PIECE_TOKEN})(?![A-Z0-9]))`,
+].join("|");
+// Pack words of a weight or volume reading. It also matches PZ/PK counts, which is harmless there:
+// a piece count next to a weight or volume is already a conflict.
+const PACK_TOKEN = new RegExp(`${PACK_COUNT}|\\b\\d+\\s*(?:PZ|PZA|PZAS|PIEZAS|PK|P)\\b|\\dPK\\b`);
 // Pack words next to a piece count. The piece tokens themselves (PZ...PKS) are NOT pack words.
-const PIECE_PACK_WORD = /\b(PACK|PAQ|PQ|CJ|CAJA|FAJILLAS?|DOCENA)\b|\b\d+\s*P\b/;
+const PIECE_PACK_WORD = new RegExp(`${PACK_COUNT}|\\b\\d+\\s*P\\b`);
 
 interface Found {
   family: UnitFamily;

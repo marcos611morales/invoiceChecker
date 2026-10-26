@@ -108,7 +108,40 @@ describe("readSize: ambiguous descriptions give no size (RESEARCH Pitfall 4, D-3
     ["VASOS 50PZ 3 P", "ambiguous:pack-token"],
     ["1KG 2KG", "ambiguous:conflict"],
     ["12/50PZ", "ambiguous:pack-token"],
+    ["CREMA 450 ML C/6", "ambiguous:pack-token"],
+    ["CREMA 450 ML C/ 6", "ambiguous:pack-token"],
+    ["BOTELLA 1.5 L X 12", "ambiguous:pack-token"],
+    ["BOTELLA 1.5 L X12", "ambiguous:pack-token"],
+    ["SOBRE 5 G x 100", "ambiguous:pack-token"],
+    ["REFRESCO 600ML 12PACK", "ambiguous:pack-token"],
+    ["AGUA 500ML PAQUETE", "ambiguous:pack-token"],
+    ["AGUA 500 ML PQTE", "ambiguous:pack-token"],
+    ["LECHE 1 L 12 UDS", "ambiguous:pack-token"],
+    ["LECHE 1 L UDS", "ambiguous:pack-token"],
+    ["VASOS 50PZ C/6", "ambiguous:pack-token"],
+    ["VASOS 50PZ X 12", "ambiguous:pack-token"],
+    ["VASOS 50PZ 12PACK", "ambiguous:pack-token"],
+    ["VASOS 50PZ PAQUETE", "ambiguous:pack-token"],
+    ["VASOS 50PZ PQTE", "ambiguous:pack-token"],
+    ["VASOS 50PZ 12 UDS", "ambiguous:pack-token"],
   ])("reads %j as %s", (description, expected) => {
+    expect(shape(readSize(description))).toBe(expected);
+  });
+
+  it("never multiplies a pack wording and keeps the first reading as its text", () => {
+    const reading = readSize("SOBRE 5 G x 100");
+    expect(reading.kind).toBe("ambiguous");
+    if (reading.kind !== "ambiguous") return;
+    expect(reading.reason).toBe("pack-token");
+    expect(reading.texts).toEqual(["5 G"]);
+  });
+
+  it.each([
+    ["AZUCAR X 5 KG", "mass:5"],
+    ["AGUA X 600 ML", "volume:0.6"],
+    ["VASOS X 50 PZ", "piece:50"],
+    ["JAMON 1X1KG", "mass:1"],
+  ])("does not treat a size written after X as a pack: %j gives %s", (description, expected) => {
     expect(shape(readSize(description))).toBe(expected);
   });
 
