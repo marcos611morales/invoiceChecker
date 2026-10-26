@@ -5,6 +5,10 @@ import { es } from "./es";
 import type { NotNormalizedReason } from "@/domain/prices/content";
 import type { UnitFamily } from "@/domain/prices/units";
 import {
+  captureContentAria,
+  editContentAria,
+  missingContentNotice,
+  usesXmlQuantityText,
   cheapestSummary,
   historyAriaLabel,
   historyContentRow,
@@ -1585,5 +1589,46 @@ describe("price history copy (PREC-06)", () => {
       volume: "$/L",
       piece: "$/pieza",
     });
+  });
+});
+
+describe("content of each description copy (D-13, D-14)", () => {
+  it("words the missing-content notice with singular and plural forms", () => {
+    expect(missingContentNotice(1, 1)).toBe(
+      "Falta el contenido de 1 descripción, por eso 1 compra no entra en la comparación.",
+    );
+    expect(missingContentNotice(2, 5)).toBe(
+      "Falta el contenido de 2 descripciones, por eso 5 compras no entran en la comparación.",
+    );
+    expect(missingContentNotice(1, 3)).toBe(
+      "Falta el contenido de 1 descripción, por eso 3 compras no entran en la comparación.",
+    );
+  });
+
+  it("names the pencil with the description cut at 60 characters, «…» included, and the store", () => {
+    expect(editContentAria("Leche", "Tienda Alfa")).toBe(
+      "Corregir el contenido de «Leche» (Tienda Alfa)",
+    );
+    expect(editContentAria("A".repeat(60), "Tienda Alfa")).toBe(
+      `Corregir el contenido de «${"A".repeat(60)}» (Tienda Alfa)`,
+    );
+    expect(editContentAria("A".repeat(70), "Tienda Alfa")).toBe(
+      `Corregir el contenido de «${"A".repeat(59)}…» (Tienda Alfa)`,
+    );
+  });
+
+  it("names the capture button after «Capturar contenido» with the same cut", () => {
+    expect(captureContentAria("Leche", "Tienda Alfa")).toBe(
+      "Capturar contenido de «Leche» (Tienda Alfa)",
+    );
+    expect(captureContentAria("B".repeat(70), "Tienda Alfa")).toBe(
+      `Capturar contenido de «${"B".repeat(59)}…» (Tienda Alfa)`,
+    );
+  });
+
+  it("says which family a unit-based member uses from the XML", () => {
+    expect(usesXmlQuantityText("mass")).toBe("Usa la cantidad del XML (kilogramos)");
+    expect(usesXmlQuantityText("volume")).toBe("Usa la cantidad del XML (litros)");
+    expect(usesXmlQuantityText(null)).toBe("Usa la cantidad del XML");
   });
 });

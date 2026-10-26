@@ -5,6 +5,7 @@ import { dayNumber } from "@/domain/prices/history";
 import {
   formaPagoLabel,
   formatContent,
+  formatCorrection,
   formatCount,
   formatDelta,
   formatExchangeRate,
@@ -355,5 +356,28 @@ describe("monthTickLabel", () => {
       expect(monthTickLabel(day + 30)).toBe("may 2025");
       expect(monthTickLabel(day + 31)).toBe("jun 2025");
     }
+  });
+});
+
+describe("formatCorrection (D-14, D-15)", () => {
+  it("writes packs times content when there is more than one pack", () => {
+    expect(formatCorrection({ packs: 12, amount: "1", unit: "l" })).toBe("12 × 1 L");
+    expect(formatCorrection({ packs: 6, amount: "250", unit: "ml" })).toBe("6 × 250 mL");
+  });
+
+  it("writes the content alone for a single pack", () => {
+    expect(formatCorrection({ packs: 1, amount: "375", unit: "g" })).toBe("375 g");
+    expect(formatCorrection({ packs: 1, amount: "1.5", unit: "kg" })).toBe("1.5 kg");
+  });
+
+  it("trims trailing zeros of the typed content", () => {
+    expect(formatCorrection({ packs: 1, amount: "1.500", unit: "l" })).toBe("1.5 L");
+    expect(formatCorrection({ packs: 2, amount: "0.250000", unit: "kg" })).toBe("2 × 0.25 kg");
+  });
+
+  it("uses «pieza» for exactly one piece and «piezas» otherwise", () => {
+    expect(formatCorrection({ packs: 1, amount: "6", unit: "piezas" })).toBe("6 piezas");
+    expect(formatCorrection({ packs: 1, amount: "1", unit: "piezas" })).toBe("1 pieza");
+    expect(formatCorrection({ packs: 3, amount: "4", unit: "piezas" })).toBe("3 × 4 piezas");
   });
 });
