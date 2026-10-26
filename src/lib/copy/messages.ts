@@ -1303,3 +1303,25 @@ export function bulkAcceptedToast(created: number, addedTo: number, stayed: numb
 export function bulkRejectedToast(n: number): string {
   return n === 1 ? "1 sugerencia rechazada" : `${String(n)} sugerencias rechazadas`;
 }
+
+/** Count line of the Precios tools row: «{n} productos» («1 producto»). */
+export function pricesCountLine(n: number): string {
+  return n === 1 ? "1 producto" : `${String(n)} productos`;
+}
+
+/** Sub-label of the «Ahorro estimado» card: «{n} productos con 2 o más tiendas». */
+export function savingsProductsLabel(n: number): string {
+  return n === 1 ? "1 producto con 2 o más tiendas" : `${String(n)} productos con 2 o más tiendas`;
+}
+
+/** Extra sentence of the card note when counted products are compared per piece (D-23). */
+export function savingsPerPieceNote(n: number): string {
+  return n === 1
+    ? "Incluye 1 producto comparado por pieza, sin tamaño verificado."
+    : `Incluye ${String(n)} productos comparados por pieza, sin tamaño verificado.`;
+}
+
+/** Table area of the Precios tab when the search matches no product (D-07). */
+export function noSearchMatch(text: string): string {
+  return `Ningún producto coincide con «${text}». Revisa la búsqueda.`;
+}
