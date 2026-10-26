@@ -317,7 +317,7 @@ describe("AppShell: shell wiring (D-01, D-05, UI Considerations E1 and E2)", () 
     expect(useSessionStore.getState().activeTab).toBe("dashboard");
   });
 
-  it("lists Dashboard, Categorías, Productos, Calidad de datos (with the credit note without related as 1 incident) and Importación", () => {
+  it("lists Dashboard, Categorías, Productos, Precios, Calidad de datos (with the credit note without related as 1 incident) and Importación", () => {
     load([ingreso, egreso]);
     render(<AppShell />);
     const names = screen.getAllByRole("tab").map((tab) => tab.textContent);
@@ -325,6 +325,7 @@ describe("AppShell: shell wiring (D-01, D-05, UI Considerations E1 and E2)", () 
       "Dashboard",
       "Categorías",
       "Productos",
+      "Precios",
       "Calidad de datos · 1",
       "Importación",
     ]);

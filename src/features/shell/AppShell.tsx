@@ -11,6 +11,7 @@ import { CategoriesTab } from "@/features/categories/CategoriesTab";
 import { DashboardTab } from "@/features/dashboard/DashboardTab";
 import { useLedger } from "@/features/dashboard/useLedger";
 import { ExportButton } from "@/features/export/ExportButton";
+import { PreciosTab } from "@/features/prices/PreciosTab";
 import { ProductsTab } from "@/features/products/ProductsTab";
 import { RunWatcher } from "@/features/products/RunWatcher";
 import { QualityTab } from "@/features/quality/QualityTab";
@@ -58,6 +59,7 @@ function isAppTab(value: unknown): value is AppTab {
     value === "dashboard" ||
     value === "categorias" ||
     value === "productos" ||
+    value === "precios" ||
     value === "calidad" ||
     value === "importacion"
   );
@@ -74,6 +76,7 @@ const TABS: readonly TabDefinition[] = [
   { value: "dashboard", label: es.tabs.dashboard, Panel: DashboardTab },
   { value: "categorias", label: es.tabs.categories, Panel: CategoriesTab },
   { value: "productos", label: es.tabs.products, Panel: ProductsTab },
+  { value: "precios", label: es.tabs.prices, Panel: PreciosTab },
   { value: "calidad", label: es.tabs.quality, Panel: QualityTab },
   { value: "importacion", label: es.tabs.import, Panel: ImportReport },
 ];
@@ -93,8 +96,8 @@ function LoadedTabs() {
   // Everything waiting for review in the Productos tab: product cards plus category rows. The
   // queue comes back from browser storage in the shell's mount effect, so a reload shows it here.
   const pendingCount = useSuggestionsStore((s) => s.products.length + s.categories.length);
-  // Below 640 px the four triggers do not fit: the list scrolls inside its container and
-  // the active trigger is brought into view whenever the tab changes (UI-SPEC Q2).
+  // Below 768 px the six triggers do not fit: the list scrolls inside its container and
+  // the active trigger is brought into view whenever the tab changes (UI-SPEC Q2, Phase 5).
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const active = listRef.current?.querySelector('[role="tab"][aria-selected="true"]');
@@ -114,7 +117,7 @@ function LoadedTabs() {
         ref={listRef}
         variant="line"
         aria-label={es.tabs.ariaLabel}
-        className="group-data-horizontal/tabs:h-10 max-sm:group-data-horizontal/tabs:h-11 max-w-full gap-2 p-0 max-sm:justify-start max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden"
+        className="group-data-horizontal/tabs:h-10 max-sm:group-data-horizontal/tabs:h-11 max-w-full gap-2 p-0 max-md:justify-start max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
       >
         {TABS.map(({ value, label }) => {
           // The two tabs with a counter carry it in the visible text and in the accessible name.

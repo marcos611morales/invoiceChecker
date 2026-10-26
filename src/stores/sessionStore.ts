@@ -17,7 +17,13 @@ export type ImportProgress =
   | { phase: "listing" }
   | { phase: "parsing"; done: number; total: number };
 
-export type AppTab = "dashboard" | "categorias" | "productos" | "calidad" | "importacion";
+export type AppTab =
+  | "dashboard"
+  | "categorias"
+  | "productos"
+  | "precios"
+  | "calidad"
+  | "importacion";
 
 /** One-shot "focus this invoice" request; the nonce makes a repeated request for the same uuid observable. */
 export interface FocusRequest {
