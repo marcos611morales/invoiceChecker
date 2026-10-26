@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Pencil } from "lucide-react";
 import { TruncatedText } from "@/components/TruncatedText";
 import { Badge } from "@/components/ui/badge";
@@ -14,13 +14,15 @@ import { IconAction } from "@/features/products/IconAction";
 import { es } from "@/lib/copy/es";
 import {
   captureContentAria,
+  contentSavedAnnouncement,
   editContentAria,
   notNormalizedReasonText,
   showMore,
   usesXmlQuantityText,
 } from "@/lib/copy/messages";
-import { formatContent, formatCorrection } from "@/lib/format";
+import { formatContent, formatCorrection, formatMoney } from "@/lib/format";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { ContentEditor } from "./ContentEditor";
 
 /**
  * Prefix of the id of the section heading «Contenido de cada descripción». Several products can be
@@ -114,7 +116,14 @@ function ContentCell({ row, member }: { row: ProductComparison; member: MemberCo
  * absent, or taken from the XML quantity — and the way to fix it. Members bought by weight or
  * volume have no edit button. Every description, store name and reason is rendered as React text.
  */
-export function ContentTable({ row }: { row: ProductComparison }) {
+export function ContentTable({
+  row,
+  onAnnounce,
+}: {
+  row: ProductComparison;
+  /** Receives the polite announcements of the editor; the Precios tab renders them in a live region. */
+  onAnnounce?: (message: string) => void;
+}) {
   const contentCorrections = useSettingsStore((state) => state.contentCorrections);
   const corrections = useMemo(() => {
     const map = new Map<string, ContentCorrection>();
@@ -125,7 +134,28 @@ export function ContentTable({ row }: { row: ProductComparison }) {
   }, [contentCorrections]);
   const members = useMemo(() => memberContents(row, corrections), [row, corrections]);
   const [showAll, setShowAll] = useState(false);
+  // Member identity of the row being edited; one editor at a time.
   const [editing, setEditing] = useState<string | null>(null);
+  // The pencil (or «Capturar contenido») of each row, to return focus to after the editor closes.
+  const actionButtons = useRef(new Map<string, HTMLButtonElement>());
+  const focusAfterClose = useRef<string | null>(null);
+  // Set by the editor when it saved: the announcement is made once the recalculated row has rendered.
+  const announceSaved = useRef(false);
+
+  useEffect(() => {
+    if (editing === null && focusAfterClose.current !== null) {
+      const key = focusAfterClose.current;
+      focusAfterClose.current = null;
+      actionButtons.current.get(key)?.focus();
+    }
+    if (announceSaved.current) {
+      announceSaved.current = false;
+      onAnnounce?.(
+        contentSavedAnnouncement(row.name, row.saving === null ? null : formatMoney(row.saving)),
+      );
+    }
+  });
+
   if (members.length === 0) return null;
 
   const visible = showAll ? members : members.slice(0, FIRST_PAGE);
@@ -153,7 +183,7 @@ export function ContentTable({ row }: { row: ProductComparison }) {
           <TableBody>
             {visible.map((member) => (
               <Fragment key={member.memberKey}>
-                <TableRow className="h-14 hover:bg-background" data-editing={editing === member.memberKey}>
+                <TableRow className="h-14 hover:bg-background">
                   <TableCell className="max-w-[320px] whitespace-normal">
                     <TruncatedText
                       text={member.description}
@@ -170,12 +200,33 @@ export function ContentTable({ row }: { row: ProductComparison }) {
                   <TableCell className="text-right whitespace-nowrap">
                     <MemberAction
                       member={member}
+                      buttonRef={(element) => {
+                        if (element === null) actionButtons.current.delete(member.memberKey);
+                        else actionButtons.current.set(member.memberKey, element);
+                      }}
                       onEdit={() => {
                         setEditing(member.memberKey);
                       }}
                     />
                   </TableCell>
                 </TableRow>
+                {editing === member.memberKey ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={5} className="p-2 whitespace-normal sm:p-3">
+                      <ContentEditor
+                        member={member}
+                        onAnnounce={onAnnounce}
+                        onSaved={() => {
+                          announceSaved.current = true;
+                        }}
+                        onClose={() => {
+                          focusAfterClose.current = member.memberKey;
+                          setEditing(null);
+                        }}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ) : null}
               </Fragment>
             ))}
           </TableBody>
@@ -204,11 +255,20 @@ export function ContentTable({ row }: { row: ProductComparison }) {
  * member that is not normalized and has no correction yet, nothing for a member bought by weight,
  * volume or in an unknown unit (D-14).
  */
-function MemberAction({ member, onEdit }: { member: MemberContent; onEdit: () => void }) {
+function MemberAction({
+  member,
+  onEdit,
+  buttonRef,
+}: {
+  member: MemberContent;
+  onEdit: () => void;
+  buttonRef: Ref<HTMLButtonElement>;
+}) {
   if (!member.editable) return null;
   if (member.status === "not-normalized" && member.correction === null) {
     return (
       <Button
+        ref={buttonRef}
         type="button"
         variant="outline"
         aria-label={captureContentAria(member.description, member.storeName)}
@@ -220,7 +280,11 @@ function MemberAction({ member, onEdit }: { member: MemberContent; onEdit: () =>
     );
   }
   return (
-    <IconAction label={editContentAria(member.description, member.storeName)} onClick={onEdit}>
+    <IconAction
+      label={editContentAria(member.description, member.storeName)}
+      onClick={onEdit}
+      buttonRef={buttonRef}
+    >
       <Pencil aria-hidden="true" />
     </IconAction>
   );

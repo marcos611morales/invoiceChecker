@@ -104,9 +104,12 @@ const NO_SLOTS: ReadonlyMap<string, SeriesSlot> = new Map();
 export function ProductDetail({
   row,
   slots = NO_SLOTS,
+  onAnnounce,
 }: {
   row: ProductComparison;
   slots?: ReadonlyMap<string, SeriesSlot>;
+  /** Receives the polite announcements of the content editor (D-15). */
+  onAnnounce?: (message: string) => void;
 }) {
   const storesHeadingId = useId();
   const historyHeadingId = useId();
@@ -138,7 +141,7 @@ export function ProductDetail({
           <HistoryChart row={row} slots={slots} />
         </section>
       ) : null}
-      <ContentTable row={row} />
+      <ContentTable row={row} onAnnounce={onAnnounce} />
       <section aria-labelledby={purchasesHeadingId} className="flex min-w-0 flex-col gap-2">
         <h3 id={purchasesHeadingId} className="text-sm font-semibold">
           {es.prices.detail.purchasesHeading}

@@ -103,11 +103,20 @@ function detectedAndMissing(): Purchase[] {
 
 /** Body rows of the content table, in the order shown. */
 function bodyRows(): HTMLElement[] {
-  const table = screen.getByRole("table");
+  // A product panel holds other tables too: the content table is the one in its own section.
+  const section = screen.getByRole("region", { name: "Contenido de cada descripción" });
+  const table = within(section).getByRole("table");
   const groups = within(table).getAllByRole("rowgroup");
   const body = groups[1];
   if (body === undefined) throw new Error("no table body");
   return within(body).getAllByRole("row");
+}
+
+/** A cell of a body row by position; fails loudly when it does not exist. */
+function contentCell(row: HTMLElement, index: number): HTMLElement {
+  const cell = within(row).getAllByRole("cell")[index];
+  if (cell === undefined) throw new Error(`no cell ${String(index)}`);
+  return cell;
 }
 
 function rowWith(text: string): HTMLElement {
@@ -171,15 +180,14 @@ describe("Contenido de cada descripción: section and columns (D-13, E8)", () =>
     expect(rows[0]).toHaveTextContent("Tienda Beta");
     expect(rows[1]).toHaveTextContent(ALPURA);
     expect(rows[1]).toHaveTextContent("Tienda Alfa");
-    const cells = within(rows[1] as HTMLElement).getAllByRole("cell");
-    expect(cells[3]).toHaveTextContent("1");
+    expect(contentCell(rowWith(ALPURA), 3)).toHaveTextContent("1");
   });
 });
 
 describe("Contenido de cada descripción: member states (D-13, D-14, E8)", () => {
   it("shows a detected content in muted text with the outline badge «detectado»", () => {
     render(<ContentTable row={rowFor(detectedAndMissing())} />);
-    const cell = within(rowWith(ALPURA)).getAllByRole("cell")[2] as HTMLElement;
+    const cell = contentCell(rowWith(ALPURA), 2);
     expect(cell).toHaveTextContent("12 L");
     expect(cell).toHaveTextContent("detectado");
     expect(within(cell).getByText("12 L").className).toContain("text-muted-foreground");
@@ -190,7 +198,7 @@ describe("Contenido de cada descripción: member states (D-13, D-14, E8)", () =>
     const correction = correctionOf(RFC_A, ALPURA, { packs: 12, amount: "1", unit: "l" });
     seedCorrections(correction);
     render(<ContentTable row={rowFor(detectedAndMissing(), [correction])} />);
-    const cell = within(rowWith(ALPURA)).getAllByRole("cell")[2] as HTMLElement;
+    const cell = contentCell(rowWith(ALPURA), 2);
     expect(cell).toHaveTextContent("12 × 1 L");
     expect(cell).toHaveTextContent("Corregido");
     expect(cell).not.toHaveTextContent("detectado");
@@ -200,7 +208,7 @@ describe("Contenido de cada descripción: member states (D-13, D-14, E8)", () =>
   it("shows «No normalizado», its reason and an outline «Capturar contenido» that names the description", () => {
     render(<ContentTable row={rowFor(detectedAndMissing())} />);
     const row = rowWith(LACDEL);
-    const cell = within(row).getAllByRole("cell")[2] as HTMLElement;
+    const cell = contentCell(row, 2);
     expect(cell).toHaveTextContent("No normalizado");
     expect(cell).toHaveTextContent("Sin tamaño en la descripción, y otras compras de este producto sí lo tienen.");
     const button = within(row).getByRole("button", {
@@ -235,7 +243,7 @@ describe("Contenido de cada descripción: member states (D-13, D-14, E8)", () =>
     ];
     render(<ContentTable row={rowFor(purchases)} />);
     for (const row of bodyRows()) {
-      const cell = within(row).getAllByRole("cell")[2] as HTMLElement;
+      const cell = contentCell(row, 2);
       expect(within(cell).getByText("Sin tamaño").className).toContain("text-muted-foreground");
     }
   });
@@ -315,9 +323,9 @@ describe("Missing-content notice in the product panel (D-13)", () => {
     );
     expect(notice).toBeInTheDocument();
     const alert = notice.closest('[data-slot="alert"]');
-    expect(alert).not.toBeNull();
+    if (!(alert instanceof HTMLElement)) throw new Error("no alert around the notice");
     expect(alert).toHaveAttribute("role", "status");
-    const link = within(alert as HTMLElement).getByRole("button", { name: "Capturar contenido" });
+    const link = within(alert).getByRole("button", { name: "Capturar contenido" });
     fireEvent.click(link);
     expect(screen.getByRole("heading", { name: "Contenido de cada descripción" })).toHaveFocus();
   });
@@ -407,7 +415,10 @@ function type(field: HTMLElement, value: string): void {
 
 function chooseUnit(label: string): void {
   fireEvent.click(unitSelect());
-  fireEvent.click(screen.getByRole("option", { name: label }));
+  const option = screen.getByRole("option", { name: label });
+  // Base UI commits a mouse selection only when the pointer went down on the item.
+  fireEvent.pointerDown(option);
+  fireEvent.click(option);
 }
 
 function fillCorrection(packs: string, amount: string, unit: string): void {

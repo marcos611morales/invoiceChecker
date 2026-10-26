@@ -747,6 +747,24 @@ export const es = {
         usesXml: "Usa la cantidad del XML",
         /** Unit labels of a typed content; «pieza» is the singular of «piezas». */
         units: { g: "g", kg: "kg", ml: "mL", l: "L", piezas: "piezas", pieza: "pieza" },
+        /** Inline editor of one description's content (D-13, D-14, D-15). */
+        editor: {
+          packs: "Piezas por paquete",
+          amount: "Contenido de cada pieza",
+          unit: "Unidad",
+          helper: "Para un paquete de 12 botellas de 1 L: piezas por paquete 12, contenido 1, unidad L.",
+          save: "Guardar contenido",
+          discard: "Descartar cambios",
+          restore: "Volver a lo detectado",
+          undo: "Deshacer",
+          amountError: "Escribe un contenido mayor que 0.",
+          packsError: "Escribe un número entero de piezas, 1 o más.",
+          /**
+           * The store refused values the editor had validated. Not in the UI-SPEC: the wording is
+           * the executor's, flagged for review.
+           */
+          refused: "No se pudo guardar el contenido: el valor no es válido.",
+        },
       },
       purchases: {
         columns: {

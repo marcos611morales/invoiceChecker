@@ -543,7 +543,11 @@ export function PricesTable({
                       colSpan={columns.length + 2}
                       className="bg-secondary p-4 whitespace-normal sm:p-6"
                     >
-                      <ProductDetail row={row.comparison} slots={historySlots.get(row.id)} />
+                      <ProductDetail
+                        row={row.comparison}
+                        slots={historySlots.get(row.id)}
+                        onAnnounce={onAnnounce}
+                      />
                     </TableCell>
                   </TableRow>
                 ) : null}
