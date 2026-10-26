@@ -1429,6 +1429,36 @@ export function showMore(n: number): string {
 }
 
 /**
+ * Accessible name of the price history chart (PREC-06): the product and the first and last plotted
+ * dates, with a pointer to the purchases list that holds the same data.
+ */
+export function historyAriaLabel(product: string, from: string, to: string): string {
+  return `Historial de precios de ${product}: una línea por tienda, del ${from} al ${to}. La tabla de compras de abajo tiene los mismos datos.`;
+}
+
+/** Caption under the chart for the purchases left out of it: «{n} compras no aparecen…». */
+export function historyExcludedNote(n: number): string {
+  return n === 1
+    ? "1 compra no aparece en la gráfica porque no está normalizada."
+    : `${String(n)} compras no aparecen en la gráfica porque no están normalizadas.`;
+}
+
+/** Legend entry of the neutral series that folds the stores beyond the sixth. */
+export function otherStoresLabel(n: number): string {
+  return `${es.prices.detail.history.series.otras} (${String(n)})`;
+}
+
+/** Tooltip row with the content of a purchase: «Contenido: 2 kg». */
+export function historyContentRow(content: string): string {
+  return `Contenido: ${content}`;
+}
+
+/** Tooltip row with the folio of a purchase: «Folio: A-1» («Folio: —» when it has none). */
+export function historyFolioRow(folio: string): string {
+  return `Folio: ${folio}`;
+}
+
+/**
  * Why a purchase is «No normalizado» (D-09, D-10, D-12, D-26, D-29). The domain returns the code;
  * the sentence lives only here. `comparedFamily` is the family the product is compared in, which
  * the «other-family» sentence names next to the family the purchase was bought in.

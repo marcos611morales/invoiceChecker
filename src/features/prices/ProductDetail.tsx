@@ -4,6 +4,7 @@ import { useId } from "react";
 import { Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { ProductComparison } from "@/domain/prices/compare";
+import type { SeriesSlot } from "@/domain/prices/history";
 import { es } from "@/lib/copy/es";
 import {
   cheapestSummaryParts,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/copy/messages";
 import { formatMoney, unitPriceText } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { HistoryChart } from "./HistoryChart";
 import { PurchasesList } from "./PurchasesList";
 import { StoreTable } from "./StoreTable";
 
@@ -59,15 +61,28 @@ function Summary({ row }: { row: ProductComparison }) {
   );
 }
 
+/** Slots of a product when the caller has none: every store falls into «Otras tiendas». */
+const NO_SLOTS: ReadonlyMap<string, SeriesSlot> = new Map();
+
 /**
- * Expanded panel of a product of the Precios tab (D-07): alerts, summary, prices per store and
- * the purchases list. The history chart and the content editor slot in between by later plans.
- * Every vendor and store name is rendered as React text.
+ * Expanded panel of a product of the Precios tab (D-07): alerts, summary, prices per store, the
+ * price history and the purchases list. The content editor slots in by a later plan. `slots` are
+ * the stable series slots of the product's stores (PREC-06). Every vendor and store name is
+ * rendered as React text.
  */
-export function ProductDetail({ row }: { row: ProductComparison }) {
+export function ProductDetail({
+  row,
+  slots = NO_SLOTS,
+}: {
+  row: ProductComparison;
+  slots?: ReadonlyMap<string, SeriesSlot>;
+}) {
   const storesHeadingId = useId();
+  const historyHeadingId = useId();
   const purchasesHeadingId = useId();
   const comparable = row.stores.length > 0;
+  const hasHistory =
+    comparable && row.purchases.some((purchase) => purchase.status === "compared");
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {row.family !== null && row.otherFamilies.length > 0 ? (
@@ -83,7 +98,15 @@ export function ProductDetail({ row }: { row: ProductComparison }) {
           <StoreTable row={row} />
         </section>
       ) : null}
-      <section aria-labelledby={purchasesHeadingId} className="flex min-w-0 flex-col gap-2">
+      {hasHistory ? (
+        <section aria-labelledby={historyHeadingId} className="flex min-w-0 flex-col gap-2">
+          <h3 id={historyHeadingId} className="text-sm font-semibold">
+            {es.prices.detail.history.heading}
+          </h3>
+          <HistoryChart row={row} slots={slots} />
+        </section>
+      ) : null}
+      <section aria-labelledby={purchasesHeadingId}className="flex min-w-0 flex-col gap-2">
         <h3 id={purchasesHeadingId} className="text-sm font-semibold">
           {es.prices.detail.purchasesHeading}
         </h3>

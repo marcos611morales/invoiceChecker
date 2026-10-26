@@ -1,6 +1,7 @@
 import Big from "big.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
+import { dayNumber } from "@/domain/prices/history";
 import {
   formaPagoLabel,
   formatContent,
@@ -14,8 +15,10 @@ import {
   formatTotal,
   formatUnitPrice,
   invoiceRef,
+  longDateLabel,
   monthLongLabel,
   monthShortLabel,
+  monthTickLabel,
   monthYearLabel,
   normalizeSearch,
   periodLabel,
@@ -326,5 +329,31 @@ describe("formatContent", () => {
     expect(formatContent(new Big("1"), "piece")).toBe("1 pieza");
     expect(formatContent(new Big("1.0004"), "piece")).toBe("1 pieza");
     expect(formatContent(new Big("0.5"), "piece")).toBe("0.5 piezas");
+  });
+});
+
+describe("longDateLabel", () => {
+  it("writes the literal date with the long month, without a leading zero", () => {
+    expect(longDateLabel("2025-05-28T17:38:18")).toBe("28 de mayo de 2025");
+    expect(longDateLabel("2025-01-01T00:00:00")).toBe("1 de enero de 2025");
+    expect(longDateLabel("2025-09-05T23:59:59")).toBe("5 de septiembre de 2025");
+  });
+
+  it("returns a malformed value unchanged", () => {
+    expect(longDateLabel("junk")).toBe("junk");
+    expect(longDateLabel("2025-13-01T00:00:00")).toBe("2025-13-01T00:00:00");
+    expect(longDateLabel("2025-05-00T00:00:00")).toBe("2025-05-00T00:00:00");
+  });
+});
+
+describe("monthTickLabel", () => {
+  it("reads «may 2025» for a day number of that month", () => {
+    const day = dayNumber("2025-05-01T00:00:00");
+    expect(day).not.toBeNull();
+    if (day !== null) {
+      expect(monthTickLabel(day)).toBe("may 2025");
+      expect(monthTickLabel(day + 30)).toBe("may 2025");
+      expect(monthTickLabel(day + 31)).toBe("jun 2025");
+    }
   });
 });

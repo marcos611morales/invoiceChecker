@@ -374,3 +374,29 @@ describe("Precios tab composition (D-02, D-03, D-04, D-07, D-22, D-23)", () => {
     expect(screen.getByText("1 producto")).toHaveAttribute("aria-live", "polite");
   });
 });
+
+describe("price history inside an opened product (PREC-06, D-24)", () => {
+  function legendItem(name: string): HTMLElement {
+    const item = panel()
+      .getAllByRole("listitem")
+      .find((li: HTMLElement) => li.textContent === name);
+    if (item === undefined) throw new Error(`no legend item for ${name}`);
+    return item;
+  }
+
+  it("keeps the color slot of a store when the supplier filter hides the other store", () => {
+    load([purchase(RFC_A, NAME_A, "2", "100.00"), purchase(RFC_B, NAME_B, "1", "60.00")]);
+    render(<AppShell />);
+    openPrecios();
+    fireEvent.click(screen.getByRole("button", { name: "Ver precios de Azúcar estándar" }));
+
+    expect(panel().getByRole("heading", { name: "Historial de precios" })).toBeInTheDocument();
+    expect(legendItem(NAME_B).querySelector("svg")?.getAttribute("class")).toContain("text-series-2");
+
+    // Only Beta is left: with the slots taken from the filtered stores it would become slot 1.
+    act(() => {
+      useSessionStore.getState().setSuppliers(new Set([RFC_B]));
+    });
+    expect(legendItem(NAME_B).querySelector("svg")?.getAttribute("class")).toContain("text-series-2");
+  });
+});

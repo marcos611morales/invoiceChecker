@@ -6,6 +6,11 @@ import type { NotNormalizedReason } from "@/domain/prices/content";
 import type { UnitFamily } from "@/domain/prices/units";
 import {
   cheapestSummary,
+  historyAriaLabel,
+  historyContentRow,
+  historyExcludedNote,
+  historyFolioRow,
+  otherStoresLabel,
   notNormalizedReasonText,
   cheapestSummaryParts,
   expandPricesAria,
@@ -1463,5 +1468,36 @@ describe("Precios tab sentences (D-07, D-22, D-23)", () => {
     expect(text("mass", "piece")).toBe("Se compró en kilogramos; este producto se compara en piezas.");
     expect(text("volume", "piece")).toBe("Se compró en litros; este producto se compara en piezas.");
     expect(text("piece", "mass")).toBe("Se compró en piezas; este producto se compara en kilogramos.");
+  });
+});
+
+describe("price history copy (PREC-06)", () => {
+  it("names the product and the dates in the accessible label", () => {
+    expect(historyAriaLabel("Leche entera", "5 de enero de 2025", "28 de mayo de 2025")).toBe(
+      "Historial de precios de Leche entera: una línea por tienda, del 5 de enero de 2025 al 28 de mayo de 2025. La tabla de compras de abajo tiene los mismos datos.",
+    );
+  });
+
+  it("counts the purchases left out in the singular and the plural", () => {
+    expect(historyExcludedNote(1)).toBe(
+      "1 compra no aparece en la gráfica porque no está normalizada.",
+    );
+    expect(historyExcludedNote(2)).toBe(
+      "2 compras no aparecen en la gráfica porque no están normalizadas.",
+    );
+  });
+
+  it("writes the folded series, the tooltip rows and the single-purchase sentence", () => {
+    expect(otherStoresLabel(3)).toBe("Otras tiendas (3)");
+    expect(historyContentRow("2 kg")).toBe("Contenido: 2 kg");
+    expect(historyFolioRow("A-1")).toBe("Folio: A-1");
+    expect(es.prices.detail.history.singlePurchase).toBe(
+      "Hay una sola compra normalizada de este producto. El historial aparece desde la segunda.",
+    );
+    expect(es.prices.detail.history.axisUnit).toEqual({
+      mass: "$/kg",
+      volume: "$/L",
+      piece: "$/pieza",
+    });
   });
 });
