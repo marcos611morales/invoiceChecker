@@ -539,7 +539,7 @@ describe("compareProduct and comparePrices with content corrections (D-09 step 1
     );
     expect(row.perPiece).toBe(false);
     expect(row.stores.map((s) => [s.name, s.median.toString()])).toEqual([
-      [NAME_B, "2.777777777777777778"],
+      [NAME_B, "2.77777777777777777778"],
       [NAME_A, "5"],
     ]);
     expect(row.cheapest?.name).toBe(NAME_B);

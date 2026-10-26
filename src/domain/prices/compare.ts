@@ -11,7 +11,7 @@
  */
 import type Big from "big.js";
 import { ZERO } from "../accounting/decimal";
-import type { Product } from "../settings/types";
+import type { ContentCorrection, Product } from "../settings/types";
 import { resolveContent, type ContentSource, type NotNormalizedReason } from "./content";
 import type { Purchase } from "./purchases";
 import type { UnitFamily } from "./units";
@@ -189,17 +189,22 @@ function estimatedSaving(
   return total;
 }
 
-/** Comparison of one product over its purchases (already filtered by the caller). */
+/**
+ * Comparison of one product over its purchases (already filtered by the caller). `corrections` are
+ * the user's contents keyed by `ruleMapKey(rfc, key)`, the same identity as a purchase's
+ * `memberKey`; without them every purchase is resolved as before (D-09 step 1).
+ */
 export function compareProduct(
   product: Product,
   purchases: readonly Purchase[],
+  corrections?: ReadonlyMap<string, ContentCorrection>,
 ): ProductComparison {
   const rejected: NotNormalized[] = [];
   let candidates: Candidate[] = [];
 
   // Content and amount of every purchase. A zero or negative net amount never becomes a price (D-26).
   for (const purchase of purchases) {
-    const content = resolveContent(purchase);
+    const content = resolveContent(purchase, corrections?.get(purchase.memberKey) ?? null);
     if (!content.ok) {
       rejected.push(notNormalized(purchase, content.reason, null, null));
       continue;
@@ -333,11 +338,12 @@ export function summarizeSavings(rows: readonly ProductComparison[]): SavingsSum
 
 /**
  * Rows for the products with at least one purchase, in product order, and the savings summary of
- * all of them (D-22, D-23).
+ * all of them (D-22, D-23). The optional `corrections` map reaches every row (D-13).
  */
 export function comparePrices(
   products: readonly Product[],
   purchases: readonly Purchase[],
+  corrections?: ReadonlyMap<string, ContentCorrection>,
 ): { rows: ProductComparison[]; summary: SavingsSummary } {
   const byProduct = new Map<string, Purchase[]>();
   for (const purchase of purchases) {
@@ -349,7 +355,7 @@ export function comparePrices(
   for (const product of products) {
     const group = byProduct.get(product.id);
     if (group === undefined || group.length === 0) continue;
-    rows.push(compareProduct(product, group));
+    rows.push(compareProduct(product, group, corrections));
   }
   return { rows, summary: summarizeSavings(rows) };
 }
