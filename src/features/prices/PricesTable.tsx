@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { ProductComparison } from "@/domain/prices/compare";
+import type { SeriesSlot } from "@/domain/prices/history";
 import { es } from "@/lib/copy/es";
 import {
   expandPricesAria,
@@ -39,6 +40,9 @@ import {
 import { formatMoney, unitPriceText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ProductDetail } from "./ProductDetail";
+
+/** Slots when the caller has none: every store of a product falls into «Otras tiendas». */
+const NO_HISTORY_SLOTS: ReadonlyMap<string, ReadonlyMap<string, SeriesSlot>> = new Map();
 
 /** A table row: the comparison plus what the sorts and the cells read. */
 interface PriceRow {
@@ -211,7 +215,14 @@ function PriceCell({ row }: { row: PriceRow }) {
  * product order; they are ordered by name first so that rows tied on the active sort keep the
  * Producto order (TanStack breaks ties by input position).
  */
-export function PricesTable({ rows }: { rows: readonly ProductComparison[] }) {
+export function PricesTable({
+  rows,
+  historySlots = NO_HISTORY_SLOTS,
+}: {
+  rows: readonly ProductComparison[];
+  /** Product id to store RFC to series slot: the stable colors of the price history (PREC-06). */
+  historySlots?: ReadonlyMap<string, ReadonlyMap<string, SeriesSlot>>;
+}) {
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
   const [pagination, setPagination] = useState<PaginationState>(INITIAL_PAGINATION);
   // Several rows can be open at once; the open rows are session state and are not persisted (D-07).
@@ -351,7 +362,7 @@ export function PricesTable({ rows }: { rows: readonly ProductComparison[] }) {
                       colSpan={columns.length + 1}
                       className="bg-secondary p-4 whitespace-normal sm:p-6"
                     >
-                      <ProductDetail row={row.comparison} />
+                      <ProductDetail row={row.comparison} slots={historySlots.get(row.id)} />
                     </TableCell>
                   </TableRow>
                 ) : null}

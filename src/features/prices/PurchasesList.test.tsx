@@ -326,6 +326,7 @@ describe("inside the product panel", () => {
     const regions = screen.getAllByRole("region");
     expect(regions.map((region) => region.querySelector("h3")?.textContent)).toEqual([
       "Precios por tienda",
+      "Historial de precios",
       "Compras",
     ]);
   });

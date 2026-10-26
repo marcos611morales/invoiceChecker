@@ -689,6 +689,25 @@ export const es = {
         perPieceCaption:
           "Comparado por pieza, sin tamaño verificado: las presentaciones pueden ser distintas.",
       },
+      /** Price history chart (Plan 05-07, PREC-06, D-24, D-33). */
+      history: {
+        heading: "Historial de precios",
+        /** Title of the Y axis: the unit of the normalized price. */
+        axisUnit: { mass: "$/kg", volume: "$/L", piece: "$/pieza" },
+        /** Static labels of the chart config; store names never become config keys. */
+        series: {
+          tienda1: "Tienda 1",
+          tienda2: "Tienda 2",
+          tienda3: "Tienda 3",
+          tienda4: "Tienda 4",
+          tienda5: "Tienda 5",
+          tienda6: "Tienda 6",
+          otras: "Otras tiendas",
+        },
+        /** Shown when only one purchase is plotted; the single point is still drawn. */
+        singlePurchase:
+          "Hay una sola compra normalizada de este producto. El historial aparece desde la segunda.",
+      },
       purchases: {
         columns: {
           date: "Fecha",

@@ -53,7 +53,7 @@ function focusProductsHeading(): void {
 export function PreciosTab() {
   const clearFilters = useSessionStore((s) => s.clearFilters);
   const setActiveTab = useSessionStore((s) => s.setActiveTab);
-  const { ledger, span, mode, hasProducts, rows, summary } = usePricesView();
+  const { ledger, span, mode, hasProducts, rows, summary, historySlots } = usePricesView();
   const [search, setSearch] = useState("");
 
   const needle = normalizeSearch(search);
@@ -178,7 +178,7 @@ export function PreciosTab() {
                 {noSearchMatch(search.trim())}
               </p>
             ) : (
-              <PricesTable rows={shown} />
+              <PricesTable rows={shown} historySlots={historySlots} />
             )}
           </div>
         </>
