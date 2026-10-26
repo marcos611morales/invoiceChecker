@@ -184,12 +184,13 @@ describe("AppShell tabs (D-01, D-04)", () => {
     expect(qualityTab()).toHaveAttribute("aria-selected", "true");
   });
 
-  it("keeps the list on one line, scrolling horizontally below 640 px (UI-SPEC Q2)", () => {
+  it("keeps the list on one line, scrolling horizontally below 768 px (UI-SPEC Shell and tab)", () => {
     seed([zero("Z-1")]);
     render(<AppShell />);
     const list = screen.getByRole("tablist", { name: "Secciones" });
     expect(list.className).toContain("gap-2");
-    expect(list.className).toContain("max-sm:overflow-x-auto");
+    expect(list.className).toContain("max-md:overflow-x-auto");
+    expect(list.className).not.toContain("max-sm:overflow-x-auto");
     expect(list.className).not.toMatch(/flex-wrap/);
     for (const tab of within(list).getAllByRole("tab")) {
       expect(tab.className).toContain("flex-none");

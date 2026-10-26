@@ -96,8 +96,8 @@ function LoadedTabs() {
   // Everything waiting for review in the Productos tab: product cards plus category rows. The
   // queue comes back from browser storage in the shell's mount effect, so a reload shows it here.
   const pendingCount = useSuggestionsStore((s) => s.products.length + s.categories.length);
-  // Below 640 px the four triggers do not fit: the list scrolls inside its container and
-  // the active trigger is brought into view whenever the tab changes (UI-SPEC Q2).
+  // Below 768 px the six triggers do not fit: the list scrolls inside its container and
+  // the active trigger is brought into view whenever the tab changes (UI-SPEC Q2, Phase 5).
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const active = listRef.current?.querySelector('[role="tab"][aria-selected="true"]');
@@ -117,7 +117,7 @@ function LoadedTabs() {
         ref={listRef}
         variant="line"
         aria-label={es.tabs.ariaLabel}
-        className="group-data-horizontal/tabs:h-10 max-sm:group-data-horizontal/tabs:h-11 max-w-full gap-2 p-0 max-sm:justify-start max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden"
+        className="group-data-horizontal/tabs:h-10 max-sm:group-data-horizontal/tabs:h-11 max-w-full gap-2 p-0 max-md:justify-start max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
       >
         {TABS.map(({ value, label }) => {
           // The two tabs with a counter carry it in the visible text and in the accessible name.
