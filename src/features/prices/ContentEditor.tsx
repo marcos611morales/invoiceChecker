@@ -72,10 +72,15 @@ function packsOf(text: string): number | null {
   return packs >= 1 && packs <= LIMITS.contentPacks ? packs : null;
 }
 
+// A decimal comma is read only where it cannot be a thousands separator (user decision): one comma
+// followed by 1 or 2 digits («1,5», «0,25»), or after a lone 0 («0,125»). «1,000» is refused.
+const DECIMAL_COMMA = /^(?:\d+,\d{1,2}|0,\d+)$/;
+
 /** The content as decimal text when it passes the stored rule (greater than 0, up to 6 decimals, up to 1,000,000). */
 function amountOf(text: string): string | null {
   const trimmed = text.trim();
-  return contentAmountIssue(trimmed) === null ? trimmed : null;
+  const decimal = DECIMAL_COMMA.test(trimmed) ? trimmed.replace(",", ".") : trimmed;
+  return contentAmountIssue(decimal) === null ? decimal : null;
 }
 
 function correctionOf(member: MemberContent, packs: number, amount: string, unit: ContentUnit): ContentCorrection {

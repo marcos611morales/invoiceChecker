@@ -613,7 +613,7 @@ describe("Content editor: validation and the cap (D-15, T-05-22)", () => {
     fireEvent.click(screen.getByRole("button", { name: CAPTURE }));
   }
 
-  it.each(["0", "", "abc", "-1", "1e3", "1,5", "0.0000001", "1000001"])(
+  it.each(["0", "", "abc", "-1", "1e3", "1,000", "1,5,5", "0,0000001", "0.0000001", "1000001"])(
     "refuses the content «%s» with the field message and writes nothing",
     (value) => {
       open();
@@ -671,6 +671,17 @@ describe("Content editor: validation and the cap (D-15, T-05-22)", () => {
     type(amountField(), "0");
     fireEvent.click(screen.getByRole("button", { name: "Guardar contenido" }));
     expect(amountField()).toHaveFocus();
+  });
+
+  it.each([
+    ["1,5", "1.5"],
+    ["0,25", "0.25"],
+    ["0,125", "0.125"],
+  ])("reads the decimal comma in «%s» and stores «%s»", (typed, stored) => {
+    open();
+    fillCorrection("1", typed, "kg");
+    fireEvent.keyDown(packsField(), { key: "Enter" });
+    expect(storedCorrections()[0]).toMatchObject({ amount: stored });
   });
 
   it("accepts the edges: 999 pieces, 6 decimals and 1000000", () => {
