@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useId, useMemo, useState } from "react";
 import Big from "big.js";
 import {
   constructSortFn,
@@ -13,6 +13,7 @@ import {
   useTable,
 } from "@tanstack/react-table";
 import type { Header, PaginationState, SortingState } from "@tanstack/react-table";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { SortHeaderButton, ariaSort } from "@/components/SortHeaderButton";
 import { TruncatedText } from "@/components/TruncatedText";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ import {
 import type { ProductComparison } from "@/domain/prices/compare";
 import { es } from "@/lib/copy/es";
 import {
+  expandPricesAria,
   notNormalizedBadge,
   onlyAtStore,
   paginationPageText,
@@ -36,6 +38,7 @@ import {
 } from "@/lib/copy/messages";
 import { formatMoney, unitPriceText } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ProductDetail } from "./ProductDetail";
 
 /** A table row: the comparison plus what the sorts and the cells read. */
 interface PriceRow {
@@ -57,6 +60,8 @@ interface PriceRow {
   priceText: string | null;
   /** Purchases behind that median. */
   priceCount: number;
+  /** The comparison the expanded panel explains (D-07). */
+  comparison: ProductComparison;
 }
 
 function toRow(comparison: ProductComparison): PriceRow {
@@ -77,6 +82,7 @@ function toRow(comparison: ProductComparison): PriceRow {
         ? null
         : unitPriceText(store.median, comparison.family),
     priceCount: store?.count ?? 0,
+    comparison,
   };
 }
 
@@ -111,8 +117,8 @@ const features = tableFeatures({
 const helper = createColumnHelper<typeof features, PriceRow>();
 
 /**
- * Data columns. The expander column (Plan 05-06) and the actions column (Plan 05-09) are
- * display-only and will be added around these.
+ * Data columns. The expander column is rendered by hand before them; the actions column
+ * (Plan 05-09) is display-only and will be added after them.
  */
 const columns = helper.columns([
   helper.accessor("name", {
@@ -208,6 +214,9 @@ function PriceCell({ row }: { row: PriceRow }) {
 export function PricesTable({ rows }: { rows: readonly ProductComparison[] }) {
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
   const [pagination, setPagination] = useState<PaginationState>(INITIAL_PAGINATION);
+  // Several rows can be open at once; the open rows are session state and are not persisted (D-07).
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const panelBaseId = useId();
   const data = useMemo(
     () => rows.map(toRow).sort((a, b) => COLLATOR.compare(a.name, b.name)),
     [rows],
@@ -238,6 +247,15 @@ export function PricesTable({ rows }: { rows: readonly ProductComparison[] }) {
     enableSortingRemoval: false,
     enableMultiSort: false,
   });
+
+  const toggle = (id: string) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const renderHeader = (header: PriceHeader) => {
     const right = RIGHT_COLUMNS.has(header.column.id);
@@ -271,6 +289,9 @@ export function PricesTable({ rows }: { rows: readonly ProductComparison[] }) {
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id} className="bg-secondary hover:bg-secondary">
+              <TableHead className="w-12">
+                <span className="sr-only">{es.prices.detail.expanderHeader}</span>
+              </TableHead>
               {group.headers.map(renderHeader)}
             </TableRow>
           ))}
@@ -278,32 +299,63 @@ export function PricesTable({ rows }: { rows: readonly ProductComparison[] }) {
         <TableBody>
           {table.getRowModel().rows.map((tableRow) => {
             const row = tableRow.original;
+            const open = expanded.has(row.id);
+            const panelId = `${panelBaseId}-${row.id}`;
             return (
-              <TableRow key={tableRow.id} className="h-14 hover:bg-secondary">
-                {tableRow.getAllCells().map((cell) => {
-                  const id = cell.column.id;
-                  return (
-                    <TableCell
-                      key={cell.id}
-                      className={cn(
-                        id === "producto" && "max-w-[320px] whitespace-normal",
-                        id === "barata" && "max-w-[280px]",
-                        id === "precio" && "tabular-nums",
-                        id === "tiendas" && "text-right tabular-nums",
-                        id === "ahorro" && "text-right text-sm font-semibold tabular-nums",
-                      )}
+              <Fragment key={tableRow.id}>
+                <TableRow className="h-14 hover:bg-secondary">
+                  <TableCell className="w-12">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-expanded={open}
+                      aria-controls={open ? panelId : undefined}
+                      aria-label={expandPricesAria(row.name, open)}
+                      className="size-9 max-sm:size-11"
+                      onClick={() => {
+                        toggle(row.id);
+                      }}
                     >
-                      {id === "producto" ? <ProductCell row={row} /> : null}
-                      {id === "barata" ? <CheapestCell row={row} /> : null}
-                      {id === "precio" ? <PriceCell row={row} /> : null}
-                      {id === "tiendas" ? (row.stores === 0 ? <Dash /> : String(row.stores)) : null}
-                      {id === "ahorro" ? (
-                        row.saving === undefined ? <Dash /> : formatMoney(row.saving)
-                      ) : null}
+                      {open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
+                    </Button>
+                  </TableCell>
+                  {tableRow.getAllCells().map((cell) => {
+                    const id = cell.column.id;
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          id === "producto" && "max-w-[320px] whitespace-normal",
+                          id === "barata" && "max-w-[280px]",
+                          id === "precio" && "tabular-nums",
+                          id === "tiendas" && "text-right tabular-nums",
+                          id === "ahorro" && "text-right text-sm font-semibold tabular-nums",
+                        )}
+                      >
+                        {id === "producto" ? <ProductCell row={row} /> : null}
+                        {id === "barata" ? <CheapestCell row={row} /> : null}
+                        {id === "precio" ? <PriceCell row={row} /> : null}
+                        {id === "tiendas" ? (row.stores === 0 ? <Dash /> : String(row.stores)) : null}
+                        {id === "ahorro" ? (
+                          row.saving === undefined ? <Dash /> : formatMoney(row.saving)
+                        ) : null}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+                {open ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell
+                      id={panelId}
+                      colSpan={columns.length + 1}
+                      className="bg-secondary p-4 whitespace-normal sm:p-6"
+                    >
+                      <ProductDetail row={row.comparison} />
                     </TableCell>
-                  );
-                })}
-              </TableRow>
+                  </TableRow>
+                ) : null}
+              </Fragment>
             );
           })}
         </TableBody>

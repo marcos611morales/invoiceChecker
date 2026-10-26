@@ -2,7 +2,19 @@ import { describe, expect, it } from "vitest";
 import type { DuplicateFile } from "@/domain/import/types";
 import { INCIDENT_ORDER } from "@/domain/accounting/quality";
 import { es } from "./es";
+import type { NotNormalizedReason } from "@/domain/prices/content";
+import type { UnitFamily } from "@/domain/prices/units";
 import {
+  cheapestSummary,
+  notNormalizedReasonText,
+  cheapestSummaryParts,
+  expandPricesAria,
+  familyLine,
+  mixedFamiliesNote,
+  purchasesCount,
+  savingCalculationNote,
+  showMore,
+  singleStoreSummary,
   notNormalizedBadge,
   onlyAtStore,
   pricePerStoresCaption,
@@ -1364,5 +1376,92 @@ describe("Precios tab sentences (D-07, D-22, D-23)", () => {
 
   it("echoes the search text inside quotation marks when nothing matches", () => {
     expect(noSearchMatch("leche")).toBe("Ningún producto coincide con «leche». Revisa la búsqueda.");
+  });
+
+  it("labels the expander with the product name and its state", () => {
+    expect(expandPricesAria("Leche entera", false)).toBe("Ver precios de Leche entera");
+    expect(expandPricesAria("Leche entera", true)).toBe("Ocultar precios de Leche entera");
+  });
+
+  it("writes the cheapest-store summary, whole and in parts", () => {
+    expect(cheapestSummary("Tienda A", "$50.00 / kg", "$10.00")).toBe(
+      "Más barata: Tienda A a $50.00 / kg (mediana). Ahorro estimado: $10.00.",
+    );
+    const strong = cheapestSummaryParts("Tienda A", "$50.00 / kg", "$10.00")
+      .filter((part) => part.strong)
+      .map((part) => part.text);
+    expect(strong).toEqual(["Tienda A", "$50.00 / kg"]);
+  });
+
+  it("explains how the saving is calculated", () => {
+    expect(savingCalculationNote("Tienda A")).toBe(
+      "Se calcula con las compras en otras tiendas: (precio pagado − precio mediano de Tienda A) × contenido comprado, sumando solo las diferencias positivas.",
+    );
+  });
+
+  it("says the product was bought in one store only", () => {
+    expect(singleStoreSummary("Tienda A")).toBe(
+      "Solo se compró en Tienda A. Para comparar hace falta que otra tienda lo venda.",
+    );
+  });
+
+  it("names the compared family with its unit", () => {
+    const expected: Record<UnitFamily, string> = {
+      mass: "Comparado por kilogramo ($/kg)",
+      volume: "Comparado por litro ($/L)",
+      piece: "Comparado por pieza ($/pieza)",
+    };
+    for (const family of ["mass", "volume", "piece"] as const) {
+      expect(familyLine(family)).toBe(expected[family]);
+    }
+  });
+
+  it("explains the mixed families with one left-out family", () => {
+    expect(mixedFamiliesNote("mass", [{ family: "volume", count: 2 }])).toBe(
+      "Este producto se compró en kilogramos y en litros. Se compara la unidad con más compras (kilogramos); las 2 compras en litros quedan como no normalizadas.",
+    );
+    expect(mixedFamiliesNote("volume", [{ family: "piece", count: 1 }])).toBe(
+      "Este producto se compró en litros y en piezas. Se compara la unidad con más compras (litros); la 1 compra en piezas queda como no normalizada.",
+    );
+  });
+
+  it("lists two left-out families", () => {
+    expect(
+      mixedFamiliesNote("piece", [
+        { family: "mass", count: 1 },
+        { family: "volume", count: 4 },
+      ]),
+    ).toBe(
+      "Este producto se compró en piezas, en kilogramos y en litros. Se compara la unidad con más compras (piezas); las 1 compra en kilogramos y 4 compras en litros quedan como no normalizadas.",
+    );
+  });
+
+  it("counts purchases and offers to show more", () => {
+    expect(purchasesCount(1)).toBe("1 compra");
+    expect(purchasesCount(3)).toBe("3 compras");
+    expect(showMore(5)).toBe("Mostrar 5 más");
+  });
+
+  it("writes the sentence of every reason a purchase is not normalized", () => {
+    const reason = (code: NotNormalizedReason, claveUnidad = "H87", family: UnitFamily | null = null) =>
+      notNormalizedReasonText({ reason: code, claveUnidad, family }, "mass");
+    expect(reason("unit-unknown", "MTR")).toBe("La unidad «MTR» no tiene equivalencia.");
+    expect(reason("bad-quantity")).toBe("La cantidad de la factura no es válida.");
+    expect(reason("bad-amount")).toBe("El monto de la línea no es válido.");
+    expect(reason("zero-amount")).toBe("La línea no tiene importe (descuento total o monto cero).");
+    expect(reason("unsized-with-sized-siblings")).toBe(
+      "Sin tamaño en la descripción, y otras compras de este producto sí lo tienen.",
+    );
+  });
+
+  it("names both families in the other-family reason, for each of the three families", () => {
+    const text = (bought: UnitFamily, compared: UnitFamily) =>
+      notNormalizedReasonText({ reason: "other-family", claveUnidad: "LTR", family: bought }, compared);
+    expect(text("volume", "mass")).toBe("Se compró en litros; este producto se compara en kilogramos.");
+    expect(text("mass", "volume")).toBe("Se compró en kilogramos; este producto se compara en litros.");
+    expect(text("piece", "volume")).toBe("Se compró en piezas; este producto se compara en litros.");
+    expect(text("mass", "piece")).toBe("Se compró en kilogramos; este producto se compara en piezas.");
+    expect(text("volume", "piece")).toBe("Se compró en litros; este producto se compara en piezas.");
+    expect(text("piece", "mass")).toBe("Se compró en piezas; este producto se compara en kilogramos.");
   });
 });

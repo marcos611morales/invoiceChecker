@@ -94,6 +94,41 @@ export function unitPriceText(price: Big, family: UnitFamily): string {
 }
 
 /**
+ * A total content of a purchase as «0.375 kg», «24 L», «6 piezas» or «1 pieza»: up to three
+ * decimals, trailing zeros trimmed, rounded half-up here and nowhere else (REGLA-04).
+ */
+export function formatContent(amount: Big, family: UnitFamily): string {
+  const rounded = amount.round(3, Big.roundHalfUp);
+  const text = rounded.eq(ZERO) ? "0" : rounded.toFixed();
+  if (family === "piece") {
+    return `${text} ${rounded.eq("1") ? es.prices.units.piece : es.prices.detail.piecesPlural}`;
+  }
+  return `${text} ${es.prices.units[family]}`;
+}
+
+const SHORT_DATE = new Intl.DateTimeFormat("es-MX", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/**
+ * Short es-MX date of the literal CFDI `Fecha`: «28 may 2025». The date parts are read from the
+ * string and formatted as UTC, so no local time zone can shift the day (REGLA-05). A malformed
+ * value is returned unchanged.
+ */
+export function shortDateLabel(fecha: string): string {
+  const match = ISO_DATE_PREFIX.exec(fecha);
+  if (match === null) return fecha;
+  const [, year, month, day] = match;
+  const monthNumber = Number(month);
+  const dayNumber = Number(day);
+  if (monthNumber < 1 || monthNumber > 12 || dayNumber < 1 || dayNumber > 31) return fecha;
+  return SHORT_DATE.format(new Date(Date.UTC(Number(year), monthNumber - 1, dayNumber)));
+}
+
+/**
  * A concept quantity as a decimal without trailing zeros (D-25): "1.500000" gives
  * "1.5", "2.000000" gives "2". Rounds half-up to at most 6 decimals and never
  * prints an exponent. Text that is not a valid decimal is returned unchanged.

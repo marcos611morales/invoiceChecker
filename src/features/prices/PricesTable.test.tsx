@@ -71,7 +71,7 @@ function names(): string[] {
   if (body === undefined) throw new Error("no table body");
   return within(body)
     .getAllByRole("row")
-    .map((row) => within(row).getAllByRole("cell")[0]?.querySelector("button")?.textContent ?? "");
+    .map((row) => within(row).getAllByRole("cell")[1]?.querySelector("button")?.textContent ?? "");
 }
 
 function rowOf(name: string): HTMLElement {
@@ -212,11 +212,11 @@ describe("PricesTable cells (D-02, D-10, PREC-02)", () => {
     expect(row.getByText("$12.50 / L")).toBeInTheDocument();
     expect(row.getByText("mediana · 1 compra")).toBeInTheDocument();
     const cells = row.getAllByRole("cell");
-    expect(cells[3]).toHaveTextContent("2");
-    expect(cells[3]?.className).toContain("text-right");
-    expect(cells[4]).toHaveTextContent("$45.00");
+    expect(cells[4]).toHaveTextContent("2");
     expect(cells[4]?.className).toContain("text-right");
-    expect(cells[4]?.className).not.toContain("positive");
+    expect(cells[5]).toHaveTextContent("$45.00");
+    expect(cells[5]?.className).toContain("text-right");
+    expect(cells[5]?.className).not.toContain("positive");
   });
 
   it("pluralizes the purchases behind the median", () => {
@@ -240,11 +240,11 @@ describe("PricesTable cells (D-02, D-10, PREC-02)", () => {
   it("reads «Solo en {tienda}» and a dash for the saving when only one store was compared", () => {
     render(<PricesTable rows={[oneStore("p1", "Sal")]} />);
     const cells = within(rowOf("Sal")).getAllByRole("cell");
-    expect(cells[1]).toHaveTextContent("Solo en Tienda Alfa");
-    expect(cells[2]).toHaveTextContent("$12.50 / kg");
-    expect(cells[2]).toHaveTextContent("mediana · 3 compras");
-    expect(cells[3]).toHaveTextContent("1");
-    expect(cells[4]).toHaveTextContent("—");
+    expect(cells[2]).toHaveTextContent("Solo en Tienda Alfa");
+    expect(cells[3]).toHaveTextContent("$12.50 / kg");
+    expect(cells[3]).toHaveTextContent("mediana · 3 compras");
+    expect(cells[4]).toHaveTextContent("1");
+    expect(cells[5]).toHaveTextContent("—");
   });
 
   it("marks a product compared per piece with an outline badge under its name", () => {
@@ -285,10 +285,10 @@ describe("PricesTable cells (D-02, D-10, PREC-02)", () => {
       <PricesTable rows={[comparison({ id: "p1", name: "Servicio", family: null, notNormalizedCount: 2 })]} />,
     );
     const cells = within(rowOf("Servicio")).getAllByRole("cell");
-    expect(cells[1]).toHaveTextContent("—");
-    expect(cells[2]).toHaveTextContent("No normalizado");
-    expect(cells[3]).toHaveTextContent("—");
+    expect(cells[2]).toHaveTextContent("—");
+    expect(cells[3]).toHaveTextContent("No normalizado");
     expect(cells[4]).toHaveTextContent("—");
+    expect(cells[5]).toHaveTextContent("—");
   });
 
   it("gives a long product name its full text as accessible name and renders it as text", () => {

@@ -1,8 +1,9 @@
 import Big from "big.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
 import {
   formaPagoLabel,
+  formatContent,
   formatCount,
   formatDelta,
   formatExchangeRate,
@@ -20,6 +21,7 @@ import {
   periodLabel,
   unitPriceText,
   rangeText,
+  shortDateLabel,
   shortUuid,
 } from "./format";
 
@@ -267,5 +269,62 @@ describe("formatExchangeRate", () => {
     expect(formatExchangeRate(new Big("18"))).toBe("18.00");
     expect(formatExchangeRate(new Big("18.123400"))).toBe("18.1234");
     expect(formatExchangeRate(new Big("0.0525"))).toBe("0.0525");
+  });
+});
+
+describe("shortDateLabel", () => {
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
+  });
+
+  it.each(["America/Mexico_City", "Asia/Tokyo", "Pacific/Kiritimati", "Pacific/Pago_Pago"])(
+    "reads the literal day in the %s time zone",
+    (zone) => {
+      process.env.TZ = zone;
+      expect(shortDateLabel("2025-05-28T17:38:18")).toBe("28 may 2025");
+      expect(shortDateLabel("2025-01-01T00:00:00")).toBe("1 ene 2025");
+      expect(shortDateLabel("2025-12-31T23:59:59")).toBe("31 dic 2025");
+    },
+  );
+
+  it("names every month in three letters", () => {
+    const months = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+    months.forEach((name, index) => {
+      expect(shortDateLabel(`2025-${String(index + 1).padStart(2, "0")}-15T10:00:00`)).toBe(
+        `15 ${name} 2025`,
+      );
+    });
+  });
+
+  it("returns a malformed value unchanged", () => {
+    expect(shortDateLabel("mayo")).toBe("mayo");
+    expect(shortDateLabel("2025-13-01T00:00:00")).toBe("2025-13-01T00:00:00");
+    expect(shortDateLabel("2025-05-00T00:00:00")).toBe("2025-05-00T00:00:00");
+  });
+});
+
+describe("formatContent", () => {
+  it("trims trailing zeros and keeps up to three decimals", () => {
+    expect(formatContent(new Big("0.375"), "mass")).toBe("0.375 kg");
+    expect(formatContent(new Big("1.73"), "mass")).toBe("1.73 kg");
+    expect(formatContent(new Big("1.730"), "mass")).toBe("1.73 kg");
+    expect(formatContent(new Big("12"), "volume")).toBe("12 L");
+    expect(formatContent(new Big("24.0000"), "volume")).toBe("24 L");
+  });
+
+  it("rounds half-up to three decimals only when displayed", () => {
+    expect(formatContent(new Big("0.12345"), "mass")).toBe("0.123 kg");
+    expect(formatContent(new Big("0.1235"), "mass")).toBe("0.124 kg");
+    expect(formatContent(new Big("0.0004"), "volume")).toBe("0 L");
+  });
+
+  it("pluralizes pieces", () => {
+    expect(formatContent(new Big("6"), "piece")).toBe("6 piezas");
+    expect(formatContent(new Big("1"), "piece")).toBe("1 pieza");
+    expect(formatContent(new Big("1.0004"), "piece")).toBe("1 pieza");
+    expect(formatContent(new Big("0.5"), "piece")).toBe("0.5 piezas");
   });
 });
