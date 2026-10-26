@@ -4,15 +4,15 @@ current_phase: 05
 current_phase_name: Comparación de precios entre tiendas
 status: executing
 stopped_at: Phase 05 UI-SPEC approved
-last_updated: "2026-10-26T19:13:52.448Z"
+last_updated: "2026-10-26T22:06:21.382Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 05 execution started
-state_head: f0c4ae52397a7df1e01ea906f6dd3d97db324887
+state_head: fd32b253f675fede909dd2c94297d7fc33ebbf6d
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 86
-  completed_plans: 85
+  completed_plans: 86
   percent: 80
 ---
 
@@ -80,6 +80,7 @@ Recent decisions affecting current work:
 - [Phase 05]: Usuario confirmó: al deshacer el borrado de un producto con la lista de marcas «no comparable» llena (2,000), el producto vuelve sin su marca.
 - [Phase 05]: Usuario confirmó: si se rechaza marcar/desmarcar «no comparable» (límite 2,000 o producto inexistente) se muestra un toast de error que también se anuncia; el anuncio usa «Queda 1 producto.» en singular.
 - [Phase 05]: Usuario confirmó (editor de contenido): se acepta coma decimal sin ambigüedad («1,5», «0,25», «0,125»; «1,000» se rechaza); se mantiene el texto «No se pudo guardar el contenido: el valor no es válido.»; el editor abre con piezas / 1 / vacío.
+- [Phase 05]: Usuario aceptó: en el historial, dos tiendas con compra el mismo día al mismo precio se tapan (un solo marcador y tooltip); se queda registrado en deferred-items.md.
 
 ### Pending Todos
 

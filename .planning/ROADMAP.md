@@ -311,7 +311,7 @@ Plans:
   3. Servicios, gasolina, comisiones y similares no aparecen por defecto en la comparación, y el usuario puede cambiar la marca "no comparable" de un producto.
   4. El usuario ve un ahorro estimado, etiquetado como estimado, de haber comprado en la tienda más barata, y el historial del precio de un producto en el tiempo.
 
-**Plans:** 11/12 plans executed
+**Plans:** 12/12 plans executed
 
 Plans:
 **Wave 1** *(the two plans run in parallel)*
@@ -342,7 +342,7 @@ Plans:
 - [x] 05-11-PLAN.md — Sección «Contenido de cada descripción» y editor de contenido con validación, vista previa y recálculo inmediato
 
 **Wave 9** *(blocked on Wave 8 completion)*
-- [ ] 05-12-PLAN.md — Verificación en el build de producción: flujo completo, privacidad, persistencia, anchos y capturas para la revisión final
+- [x] 05-12-PLAN.md — Verificación en el build de producción: flujo completo, privacidad, persistencia, anchos y capturas para la revisión final
 
 **UI hint**: yes
 **Research flag**: sí — normalización de unidades (ClaveUnidad SAT, presentaciones dentro de la descripción como "1 kg" o "pza") y qué familias de ClaveProdServ son "no comparables" por defecto.
@@ -358,4 +358,4 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
 | 3. Categorías propias y exportación a Excel | 20/20 | Complete    | 2026-10-19 |
 | 4. Agrupación de productos con DeepSeek | 21/21 | Complete    | 2026-10-25 |
-| 5. Comparación de precios entre tiendas | 11/12 | In Progress | - |
+| 5. Comparación de precios entre tiendas | 12/12 | In Progress | - |
