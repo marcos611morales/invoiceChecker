@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { DuplicateFile } from "@/domain/import/types";
 import { INCIDENT_ORDER } from "@/domain/accounting/quality";
 import { es } from "./es";
+import type { NotNormalizedReason } from "@/domain/prices/content";
 import type { UnitFamily } from "@/domain/prices/units";
 import {
   cheapestSummary,
+  notNormalizedReasonText,
   cheapestSummaryParts,
   expandPricesAria,
   familyLine,
@@ -1438,5 +1440,28 @@ describe("Precios tab sentences (D-07, D-22, D-23)", () => {
     expect(purchasesCount(1)).toBe("1 compra");
     expect(purchasesCount(3)).toBe("3 compras");
     expect(showMore(5)).toBe("Mostrar 5 más");
+  });
+
+  it("writes the sentence of every reason a purchase is not normalized", () => {
+    const reason = (code: NotNormalizedReason, claveUnidad = "H87", family: UnitFamily | null = null) =>
+      notNormalizedReasonText({ reason: code, claveUnidad, family }, "mass");
+    expect(reason("unit-unknown", "MTR")).toBe("La unidad «MTR» no tiene equivalencia.");
+    expect(reason("bad-quantity")).toBe("La cantidad de la factura no es válida.");
+    expect(reason("bad-amount")).toBe("El monto de la línea no es válido.");
+    expect(reason("zero-amount")).toBe("La línea no tiene importe (descuento total o monto cero).");
+    expect(reason("unsized-with-sized-siblings")).toBe(
+      "Sin tamaño en la descripción, y otras compras de este producto sí lo tienen.",
+    );
+  });
+
+  it("names both families in the other-family reason, for each of the three families", () => {
+    const text = (bought: UnitFamily, compared: UnitFamily) =>
+      notNormalizedReasonText({ reason: "other-family", claveUnidad: "LTR", family: bought }, compared);
+    expect(text("volume", "mass")).toBe("Se compró en litros; este producto se compara en kilogramos.");
+    expect(text("mass", "volume")).toBe("Se compró en kilogramos; este producto se compara en litros.");
+    expect(text("piece", "volume")).toBe("Se compró en piezas; este producto se compara en litros.");
+    expect(text("mass", "piece")).toBe("Se compró en kilogramos; este producto se compara en piezas.");
+    expect(text("volume", "piece")).toBe("Se compró en litros; este producto se compara en piezas.");
+    expect(text("piece", "mass")).toBe("Se compró en piezas; este producto se compara en kilogramos.");
   });
 });

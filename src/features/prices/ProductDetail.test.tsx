@@ -71,6 +71,11 @@ function twoStores(extra: ComparisonInput = {}): ProductComparison {
   return comparison({ stores: [tiendaA(), tiendaB()], saving: "10", ...extra });
 }
 
+/** The per-store table: the purchases list below it is also a table. */
+function storeTable(): HTMLElement {
+  return within(screen.getByRole("region", { name: "Precios por tienda" })).getByRole("table");
+}
+
 /** A row of a table by position (0 is the header row); fails loudly when it does not exist. */
 function rowAt(table: HTMLElement, index: number): HTMLElement {
   const found = within(table).getAllByRole("row")[index];
@@ -222,8 +227,10 @@ describe("alerts (D-12)", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Ninguna compra de este producto tiene un contenido que se pueda comparar. Captura el contenido abajo para compararlo.",
     );
-    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Precios por tienda" })).toBeNull();
     expect(screen.queryByText("Precios por tienda")).toBeNull();
+    // The purchases list stays visible (E6 + E7).
+    expect(screen.getByRole("region", { name: "Compras" })).toBeInTheDocument();
     expect(screen.queryByText(/Comparado por/)).toBeNull();
   });
 });
@@ -241,7 +248,7 @@ describe("per-store table (PREC-01, PREC-04)", () => {
 
   it("lists minimum, median, last price with its date and purchases, cheapest first", () => {
     render(<ProductDetail row={twoStoresWithHistory()} />);
-    const table = screen.getByRole("table");
+    const table = storeTable();
     expect(
       within(table)
         .getAllByRole("columnheader")
@@ -267,7 +274,7 @@ describe("per-store table (PREC-01, PREC-04)", () => {
 
   it("marks the cheapest row with a badge and check, a lifted row and a 600 median", () => {
     render(<ProductDetail row={twoStoresWithHistory()} />);
-    const table = screen.getByRole("table");
+    const table = storeTable();
     const first = rowAt(table, 1);
     const second = rowAt(table, 2);
     expect(first.className).toContain("bg-background");
@@ -283,7 +290,7 @@ describe("per-store table (PREC-01, PREC-04)", () => {
 
   it("shows equal minimum, median and last for a store with one purchase", () => {
     render(<ProductDetail row={comparison({ stores: [tiendaA({ median: "35.5" })] })} />);
-    const cells = within(rowAt(screen.getByRole("table"), 1)).getAllByRole("cell");
+    const cells = within(rowAt(storeTable(), 1)).getAllByRole("cell");
     expect(cells[1]).toHaveTextContent("$35.50");
     expect(cells[2]).toHaveTextContent("$35.50");
     expect(cells[3]).toHaveTextContent("$35.50");
@@ -300,7 +307,7 @@ describe("per-store table (PREC-01, PREC-04)", () => {
         })}
       />,
     );
-    const table = screen.getByRole("table");
+    const table = storeTable();
     expect(table.className).toContain("min-w-[640px]");
     expect(table.parentElement?.className).toContain("overflow-x-auto");
     const cell = within(rowAt(table, 1)).getAllByRole("cell")[0];

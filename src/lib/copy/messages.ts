@@ -14,6 +14,7 @@ import type {
 import type { BackupFailure, BackupSummary } from "@/domain/settings/backup";
 import type { NameError } from "@/domain/settings/categories";
 import type { QueueFilter } from "@/domain/llm/queueView";
+import type { NotNormalizedReason } from "@/domain/prices/content";
 import type { UnitFamily } from "@/domain/prices/units";
 import type { AcceptProductError, AddMembersError } from "@/domain/settings/products";
 import { LIMITS } from "@/domain/settings/types";
@@ -1424,4 +1425,36 @@ export function mixedFamiliesNote(
 /** Ghost button that reveals the rest of a list: «Mostrar {n} más». */
 export function showMore(n: number): string {
   return `Mostrar ${String(n)} más`;
+}
+
+/**
+ * Why a purchase is «No normalizado» (D-09, D-10, D-12, D-26, D-29). The domain returns the code;
+ * the sentence lives only here. `comparedFamily` is the family the product is compared in, which
+ * the «other-family» sentence names next to the family the purchase was bought in.
+ */
+export function notNormalizedReasonText(
+  purchase: { reason: NotNormalizedReason; claveUnidad: string; family: UnitFamily | null },
+  comparedFamily: UnitFamily | null,
+): string {
+  switch (purchase.reason) {
+    case "unit-unknown":
+      return `La unidad «${purchase.claveUnidad}» no tiene equivalencia.`;
+    case "bad-quantity":
+      return "La cantidad de la factura no es válida.";
+    case "bad-amount":
+      return "El monto de la línea no es válido.";
+    case "zero-amount":
+      return "La línea no tiene importe (descuento total o monto cero).";
+    case "unsized-with-sized-siblings":
+      return "Sin tamaño en la descripción, y otras compras de este producto sí lo tienen.";
+    case "other-family": {
+      const names = es.prices.detail.familyPlural;
+      const bought = purchase.family === null ? null : names[purchase.family];
+      const compared = comparedFamily === null ? null : names[comparedFamily];
+      if (bought !== null && compared !== null) {
+        return `Se compró en ${bought}; este producto se compara en ${compared}.`;
+      }
+      return bought === null ? "Se compró en otra unidad." : `Se compró en ${bought}.`;
+    }
+  }
 }

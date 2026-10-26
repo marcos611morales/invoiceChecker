@@ -14,6 +14,7 @@ import {
 } from "@/lib/copy/messages";
 import { formatMoney, unitPriceText } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { PurchasesList } from "./PurchasesList";
 import { StoreTable } from "./StoreTable";
 
 /** Informational note: an Info icon and a polite status role (it is not an error). */
@@ -59,12 +60,13 @@ function Summary({ row }: { row: ProductComparison }) {
 }
 
 /**
- * Expanded panel of a product of the Precios tab (D-07): alerts, summary, prices per store.
- * The history chart, the content editor and the purchases list are added by later plans. Every
- * vendor and store name is rendered as React text.
+ * Expanded panel of a product of the Precios tab (D-07): alerts, summary, prices per store and
+ * the purchases list. The history chart and the content editor slot in between by later plans.
+ * Every vendor and store name is rendered as React text.
  */
 export function ProductDetail({ row }: { row: ProductComparison }) {
   const storesHeadingId = useId();
+  const purchasesHeadingId = useId();
   const comparable = row.stores.length > 0;
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -81,6 +83,12 @@ export function ProductDetail({ row }: { row: ProductComparison }) {
           <StoreTable row={row} />
         </section>
       ) : null}
+      <section aria-labelledby={purchasesHeadingId} className="flex min-w-0 flex-col gap-2">
+        <h3 id={purchasesHeadingId} className="text-sm font-semibold">
+          {es.prices.detail.purchasesHeading}
+        </h3>
+        <PurchasesList purchases={row.purchases} />
+      </section>
     </div>
   );
 }
