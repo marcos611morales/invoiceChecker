@@ -213,7 +213,7 @@ describe("BackupControls: upload of a valid file (D-08)", () => {
     expect(within(dialog).getByText("¿Reemplazar tus ajustes?")).toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        /^El archivo «x\.json» contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 0 productos \(0 descripciones\)\. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados, los productos agrupados y el modo de IVA actuales\./,
+        /^El archivo «x\.json» contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 0 productos \(0 descripciones\), 0 correcciones de contenido, 0 marcas de no comparable\. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados, los productos agrupados y el modo de IVA actuales\./,
       ),
     ).toBeInTheDocument();
     await waitFor(() => {

@@ -1,10 +1,24 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Big from "big.js";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { Comparability } from "@/domain/prices/comparable";
 import type { ProductComparison, StoreStats } from "@/domain/prices/compare";
 import type { UnitFamily } from "@/domain/prices/units";
+import { defaultSettings } from "@/domain/settings/types";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { resetSettingsStore } from "../../../tests/support/settingsStorage";
+import "../../../tests/support/domPolyfills";
+import { PRICES_TITLE_ID } from "./focusTargets";
 import { PricesTable } from "./PricesTable";
+
+interface ToastOptions {
+  duration?: number;
+  action?: { label: string; onClick: () => void };
+}
+
+const toastMock = vi.hoisted(() => vi.fn<(message: string, options?: ToastOptions) => void>());
+vi.mock("sonner", () => ({ toast: toastMock }));
 
 const RFC_A = "AAA010101AAA";
 const RFC_B = "BBB010101BBB";
@@ -305,5 +319,166 @@ describe("PricesTable cells (D-02, D-10, PREC-02)", () => {
     const table = screen.getByRole("table");
     expect(table.textContent).not.toContain(RFC_A);
     expect(table.textContent).not.toContain(RFC_B);
+  });
+});
+
+/** The most recent toast: its text, duration and the «Deshacer» action. */
+function lastToast(): { text: string; duration: number | undefined; action: { label: string; onClick: () => void } } {
+  const call = toastMock.mock.calls.at(-1);
+  if (call === undefined) throw new Error("no toast");
+  const [text, options] = call;
+  const action = options?.action;
+  if (action === undefined) throw new Error("the toast has no action");
+  return { text, duration: options?.duration, action };
+}
+
+describe("PricesTable row menu (D-18, D-19, E5)", () => {
+  beforeEach(() => {
+    toastMock.mockClear();
+    resetSettingsStore();
+    act(() => {
+      useSettingsStore.setState({
+        ...defaultSettings(),
+        products: ["p1", "p2"].map((id) => ({ id, name: id, categoryId: null, members: [] })),
+      });
+    });
+  });
+
+  afterEach(() => {
+    resetSettingsStore();
+  });
+
+  function openMenu(name: string): void {
+    fireEvent.click(screen.getByRole("button", { name }));
+  }
+
+  it("names the menu button with the product cut at 60 characters", () => {
+    const long = "A".repeat(70);
+    render(<PricesTable rows={[twoStores("p1", long, "10")]} />);
+    expect(screen.getByRole("button", { name: `Más acciones de «${"A".repeat(59)}…»` })).toBeInTheDocument();
+  });
+
+  it("offers only «Marcar como no comparable» on a compared row", async () => {
+    render(<PricesTable rows={[twoStores("p1", "Aceite", "10")]} />);
+    openMenu("Más acciones de «Aceite»");
+    expect(await screen.findByRole("menuitem", { name: "Marcar como no comparable" })).toBeInTheDocument();
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+  });
+
+  it("offers only «Volver a comparar» on a hidden row", async () => {
+    const hidden: ReadonlyMap<string, Comparability> = new Map([
+      ["p1", { comparable: false, byUser: false, defaultComparable: false }],
+    ]);
+    render(<PricesTable rows={[twoStores("p1", "Aceite", "10")]} comparability={hidden} showHidden />);
+    openMenu("Más acciones de «Aceite»");
+    expect(await screen.findByRole("menuitem", { name: "Volver a comparar" })).toBeInTheDocument();
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+  });
+
+  it("marks at once, toasts with the name cut at 40 and «Deshacer» for 6 s, and announces what is left", async () => {
+    const announcements: string[] = [];
+    const long = "B".repeat(70);
+    render(
+      <PricesTable
+        rows={[twoStores("p1", long, "10"), twoStores("p2", "Harina", "30")]}
+        onAnnounce={(message) => {
+          announcements.push(message);
+        }}
+      />,
+    );
+    openMenu(`Más acciones de «${"B".repeat(59)}…»`);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Marcar como no comparable" }));
+
+    expect(useSettingsStore.getState().priceOverrides).toEqual([{ productId: "p1", comparable: false }]);
+    const shown = lastToast();
+    expect(shown.text).toBe(`«${"B".repeat(39)}…» marcado como no comparable`);
+    expect(shown.duration).toBe(6000);
+    expect(shown.action.label).toBe("Deshacer");
+    expect(announcements).toEqual([`Producto «${long}» marcado como no comparable. Queda 1 producto.`]);
+  });
+
+  it("undoes the mark exactly with «Deshacer»", async () => {
+    render(<PricesTable rows={[twoStores("p1", "Aceite", "10"), twoStores("p2", "Harina", "30")]} />);
+    openMenu("Más acciones de «Aceite»");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Marcar como no comparable" }));
+    expect(useSettingsStore.getState().priceOverrides).toHaveLength(1);
+
+    act(() => {
+      lastToast().action.onClick();
+    });
+    expect(useSettingsStore.getState().priceOverrides).toEqual([]);
+  });
+
+  it("stores {comparable: true} for a product hidden by default and undoes it", async () => {
+    const hidden: ReadonlyMap<string, Comparability> = new Map([
+      ["p1", { comparable: false, byUser: false, defaultComparable: false }],
+    ]);
+    const announcements: string[] = [];
+    render(
+      <PricesTable
+        rows={[twoStores("p1", "Aceite", "10")]}
+        comparability={hidden}
+        showHidden
+        onAnnounce={(message) => {
+          announcements.push(message);
+        }}
+      />,
+    );
+    openMenu("Más acciones de «Aceite»");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Volver a comparar" }));
+
+    expect(useSettingsStore.getState().priceOverrides).toEqual([{ productId: "p1", comparable: true }]);
+    expect(lastToast().text).toBe("«Aceite» vuelve a compararse");
+    expect(announcements).toEqual(["Producto «Aceite» vuelve a compararse."]);
+    act(() => {
+      lastToast().action.onClick();
+    });
+    expect(useSettingsStore.getState().priceOverrides).toEqual([]);
+  });
+
+  it("moves focus to the Precios heading when the marked row leaves the list", async () => {
+    render(
+      <>
+        <h2 id={PRICES_TITLE_ID} tabIndex={-1}>
+          Precios
+        </h2>
+        <PricesTable rows={[twoStores("p1", "Aceite", "10"), twoStores("p2", "Harina", "30")]} />
+      </>,
+    );
+    openMenu("Más acciones de «Aceite»");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Marcar como no comparable" }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Precios" })).toHaveFocus();
+    });
+  });
+
+  it("keeps focus on the «⋯» button when the row stays (checkbox on)", async () => {
+    render(
+      <>
+        <h2 id={PRICES_TITLE_ID} tabIndex={-1}>
+          Precios
+        </h2>
+        <PricesTable rows={[twoStores("p1", "Aceite", "10"), twoStores("p2", "Harina", "30")]} showHidden />
+      </>,
+    );
+    openMenu("Más acciones de «Aceite»");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Marcar como no comparable" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Más acciones de «Aceite»" })).toHaveFocus();
+    });
+  });
+
+  it("writes nothing and says nothing when the store refuses the change", async () => {
+    // The product id is not in the settings, so the store refuses it.
+    render(<PricesTable rows={[twoStores("zzz", "Aceite", "10")]} />);
+    openMenu("Más acciones de «Aceite»");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Marcar como no comparable" }));
+    expect(useSettingsStore.getState().priceOverrides).toEqual([]);
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("gives the actions column a screen-reader header", () => {
+    render(<PricesTable rows={[twoStores("p1", "Aceite", "10")]} />);
+    expect(screen.getByRole("columnheader", { name: "Acciones" })).toBeInTheDocument();
   });
 });
