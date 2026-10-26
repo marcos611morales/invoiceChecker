@@ -184,11 +184,16 @@ describe("HistoryChart: nothing to plot (E6 + E7 empty)", () => {
 });
 
 describe("HistoryChart: product panel wiring", () => {
-  it("shows the section between the per-store table and the purchases", () => {
+  it("shows the section between the per-store table and the content of each description", () => {
     const row = manyStores(2);
     render(<ProductDetail row={row} slots={assignSlots(row.stores)} />);
     const headings = screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent);
-    expect(headings).toEqual(["Precios por tienda", "Historial de precios", "Compras"]);
+    expect(headings).toEqual([
+      "Precios por tienda",
+      "Historial de precios",
+      "Contenido de cada descripción",
+      "Compras",
+    ]);
   });
 });
 

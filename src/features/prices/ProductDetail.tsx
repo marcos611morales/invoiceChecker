@@ -3,18 +3,21 @@
 import { useId } from "react";
 import { Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import type { ProductComparison } from "@/domain/prices/compare";
 import type { SeriesSlot } from "@/domain/prices/history";
 import { es } from "@/lib/copy/es";
 import {
   cheapestSummaryParts,
   familyLine,
+  missingContentNotice,
   mixedFamiliesNote,
   savingCalculationNote,
   singleStoreSummary,
 } from "@/lib/copy/messages";
 import { formatMoney, unitPriceText } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ContentTable, contentSectionId, missingContent } from "./ContentTable";
 import { HistoryChart } from "./HistoryChart";
 import { PurchasesList } from "./PurchasesList";
 import { StoreTable } from "./StoreTable";
@@ -25,6 +28,34 @@ function Note({ text }: { text: string }) {
     <Alert role="status">
       <Info aria-hidden="true" />
       <AlertDescription>{text}</AlertDescription>
+    </Alert>
+  );
+}
+
+/**
+ * Notice of the descriptions that lack their content (D-13): how many leave purchases out of the
+ * comparison, and a link-style button that moves focus to the content section (its heading id is
+ * built from CONTENT_SECTION_ID and the product id).
+ */
+function MissingContentNotice({ row }: { row: ProductComparison }) {
+  const { descriptions, purchases } = missingContent(row);
+  if (descriptions === 0) return null;
+  return (
+    <Alert role="status">
+      <Info aria-hidden="true" />
+      <AlertDescription>
+        <span>{missingContentNotice(descriptions, purchases)}</span>{" "}
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto p-0 max-sm:min-h-11"
+          onClick={() => {
+            document.getElementById(contentSectionId(row.productId))?.focus();
+          }}
+        >
+          {es.prices.detail.content.capture}
+        </Button>
+      </AlertDescription>
     </Alert>
   );
 }
@@ -66,16 +97,19 @@ const NO_SLOTS: ReadonlyMap<string, SeriesSlot> = new Map();
 
 /**
  * Expanded panel of a product of the Precios tab (D-07): alerts, summary, prices per store, the
- * price history and the purchases list. The content editor slots in by a later plan. `slots` are
+ * price history, the content of each description and the purchases list. `slots` are
  * the stable series slots of the product's stores (PREC-06). Every vendor and store name is
  * rendered as React text.
  */
 export function ProductDetail({
   row,
   slots = NO_SLOTS,
+  onAnnounce,
 }: {
   row: ProductComparison;
   slots?: ReadonlyMap<string, SeriesSlot>;
+  /** Receives the polite announcements of the content editor (D-15). */
+  onAnnounce?: (message: string) => void;
 }) {
   const storesHeadingId = useId();
   const historyHeadingId = useId();
@@ -88,6 +122,7 @@ export function ProductDetail({
       {row.family !== null && row.otherFamilies.length > 0 ? (
         <Note text={mixedFamiliesNote(row.family, row.otherFamilies)} />
       ) : null}
+      <MissingContentNotice row={row} />
       {!comparable ? <Note text={es.prices.detail.noneComparable} /> : null}
       <Summary row={row} />
       {comparable ? (
@@ -106,7 +141,8 @@ export function ProductDetail({
           <HistoryChart row={row} slots={slots} />
         </section>
       ) : null}
-      <section aria-labelledby={purchasesHeadingId}className="flex min-w-0 flex-col gap-2">
+      <ContentTable row={row} onAnnounce={onAnnounce} />
+      <section aria-labelledby={purchasesHeadingId} className="flex min-w-0 flex-col gap-2">
         <h3 id={purchasesHeadingId} className="text-sm font-semibold">
           {es.prices.detail.purchasesHeading}
         </h3>

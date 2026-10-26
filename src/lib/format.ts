@@ -14,6 +14,7 @@ import { PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
 import type { MonthKey } from "@/domain/accounting/months";
 import { formaPagoName } from "@/domain/cfdi/catalogs";
 import type { UnitFamily } from "@/domain/prices/units";
+import type { ContentCorrection } from "@/domain/settings/types";
 import { es } from "@/lib/copy/es";
 
 const MISSING_VALUE = "—";
@@ -104,6 +105,23 @@ export function formatContent(amount: Big, family: UnitFamily): string {
     return `${text} ${rounded.eq("1") ? es.prices.units.piece : es.prices.detail.piecesPlural}`;
   }
   return `${text} ${es.prices.units[family]}`;
+}
+
+/**
+ * A content the user typed as «12 × 1 L» (more than one piece per pack), «375 g» or «6 piezas»:
+ * the typed amount without trailing zeros and the unit label. The text is for display only; the
+ * stored correction keeps the amount as typed (D-14, D-15).
+ */
+export function formatCorrection(
+  correction: Pick<ContentCorrection, "packs" | "amount" | "unit">,
+): string {
+  const parsed = parseDecimal(correction.amount);
+  const amount = parsed === null ? correction.amount : parsed.toFixed();
+  const labels = es.prices.detail.content.units;
+  const unit =
+    correction.unit === "piezas" ? (amount === "1" ? labels.pieza : labels.piezas) : labels[correction.unit];
+  const content = `${amount} ${unit}`;
+  return correction.packs > 1 ? `${String(correction.packs)} × ${content}` : content;
 }
 
 const SHORT_DATE = new Intl.DateTimeFormat("es-MX", {
