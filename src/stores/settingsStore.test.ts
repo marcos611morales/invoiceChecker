@@ -6,6 +6,8 @@ import {
   SEED_CATEGORIES,
   SIN_CATEGORIA,
   defaultSettings,
+  LIMITS,
+  type ContentCorrection,
   type ProductMember,
   type SettingsData,
   type SettingsDataV2,
@@ -1473,6 +1475,134 @@ describe("settingsStore «no comparable» overrides (D-18, D-19)", () => {
     useSettingsStore.getState().restoreProduct(snap);
     expect(setItem).not.toHaveBeenCalled();
     expect(snapshot().priceOverrides).toBe(before);
+  });
+});
+
+describe("settingsStore content corrections (D-13, D-14, D-15)", () => {
+  const RFC = "AAA010101AAA";
+  const correction = (overrides: Partial<ContentCorrection> = {}): ContentCorrection => ({
+    rfc: RFC,
+    key: "a1",
+    description: "A1",
+    supplierName: "Tienda Uno",
+    packs: 12,
+    amount: "1",
+    unit: "l",
+    ...overrides,
+  });
+  const uno = (key: string): ProductMember => ({
+    rfc: RFC,
+    key,
+    description: key.toUpperCase(),
+    supplierName: "Tienda Uno",
+  });
+
+  /** The stored envelope still passes the version-4 schema, and holds exactly the live state. */
+  function expectStoredValid(): void {
+    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 4 });
+    expect(settingsDataSchema.safeParse(snapshot()).success).toBe(true);
+  }
+
+  it("setContentCorrection writes contentCorrections once and reports the previous entry", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const first = useSettingsStore.getState().setContentCorrection(correction());
+    expect(first).toEqual({ ok: true, previous: null });
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().contentCorrections).toEqual([correction()]);
+    expectStoredValid();
+    const second = useSettingsStore
+      .getState()
+      .setContentCorrection(correction({ packs: 6, amount: "355", unit: "ml" }));
+    expect(second).toEqual({ ok: true, previous: correction() });
+    expect(setItem).toHaveBeenCalledTimes(2);
+    expect(snapshot().contentCorrections).toEqual([correction({ packs: 6, amount: "355", unit: "ml" })]);
+    expectStoredValid();
+  });
+
+  it("saving the same values again writes nothing", () => {
+    useSettingsStore.getState().setContentCorrection(correction());
+    const before = snapshot().contentCorrections;
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const result = useSettingsStore.getState().setContentCorrection(correction());
+    expect(result).toEqual({ ok: true, previous: correction() });
+    expect(setItem).not.toHaveBeenCalled();
+    expect(snapshot().contentCorrections).toBe(before);
+  });
+
+  it("a refused value writes nothing", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().setContentCorrection(correction({ packs: 0 }))).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+    expect(useSettingsStore.getState().setContentCorrection(correction({ amount: "1e3" }))).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+    expect(setItem).not.toHaveBeenCalled();
+    expect(snapshot().contentCorrections).toEqual([]);
+  });
+
+  it("refuses a new member at the cap and writes nothing, but replaces an existing one", () => {
+    const full: ContentCorrection[] = [];
+    for (let index = 0; index < LIMITS.contentCorrections; index += 1) {
+      full.push(correction({ key: `k${index}`, description: `D${index}` }));
+    }
+    useSettingsStore.setState({ contentCorrections: full });
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().setContentCorrection(correction({ key: "nuevo" }))).toEqual({
+      ok: false,
+      reason: "limit",
+    });
+    expect(setItem).not.toHaveBeenCalled();
+    const replaced = useSettingsStore
+      .getState()
+      .setContentCorrection(correction({ key: "k3", description: "D3", packs: 2 }));
+    expect(replaced.ok).toBe(true);
+    expect(snapshot().contentCorrections).toHaveLength(LIMITS.contentCorrections);
+    expect(snapshot().contentCorrections[3]?.packs).toBe(2);
+  });
+
+  it("removeContentCorrection returns the removed entry, restoreContentCorrection puts it back", () => {
+    useSettingsStore.getState().setContentCorrection(correction());
+    const removed = useSettingsStore.getState().removeContentCorrection(RFC, "a1");
+    expect(removed).toEqual(correction());
+    expect(snapshot().contentCorrections).toEqual([]);
+    expectStoredValid();
+    useSettingsStore.getState().restoreContentCorrection(correction());
+    expect(snapshot().contentCorrections).toEqual([correction()]);
+    expectStoredValid();
+  });
+
+  it("removing an unknown member returns null and writes nothing", () => {
+    useSettingsStore.getState().setContentCorrection(correction());
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().removeContentCorrection(RFC, "nope")).toBeNull();
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("a restore that changes nothing or is refused writes nothing", () => {
+    useSettingsStore.getState().setContentCorrection(correction());
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSettingsStore.getState().restoreContentCorrection(correction());
+    useSettingsStore.getState().restoreContentCorrection(correction({ packs: 0 }));
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("deleting the member's product leaves its correction in place and restoring keeps it too", () => {
+    useSettingsStore.setState({
+      products: [{ id: "prod_a", name: "Leche", categoryId: null, members: [uno("a1"), uno("a2")] }],
+    });
+    useSettingsStore.getState().setContentCorrection(correction());
+    const snap = useSettingsStore.getState().deleteProduct("prod_a");
+    expect(snap).not.toBeNull();
+    expect(snapshot().contentCorrections).toEqual([correction()]);
+    if (snap !== null) useSettingsStore.getState().restoreProduct(snap);
+    expect(snapshot().contentCorrections).toEqual([correction()]);
+    // Taking the member out of its product keeps the correction as well.
+    useSettingsStore.getState().removeProductMember("prod_a", ruleMapKey(RFC, "a1"));
+    expect(snapshot().contentCorrections).toEqual([correction()]);
+    expectStoredValid();
   });
 });
 

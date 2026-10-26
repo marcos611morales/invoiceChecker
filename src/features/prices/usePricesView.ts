@@ -18,6 +18,8 @@ import {
 } from "@/domain/prices/compare";
 import { assignSlots, type SeriesSlot } from "@/domain/prices/history";
 import { extractPurchases, productIndex, type Purchase } from "@/domain/prices/purchases";
+import { ruleMapKey } from "@/domain/settings/normalize";
+import type { ContentCorrection } from "@/domain/settings/types";
 import { useDashboardView } from "@/features/dashboard/useDashboardView";
 
 export interface PricesViewState {
@@ -62,7 +64,18 @@ export function usePricesView(): PricesViewState {
     () => extractPurchases(view.visible, mode, index),
     [view.visible, mode, index],
   );
-  const comparison = useMemo(() => comparePrices(products, purchases), [products, purchases]);
+  const { contentCorrections } = settings;
+  const corrections = useMemo(() => {
+    const map = new Map<string, ContentCorrection>();
+    for (const correction of contentCorrections) {
+      map.set(ruleMapKey(correction.rfc, correction.key), correction);
+    }
+    return map;
+  }, [contentCorrections]);
+  const comparison = useMemo(
+    () => comparePrices(products, purchases, corrections),
+    [products, purchases, corrections],
+  );
   const allPurchases = useMemo(
     () => extractPurchases(scopeToCategories(ledger, NO_CATEGORIES, resolver), mode, index),
     [ledger, resolver, mode, index],
@@ -87,7 +100,10 @@ export function usePricesView(): PricesViewState {
       hiddenCount: comparison.rows.length - kept.length,
     };
   }, [comparison.rows, comparability]);
-  const unfiltered = useMemo(() => comparePrices(products, allPurchases), [products, allPurchases]);
+  const unfiltered = useMemo(
+    () => comparePrices(products, allPurchases, corrections),
+    [products, allPurchases, corrections],
+  );
   const historySlots = useMemo(() => {
     const slots = new Map<string, ReadonlyMap<string, SeriesSlot>>();
     for (const row of unfiltered.rows) slots.set(row.productId, assignSlots(row.stores));

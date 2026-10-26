@@ -1,6 +1,8 @@
 import Big from "big.js";
 import { describe, expect, it } from "vitest";
 import { ZERO } from "@/domain/accounting/decimal";
+import { ruleMapKey } from "@/domain/settings/normalize";
+import type { ContentCorrection } from "@/domain/settings/types";
 import { makeProduct } from "../../../tests/support/pricesFactory";
 import { comparePrices, compareProduct, median, type ProductComparison } from "./compare";
 import type { Purchase } from "./purchases";
@@ -474,5 +476,100 @@ describe("comparePrices: rows and savings summary (D-22, D-23)", () => {
       ],
     );
     expect(rows[0]?.notNormalizedCount).toBe(2);
+  });
+});
+
+describe("compareProduct and comparePrices with content corrections (D-09 step 1, D-13, D-28)", () => {
+  const EGGS = makeProduct("Huevo", [
+    { rfc: RFC_A, descripcion: "HUEVO BLANCO", supplierName: NAME_A },
+    { rfc: RFC_B, descripcion: "HUEVO BLANCO", supplierName: NAME_B },
+  ]);
+
+  function egg(rfc: string, name: string, amount: string, cantidad = "1"): Purchase {
+    return {
+      ...buy(rfc, name, { unidad: "H87", cantidad, amount }),
+      productId: EGGS.id,
+      productName: EGGS.name,
+      memberKey: ruleMapKey(rfc, "huevo blanco"),
+      descripcion: "HUEVO BLANCO",
+    };
+  }
+
+  function fix(rfc: string, overrides: Partial<ContentCorrection> = {}): ContentCorrection {
+    return {
+      rfc,
+      key: "huevo blanco",
+      description: "HUEVO BLANCO",
+      supplierName: "Tienda",
+      packs: 1,
+      amount: "12",
+      unit: "piezas",
+      ...overrides,
+    };
+  }
+
+  function mapOf(...corrections: ContentCorrection[]): Map<string, ContentCorrection> {
+    return new Map(corrections.map((c) => [ruleMapKey(c.rfc, c.key), c]));
+  }
+
+  const PURCHASES = [egg(RFC_A, NAME_A, "60.00"), egg(RFC_B, NAME_B, "50.00")];
+
+  it("without the argument the result equals the one with an empty map", () => {
+    const plain = compareProduct(EGGS, PURCHASES);
+    expect(compareProduct(EGGS, PURCHASES, new Map())).toEqual(plain);
+    expect(plain.perPiece).toBe(true);
+  });
+
+  it("a correction on one member makes the other unsized-with-sized-siblings and ends per piece (D-28)", () => {
+    const row = compareProduct(EGGS, PURCHASES, mapOf(fix(RFC_A)));
+    expect(row.perPiece).toBe(false);
+    expect(row.family).toBe("piece");
+    expect(storeNames(row)).toEqual([NAME_A]);
+    expect(reasonsOf(row)).toEqual(["unsized-with-sized-siblings"]);
+    const compared = row.purchases.find((p) => p.status === "compared" && p.storeRfc === RFC_A);
+    expect(compared?.status === "compared" && compared.source).toBe("user");
+    expect(compared?.status === "compared" && compared.price.toString()).toBe("5");
+  });
+
+  it("a correction on both members compares them by their typed content", () => {
+    const row = compareProduct(
+      EGGS,
+      PURCHASES,
+      mapOf(fix(RFC_A, { amount: "12" }), fix(RFC_B, { amount: "18" })),
+    );
+    expect(row.perPiece).toBe(false);
+    expect(row.stores.map((s) => [s.name, s.median.toString()])).toEqual([
+      [NAME_B, "2.77777777777777777778"],
+      [NAME_A, "5"],
+    ]);
+    expect(row.cheapest?.name).toBe(NAME_B);
+  });
+
+  it("a correction of one RFC does not apply to the same description of another RFC", () => {
+    const row = compareProduct(EGGS, PURCHASES, mapOf(fix(RFC_C)));
+    expect(row.perPiece).toBe(true);
+    expect(reasonsOf(row)).toEqual([]);
+  });
+
+  it("the correction does not touch weight lines of the same member", () => {
+    const kgLine: Purchase = { ...buy(RFC_B, NAME_B, { unidad: "KGM", cantidad: "2", amount: "40.00" }),
+      productId: EGGS.id,
+      productName: EGGS.name,
+      memberKey: ruleMapKey(RFC_B, "huevo blanco"),
+      descripcion: "HUEVO BLANCO",
+    };
+    const row = compareProduct(EGGS, [kgLine, egg(RFC_B, NAME_B, "50.00")], mapOf(fix(RFC_B, { unit: "kg", amount: "1" })));
+    const sources = row.purchases.map((p) => (p.status === "compared" ? p.source : p.status));
+    expect(sources.sort()).toEqual(["user", "xml"]);
+  });
+
+  it("comparePrices passes the corrections to every row", () => {
+    const { rows, summary } = comparePrices([EGGS], PURCHASES, mapOf(fix(RFC_A), fix(RFC_B, { amount: "24" })));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.perPiece).toBe(false);
+    expect(rows[0]?.cheapest?.name).toBe(NAME_B);
+    expect(summary.perPieceProducts).toBe(0);
+    expect(summary.products).toBe(1);
+    expect(comparePrices([EGGS], PURCHASES).summary.perPieceProducts).toBe(1);
   });
 });

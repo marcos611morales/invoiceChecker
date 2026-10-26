@@ -205,3 +205,94 @@ describe("usePricesView comparability (D-16, D-17, D-18, D-22, D-31)", () => {
     expect(result.current.hiddenCount).toBe(1);
   });
 });
+
+describe("usePricesView content corrections (D-13, D-15, D-28)", () => {
+  const EGGS = "HUEVO BLANCO";
+
+  function pieces(
+    rfc: string,
+    nombre: string,
+    fecha: string,
+    cantidad: string,
+    importe: string,
+  ): ParsedInvoice {
+    const base = concept(EGGS, "50131600", cantidad, importe);
+    return makeInvoice({
+      fecha,
+      emisor: { rfc, nombre },
+      conceptos: [{ ...base, claveUnidad: "H87", unidad: "Pieza" }],
+      subTotal: importe,
+      total: importe,
+      totalImpuestosTrasladados: null,
+    });
+  }
+
+  beforeEach(() => {
+    act(() => {
+      const { products } = useSettingsStore.getState();
+      useSettingsStore.setState({ products: [...products, productOf("Huevo", EGGS)] });
+    });
+    load([
+      pieces(RFC_A, NAME_A, "2025-01-10T10:00:00", "1", "60.00"),
+      pieces(RFC_B, NAME_B, "2025-02-10T10:00:00", "1", "50.00"),
+    ]);
+  });
+
+  function correct(rfc: string, amount: string): void {
+    act(() => {
+      useSettingsStore.getState().setContentCorrection({
+        rfc,
+        key: "huevo blanco",
+        description: EGGS,
+        supplierName: "Tienda",
+        packs: 1,
+        amount,
+        unit: "piezas",
+      });
+    });
+  }
+
+  function eggRow(rows: ReturnType<typeof usePricesView>["rows"]) {
+    return rows.find((row) => row.productId === "prod-Huevo");
+  }
+
+  it("without corrections the product is compared per piece, without a verified size", () => {
+    const { result } = renderHook(() => usePricesView());
+    expect(eggRow(result.current.rows)?.perPiece).toBe(true);
+    expect(eggRow(result.current.rows)?.cheapest?.name).toBe(NAME_B);
+  });
+
+  it("saving a correction recomputes the rows at once (D-28)", () => {
+    const { result } = renderHook(() => usePricesView());
+    correct(RFC_A, "10");
+    const row = eggRow(result.current.rows);
+    expect(row?.perPiece).toBe(false);
+    // Only the corrected member stays compared; the unsized one is set aside.
+    expect(row?.stores.map((store) => store.name)).toEqual([NAME_A]);
+    expect(row?.cheapest).toBeNull();
+    correct(RFC_B, "10");
+    const both = eggRow(result.current.rows);
+    expect(both?.stores.map((store) => store.name)).toEqual([NAME_B, NAME_A]);
+    expect(both?.cheapest?.name).toBe(NAME_B);
+    expect(both?.saving?.toString()).toBe("10");
+  });
+
+  it("the unfiltered view uses the corrections too, so a date filter keeps the same store slots", () => {
+    const { result } = renderHook(() => usePricesView());
+    correct(RFC_A, "10");
+    expect([...(result.current.historySlots.get("prod-Huevo")?.keys() ?? [])]).toEqual([RFC_A]);
+    act(() => {
+      useSessionStore.getState().setRange({ from: "2025-02", to: "2025-02" });
+    });
+    expect([...(result.current.historySlots.get("prod-Huevo")?.keys() ?? [])]).toEqual([RFC_A]);
+  });
+
+  it("removing the correction brings back the per-piece comparison", () => {
+    const { result } = renderHook(() => usePricesView());
+    correct(RFC_A, "10");
+    act(() => {
+      useSettingsStore.getState().removeContentCorrection(RFC_A, "huevo blanco");
+    });
+    expect(eggRow(result.current.rows)?.perPiece).toBe(true);
+  });
+});
