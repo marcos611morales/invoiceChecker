@@ -311,7 +311,7 @@ Plans:
   3. Servicios, gasolina, comisiones y similares no aparecen por defecto en la comparación, y el usuario puede cambiar la marca "no comparable" de un producto.
   4. El usuario ve un ahorro estimado, etiquetado como estimado, de haber comprado en la tienda más barata, y el historial del precio de un producto en el tiempo.
 
-**Plans:** 5/12 plans executed
+**Plans:** 6/12 plans executed
 
 Plans:
 **Wave 1** *(the two plans run in parallel)*
@@ -326,7 +326,7 @@ Plans:
 - [x] 05-05-PLAN.md — Lector de tamaños en la descripción (peso, volumen y conteos de piezas, D-25) con prueba sobre la muestra real
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 05-06-PLAN.md — Panel del producto: resumen, tabla por tienda con la más barata resaltada, avisos, lista de compras y textos de cada motivo «no normalizado»
+- [x] 05-06-PLAN.md — Panel del producto: resumen, tabla por tienda con la más barata resaltada, avisos, lista de compras y textos de cada motivo «no normalizado»
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 05-07-PLAN.md — Historial de precio por tienda (PREC-06) con colores y formas estables: ScatterChart con líneas por tienda y tooltip por compra (D-33)
@@ -358,4 +358,4 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
 | 3. Categorías propias y exportación a Excel | 20/20 | Complete    | 2026-10-19 |
 | 4. Agrupación de productos con DeepSeek | 21/21 | Complete    | 2026-10-25 |
-| 5. Comparación de precios entre tiendas | 5/12 | In Progress | - |
+| 5. Comparación de precios entre tiendas | 6/12 | In Progress | - |
