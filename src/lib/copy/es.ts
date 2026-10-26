@@ -151,6 +151,7 @@ export const es = {
     dashboard: "Dashboard",
     categories: "Categorías",
     products: "Productos",
+    prices: "Precios",
     quality: "Calidad de datos",
     import: "Importación",
   },
@@ -612,6 +613,35 @@ export const es = {
       badRequest:
         "No se pudo enviar la solicitud. Recarga la página; si sigue igual, avisa a quien administra la aplicación.",
     },
+  },
+
+  /** Precios tab: price comparison between stores (Phase 5, UI-SPEC Copywriting Contract). */
+  prices: {
+    heading: "Precios",
+    intro:
+      "Compara el precio unitario de cada producto agrupado en cada tienda: neto de descuento y solo entre cantidades de la misma unidad (kilogramo, litro o pieza). Los filtros de arriba aplican a todo.",
+    savings: {
+      label: "Ahorro estimado",
+      badge: "estimado",
+      note: "Es lo que se habría ahorrado si cada compra se hubiera hecho al precio mediano de la tienda más barata de ese producto. Solo cuenta productos comparables con 2 o más tiendas, dentro de los filtros.",
+    },
+    columns: {
+      product: "Producto",
+      cheapest: "Tienda más barata",
+      price: "Precio",
+      stores: "Tiendas",
+      saving: "Ahorro estimado",
+    },
+    /** Unit labels that follow a price: «$35.20 / kg». */
+    units: {
+      mass: "kg",
+      volume: "L",
+      piece: "pieza",
+    },
+    /** Value of a cell with nothing to show (no cheapest store, no saving). */
+    none: "—",
+    /** Price cell of a product whose purchases cannot be normalized. */
+    notNormalized: "No normalizado",
   },
 
   errors: {

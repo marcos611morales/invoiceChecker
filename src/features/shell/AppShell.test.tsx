@@ -77,7 +77,7 @@ afterEach(() => {
 });
 
 describe("AppShell tabs (D-01, D-04)", () => {
-  it("lists Dashboard, Categorías, Productos, Calidad de datos and Importación in that order", () => {
+  it("lists Dashboard, Categorías, Productos, Precios, Calidad de datos and Importación in that order", () => {
     seed([inv("OK-1")]);
     render(<AppShell />);
     const tabs = screen.getAllByRole("tab");
@@ -85,6 +85,7 @@ describe("AppShell tabs (D-01, D-04)", () => {
       "Dashboard",
       "Categorías",
       "Productos",
+      "Precios",
       "Calidad de datos",
       "Importación",
     ]);
