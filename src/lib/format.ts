@@ -259,6 +259,32 @@ export function rangeText(from: MonthKey, to: MonthKey): string {
 }
 
 /**
+ * Long es-MX date of the literal CFDI `Fecha`: «28 de mayo de 2025». Read from the string with the
+ * static month names, so no local time zone can shift the day (REGLA-05). A malformed value is
+ * returned unchanged.
+ */
+export function longDateLabel(fecha: string): string {
+  const match = ISO_DATE_PREFIX.exec(fecha);
+  if (match === null) return fecha;
+  const [, year, month, day] = match;
+  const monthNumber = Number(month);
+  const dayOfMonth = Number(day);
+  const name = MONTHS_LONG[monthNumber - 1];
+  if (name === undefined || dayOfMonth < 1 || dayOfMonth > 31) return fecha;
+  return `${String(dayOfMonth)} de ${name} de ${String(year)}`;
+}
+
+/**
+ * Tick of the time axis of the price history: «may 2025» for a day number (days since 1970-01-01,
+ * UTC). The day count is turned back into a UTC date, never a local one (REGLA-05).
+ */
+export function monthTickLabel(day: number): string {
+  const date = new Date(day * 86_400_000);
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return monthYearLabel(`${String(date.getUTCFullYear()).padStart(4, "0")}-${month}`);
+}
+
+/**
  * Label of a forma de pago code: the SAT catalog name, never the bare code
  * (D-14). An unknown code reads "Forma de pago {código}" and the PPD sentinel
  * reads "Por definir (sin complemento de pago)" (D-16).
