@@ -1407,7 +1407,8 @@ export function purchasesCount(n: number): string {
 /**
  * Note of a product bought in more than one unit family (D-12). The compared unit is named first;
  * each left-out family says how many purchases became «no normalizadas». Two left-out families
- * (not drawn in the UI-SPEC) are listed one after the other.
+ * (not drawn in the UI-SPEC) are listed one after the other with no leading article, so the
+ * sentence never reads «las 1 compra … y 3 compras».
  */
 export function mixedFamiliesNote(
   compared: UnitFamily,
@@ -1417,9 +1418,9 @@ export function mixedFamiliesNote(
   const bought = joinList([compared, ...others.map((other) => other.family)].map((f) => `en ${names[f]}`));
   const total = others.reduce((sum, other) => sum + other.count, 0);
   const left = joinList(others.map((other) => `${purchasesCount(other.count)} en ${names[other.family]}`));
-  const article = total === 1 ? "la" : "las";
+  const article = others.length > 1 ? "" : total === 1 ? "la " : "las ";
   const verb = total === 1 ? "queda como no normalizada" : "quedan como no normalizadas";
-  return `Este producto se compró ${bought}. Se compara la unidad con más compras (${names[compared]}); ${article} ${left} ${verb}.`;
+  return `Este producto se compró ${bought}. Se compara la unidad con más compras (${names[compared]}); ${article}${left} ${verb}.`;
 }
 
 /** Ghost button that reveals the rest of a list: «Mostrar {n} más». */

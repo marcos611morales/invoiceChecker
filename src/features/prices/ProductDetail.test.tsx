@@ -213,7 +213,7 @@ describe("alerts (D-12)", () => {
       />,
     );
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Este producto se compró en kilogramos, en litros y en piezas. Se compara la unidad con más compras (kilogramos); las 1 compra en litros y 3 compras en piezas quedan como no normalizadas.",
+      "Este producto se compró en kilogramos, en litros y en piezas. Se compara la unidad con más compras (kilogramos); 1 compra en litros y 3 compras en piezas quedan como no normalizadas.",
     );
   });
 

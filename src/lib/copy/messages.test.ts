@@ -1432,7 +1432,7 @@ describe("Precios tab sentences (D-07, D-22, D-23)", () => {
         { family: "volume", count: 4 },
       ]),
     ).toBe(
-      "Este producto se compró en piezas, en kilogramos y en litros. Se compara la unidad con más compras (piezas); las 1 compra en kilogramos y 4 compras en litros quedan como no normalizadas.",
+      "Este producto se compró en piezas, en kilogramos y en litros. Se compara la unidad con más compras (piezas); 1 compra en kilogramos y 4 compras en litros quedan como no normalizadas.",
     );
   });
 
