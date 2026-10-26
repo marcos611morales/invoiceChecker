@@ -46,6 +46,16 @@ findings:
   info: 5
   total: 8
 status: issues_found
+resolved:
+  - CR-01
+  - CR-02
+  - WR-01
+open:
+  - IN-01
+  - IN-02
+  - IN-03
+  - IN-04
+  - IN-05
 ---
 
 # Phase 5: Code Review Report
@@ -63,6 +73,8 @@ The defects are concentrated in `src/domain/prices/sizeReader.ts`. The reader's 
 ## Critical Issues
 
 ### CR-01: A thousands comma is read as a decimal point, so the content is wrong by 1000x
+
+**Resolution:** fixed in `ba299b9` (user decision: a comma plus exactly three digits is a thousands separator for every unit, not "no reading"; the 1,000 bound still applies after reading).
 
 **File:** `src/domain/prices/sizeReader.ts:107-110` (`numberText`), used at line 120
 **Issue:** The "thousands separator" rule only handles a dot (`/^\d{1,3}\.\d{3}$/`) and only for g and mL. Any other comma is turned into a decimal point (`raw.replace(",", ".")`). A comma followed by exactly three digits is a thousands separator in es-MX writing, so these descriptions are misread. Executed results:
@@ -82,6 +94,8 @@ if (/^\d{1,3},\d{3}$/.test(numText)) continue;
 `continue` drops the reading, so the line becomes an unsized piece. Add `1,500 ML`, `1,000 G` and `1,000 L` to `sizeReader.test.ts`.
 
 ### CR-02: A fraction like «1/2 KG» or «1/4 KG» is read as a pack, so 0.5 kg becomes 2 kg and 0.25 kg becomes 4 kg
+
+**Resolution:** fixed in `5a80da7` (user decision: a/b with a < b before a kilo or litre is that fraction of one unit; applied only to KG and L units so «12/500ML» stays a pack).
 
 **File:** `src/domain/prices/sizeReader.ts:76-81` (`PLAIN` / `GLUED`) and 121-122 (pack multiplication)
 **Issue:** The optional prefix `(\d{1,2})\s*[/X]\s*` is always interpreted as a pack count. A fraction of a kilo or litre («1/2 KG», «1/4 KG», «3/4 KG», «1/2 LT»), which is ordinary retail wording for cheese, butter, ham and oil, is therefore multiplied instead of divided. Executed results:
@@ -104,6 +118,8 @@ Add «1/2 KG», «1/4 L» and «3/4 KG» to the tests. The existing fixture «1/
 ## Warnings
 
 ### WR-01: Common pack wordings are not recognised, so a pack of N is priced as one unit
+
+**Resolution:** fixed in `cee331d` (C/n, trailing X n, glued nPACK, PAQUETE, PQTE, UDS give `ambiguous` / `pack-token`; nothing is multiplied).
 
 **File:** `src/domain/prices/sizeReader.ts:86-89` (`PACK_TOKEN`, `PIECE_PACK_WORD`) and 173-176
 **Issue:** The module header promises that "a single reading next to a pack word … gives no size", but the list of pack words is incomplete and anchored with `\b`. Executed results, all returning `kind: "size"` for a single unit:
