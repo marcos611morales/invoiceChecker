@@ -311,7 +311,7 @@ Plans:
   3. Servicios, gasolina, comisiones y similares no aparecen por defecto en la comparación, y el usuario puede cambiar la marca "no comparable" de un producto.
   4. El usuario ve un ahorro estimado, etiquetado como estimado, de haber comprado en la tienda más barata, y el historial del precio de un producto en el tiempo.
 
-**Plans:** 7/12 plans executed
+**Plans:** 8/12 plans executed
 
 Plans:
 **Wave 1** *(the two plans run in parallel)*
@@ -332,7 +332,7 @@ Plans:
 - [x] 05-07-PLAN.md — Historial de precio por tienda (PREC-06) con colores y formas estables: ScatterChart con líneas por tienda y tooltip por compra (D-33)
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 05-08-PLAN.md — «No comparable» (datos): valor por defecto por ClaveProdServ sin filtros, tarjeta solo con comparables, overrides con Deshacer y borrado de productos consistente
+- [x] 05-08-PLAN.md — «No comparable» (datos): valor por defecto por ClaveProdServ sin filtros, tarjeta solo con comparables, overrides con Deshacer y borrado de productos consistente
 
 **Wave 7** *(blocked on Wave 6 completion; the two plans run in parallel)*
 - [ ] 05-09-PLAN.md — «No comparable» (pestaña): casilla «Mostrar los no comparables», filas atenuadas, menú «⋯» con Deshacer, avisos y foco
@@ -358,4 +358,4 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
 | 3. Categorías propias y exportación a Excel | 20/20 | Complete    | 2026-10-19 |
 | 4. Agrupación de productos con DeepSeek | 21/21 | Complete    | 2026-10-25 |
-| 5. Comparación de precios entre tiendas | 7/12 | In Progress | - |
+| 5. Comparación de precios entre tiendas | 8/12 | In Progress | - |

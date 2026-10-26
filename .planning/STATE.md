@@ -4,15 +4,15 @@ current_phase: 05
 current_phase_name: Comparación de precios entre tiendas
 status: executing
 stopped_at: Phase 05 UI-SPEC approved
-last_updated: "2026-10-26T17:52:23.754Z"
+last_updated: "2026-10-26T18:27:10.363Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 05 execution started
-state_head: 96241de3e844de347d726e39661fbf76584fd0cf
+state_head: 716ded3c991f2ae4363e56979d91fa80905c0102
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 86
-  completed_plans: 80
+  completed_plans: 82
   percent: 80
 ---
 
@@ -77,6 +77,7 @@ Recent decisions affecting current work:
 - [Phase 4]: Guardia de textos sensibles en el navegador y en el servidor (`sensitive.ts`); categorías sensibles bloquean el envío.
 - [Phase 05]: [Phase 5]: Usuario confirmó: «12/50PZ» y «2X50PZ» (multiplicador antes del conteo) se leen sin tamaño (captura manual); la tabla de Precios siempre queda ordenada (sin estado sin orden).
 - [Phase 05]: Usuario confirmó: con dos unidades excluidas la nota dice «1 compra en litros y 3 compras en piezas quedan…» (sin artículo); con una sola se mantiene «la/las» del UI-SPEC.
+- [Phase 05]: Usuario confirmó: al deshacer el borrado de un producto con la lista de marcas «no comparable» llena (2,000), el producto vuelve sin su marca.
 
 ### Pending Todos
 
