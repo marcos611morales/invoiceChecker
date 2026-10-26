@@ -213,7 +213,7 @@ describe("BackupControls: upload of a valid file (D-08)", () => {
     expect(within(dialog).getByText("¿Reemplazar tus ajustes?")).toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        /^El archivo «x\.json» contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 0 productos \(0 descripciones\)\. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados, los productos agrupados y el modo de IVA actuales\./,
+        /^El archivo «x\.json» contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 0 productos \(0 descripciones\), 0 correcciones de contenido, 0 marcas de no comparable\. Se reemplazarán tus categorías, las categorías de proveedores, los conceptos ajustados, los productos agrupados y el modo de IVA actuales\./,
       ),
     ).toBeInTheDocument();
     await waitFor(() => {
@@ -270,7 +270,7 @@ describe("BackupControls: upload of a valid file (D-08)", () => {
     await choose(jsonFile(versionOne, "viejo.json"));
     const dialog = await screen.findByRole("alertdialog");
     expect(
-      within(dialog).getByText(/contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 0 productos \(0 descripciones\)\./),
+      within(dialog).getByText(/contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 0 productos \(0 descripciones\), 0 correcciones de contenido, 0 marcas de no comparable\./),
     ).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Reemplazar mis ajustes" }));
     expect(snapshot()).toEqual(incoming());
@@ -307,7 +307,7 @@ describe("BackupControls: upload of a valid file (D-08)", () => {
     await choose(jsonFile(buildBackupText(withProducts), "nuevo.json"));
     const dialog = await screen.findByRole("alertdialog");
     expect(
-      within(dialog).getByText(/contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 2 productos \(3 descripciones\)\./),
+      within(dialog).getByText(/contiene 3 categorías, 2 proveedores, 1 concepto ajustado, 2 productos \(3 descripciones\), 0 correcciones de contenido, 0 marcas de no comparable\./),
     ).toBeInTheDocument();
     expect(snapshot().products).toEqual([]);
     fireEvent.click(within(dialog).getByRole("button", { name: "Reemplazar mis ajustes" }));
@@ -407,7 +407,7 @@ describe("BackupControls: upload of a valid file (D-08)", () => {
     await choose(jsonFile(buildBackupText(one)));
     expect(
       await screen.findByText(
-        /contiene 1 categoría, 0 proveedores, 1 concepto ajustado, 0 productos \(0 descripciones\)\./,
+        /contiene 1 categoría, 0 proveedores, 1 concepto ajustado, 0 productos \(0 descripciones\), 0 correcciones de contenido, 0 marcas de no comparable\./,
       ),
     ).toBeInTheDocument();
   });

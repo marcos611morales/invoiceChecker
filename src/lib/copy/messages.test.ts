@@ -25,6 +25,12 @@ import {
   pricePerStoresCaption,
   noSearchMatch,
   pricesCountLine,
+  showHiddenLabel,
+  priceMarkedAnnouncement,
+  priceMarkedToast,
+  priceMenuAria,
+  priceRestoredAnnouncement,
+  priceRestoredToast,
   savingsPerPieceNote,
   savingsProductsLabel,
   categoryAddedText,
@@ -828,22 +834,46 @@ describe("settings file messages (D-07, D-08)", () => {
     );
   });
 
-  it("lists the five parts of the summary, plurals included (UI-SPEC 346)", () => {
+  it("lists the seven parts of the summary, plurals included (UI-SPEC 346)", () => {
     expect(
       replaceSummaryText({ categories: 9, suppliers: 24, concepts: 7, products: 5, members: 14, corrections: 0, overrides: 0 }),
-    ).toBe("9 categorías, 24 proveedores, 7 conceptos ajustados, 5 productos (14 descripciones)");
+    ).toBe(
+      "9 categorías, 24 proveedores, 7 conceptos ajustados, 5 productos (14 descripciones), 0 correcciones de contenido, 0 marcas de no comparable",
+    );
   });
 
   it("reads the singular forms for one and «0 …» for zero, never omitting a part", () => {
     expect(
       replaceSummaryText({ categories: 1, suppliers: 0, concepts: 1, products: 1, members: 1, corrections: 0, overrides: 0 }),
-    ).toBe("1 categoría, 0 proveedores, 1 concepto ajustado, 1 producto (1 descripción)");
+    ).toBe(
+      "1 categoría, 0 proveedores, 1 concepto ajustado, 1 producto (1 descripción), 0 correcciones de contenido, 0 marcas de no comparable",
+    );
     expect(
       replaceSummaryText({ categories: 0, suppliers: 1, concepts: 0, products: 0, members: 0, corrections: 0, overrides: 0 }),
-    ).toBe("0 categorías, 1 proveedor, 0 conceptos ajustados, 0 productos (0 descripciones)");
+    ).toBe(
+      "0 categorías, 1 proveedor, 0 conceptos ajustados, 0 productos (0 descripciones), 0 correcciones de contenido, 0 marcas de no comparable",
+    );
     expect(
       replaceSummaryText({ categories: 2, suppliers: 2, concepts: 2, products: 2, members: 3, corrections: 0, overrides: 0 }),
-    ).toBe("2 categorías, 2 proveedores, 2 conceptos ajustados, 2 productos (3 descripciones)");
+    ).toBe(
+      "2 categorías, 2 proveedores, 2 conceptos ajustados, 2 productos (3 descripciones), 0 correcciones de contenido, 0 marcas de no comparable",
+    );
+  });
+
+  it("ends the summary with the corrections and the «no comparable» marks, singular and plural (Persistence contract)", () => {
+    expect(
+      replaceSummaryText({ categories: 1, suppliers: 1, concepts: 1, products: 1, members: 1, corrections: 1, overrides: 0 }),
+    ).toBe(
+      "1 categoría, 1 proveedor, 1 concepto ajustado, 1 producto (1 descripción), 1 corrección de contenido, 0 marcas de no comparable",
+    );
+    expect(
+      replaceSummaryText({ categories: 1, suppliers: 1, concepts: 1, products: 1, members: 1, corrections: 3, overrides: 1 }),
+    ).toBe(
+      "1 categoría, 1 proveedor, 1 concepto ajustado, 1 producto (1 descripción), 3 correcciones de contenido, 1 marca de no comparable",
+    );
+    expect(
+      replaceSummaryText({ categories: 1, suppliers: 1, concepts: 1, products: 1, members: 1, corrections: 0, overrides: 2 }),
+    ).toContain(", 0 correcciones de contenido, 2 marcas de no comparable");
   });
 
   it("builds the replace body from the UI-SPEC sentence, products included (UI-SPEC 347)", () => {
@@ -1348,6 +1378,52 @@ describe("Precios tab sentences (D-07, D-22, D-23)", () => {
     expect(pricesCountLine(0)).toBe("0 productos");
     expect(pricesCountLine(1)).toBe("1 producto");
     expect(pricesCountLine(12)).toBe("12 productos");
+  });
+
+  it("labels the checkbox of the hidden products with their count, zero included (D-07, D-18)", () => {
+    expect(showHiddenLabel(0)).toBe("Mostrar los no comparables (0)");
+    expect(showHiddenLabel(1)).toBe("Mostrar los no comparables (1)");
+    expect(showHiddenLabel(3)).toBe("Mostrar los no comparables (3)");
+  });
+
+  it("names the row menu with the product cut at 60 characters, «…» included (E5)", () => {
+    expect(priceMenuAria("Leche")).toBe("Más acciones de «Leche»");
+    expect(priceMenuAria("A".repeat(60))).toBe(`Más acciones de «${"A".repeat(60)}»`);
+    expect(priceMenuAria("A".repeat(70))).toBe(`Más acciones de «${"A".repeat(59)}…»`);
+  });
+
+  it("words the toasts with the product cut at 40 characters, «…» included (D-18)", () => {
+    expect(priceMarkedToast("Leche")).toBe("«Leche» marcado como no comparable");
+    expect(priceRestoredToast("Leche")).toBe("«Leche» vuelve a compararse");
+    expect(priceMarkedToast("A".repeat(70))).toBe(`«${"A".repeat(39)}…» marcado como no comparable`);
+    expect(priceRestoredToast("A".repeat(70))).toBe(`«${"A".repeat(39)}…» vuelve a compararse`);
+  });
+
+  it("announces the mark with the products left, and the return to the comparison (D-18)", () => {
+    expect(priceMarkedAnnouncement("Leche", 4)).toBe(
+      "Producto «Leche» marcado como no comparable. Quedan 4 productos.",
+    );
+    expect(priceMarkedAnnouncement("Leche", 1)).toBe(
+      "Producto «Leche» marcado como no comparable. Queda 1 producto.",
+    );
+    expect(priceMarkedAnnouncement("Leche", 0)).toBe(
+      "Producto «Leche» marcado como no comparable. Quedan 0 productos.",
+    );
+    expect(priceRestoredAnnouncement("Leche")).toBe("Producto «Leche» vuelve a compararse.");
+  });
+
+  it("pins the static copy of the non-comparable rows and the all-hidden empty state", () => {
+    expect(es.prices.noComparable.badge).toBe("No comparable");
+    expect(es.prices.noComparable.byDefault).toBe(
+      "Se excluye por defecto: sus compras son de servicios o combustible.",
+    );
+    expect(es.prices.noComparable.byUser).toBe("Lo marcaste tú como no comparable.");
+    expect(es.prices.empty.allHiddenHeading).toBe(
+      "Todos los productos con compras están marcados como no comparables",
+    );
+    expect(es.prices.empty.allHiddenBody).toBe(
+      "Activa «Mostrar los no comparables» para verlos y volver a compararlos.",
+    );
   });
 
   it("counts the products behind the savings card in singular and plural", () => {

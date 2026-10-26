@@ -141,7 +141,7 @@ describe("expander (D-07)", () => {
     expect(panel?.className).toContain("bg-secondary");
     expect(panel?.className).toContain("p-4");
     expect(panel?.className).toContain("sm:p-6");
-    expect(panel?.getAttribute("colspan")).toBe("6");
+    expect(panel?.getAttribute("colspan")).toBe("7");
   });
 });
 

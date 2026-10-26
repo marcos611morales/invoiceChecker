@@ -2,8 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { ZERO } from "@/domain/accounting/decimal";
+import { Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,15 +18,18 @@ import {
   pricesCountLine,
   savingsPerPieceNote,
   savingsProductsLabel,
+  showHiddenLabel,
 } from "@/lib/copy/messages";
 import { formatMoney, normalizeSearch } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/stores/sessionStore";
+import { useStorageStatusStore } from "@/stores/storageStatusStore";
+import { PRICES_TITLE_ID } from "./focusTargets";
 import { PricesTable } from "./PricesTable";
 import { usePricesView } from "./usePricesView";
 
-/** Id of the tab heading, the focus target of the later «Ir a Productos» round trip. */
-export const PRICES_TITLE_ID = "prices-title";
+/** Id of the tab heading, the focus target of the «Ir a Productos» round trip and of the row menu. */
+export { PRICES_TITLE_ID };
 
 /** How long to wait for the Productos panel to mount after switching tabs, in animation frames. */
 const FOCUS_FRAMES = 10;
@@ -53,13 +59,26 @@ function focusProductsHeading(): void {
 export function PreciosTab() {
   const clearFilters = useSessionStore((s) => s.clearFilters);
   const setActiveTab = useSessionStore((s) => s.setActiveTab);
-  const { ledger, span, mode, hasProducts, rows, summary, historySlots } = usePricesView();
+  const { ledger, span, mode, hasProducts, rows, summary, comparability, hiddenCount, historySlots } =
+    usePricesView();
+  const writeFailed = useStorageStatusStore((s) => s.writeFailed);
   const [search, setSearch] = useState("");
+  // Session only: the checkbox is not persisted (UI-SPEC Persistence contract).
+  const [showHidden, setShowHidden] = useState(false);
+  // Polite announcement of a mark made in the table (D-18); the region below is always mounted.
+  const [announcement, setAnnouncement] = useState("");
 
+  // Rows that are compared, and what the table gets: those plus the hidden ones when asked for (D-18).
+  const comparableRows = useMemo(
+    () => rows.filter((row) => comparability.get(row.productId)?.comparable ?? true),
+    [rows, comparability],
+  );
+  const listed = showHidden ? rows : comparableRows;
   const needle = normalizeSearch(search);
   const shown = useMemo(
-    () => (needle === "" ? rows : rows.filter((row) => normalizeSearch(row.name).includes(needle))),
-    [rows, needle],
+    () =>
+      needle === "" ? listed : listed.filter((row) => normalizeSearch(row.name).includes(needle)),
+    [listed, needle],
   );
 
   const heading = (
@@ -99,6 +118,8 @@ export function PreciosTab() {
   }
 
   const zero = summary.total.eq(ZERO);
+  // Every product with purchases is hidden and the checkbox is off: say so instead of an empty table.
+  const allHidden = !showHidden && comparableRows.length === 0;
   return (
     <section className="flex min-w-0 flex-col gap-8">
       {heading}
@@ -109,6 +130,15 @@ export function PreciosTab() {
         </p>
         <p className="text-xs text-muted-foreground">{es.prices.modeNote}</p>
       </div>
+      {/* Not dismissible: it stays until a later write succeeds (Q8). */}
+      {writeFailed ? (
+        <Alert data-testid="prices-write-failed">
+          <Info aria-hidden="true" className="text-muted-foreground" />
+          <AlertDescription className="text-foreground">
+            {es.categories.writeFailedAlert}
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {rows.length === 0 ? (
         <Empty data-testid="prices-empty-filtered" className="border py-12">
           <EmptyHeader>
@@ -123,35 +153,37 @@ export function PreciosTab() {
         </Empty>
       ) : (
         <>
-          <div
-            data-testid="prices-savings"
-            className="flex w-full max-w-[480px] flex-col gap-1 rounded-lg border bg-secondary p-4"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold">{es.prices.savings.label}</span>
-              <Badge variant="outline">{es.prices.savings.badge}</Badge>
-            </div>
+          {allHidden ? null : (
             <div
-              data-testid="prices-savings-total"
-              className={cn(
-                "text-[28px] leading-[1.2] font-semibold tabular-nums whitespace-nowrap",
-                zero && "text-muted-foreground",
-              )}
+              data-testid="prices-savings"
+              className="flex w-full max-w-[480px] flex-col gap-1 rounded-lg border bg-secondary p-4"
             >
-              {formatMoney(summary.total)}
-            </div>
-            <p data-testid="prices-savings-sub" className="text-xs text-muted-foreground">
-              {summary.products === 0
-                ? es.prices.savings.zero
-                : savingsProductsLabel(summary.products)}
-            </p>
-            <p className="text-xs text-muted-foreground">{es.prices.savings.note}</p>
-            {summary.perPieceProducts > 0 ? (
-              <p className="text-xs text-muted-foreground">
-                {savingsPerPieceNote(summary.perPieceProducts)}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">{es.prices.savings.label}</span>
+                <Badge variant="outline">{es.prices.savings.badge}</Badge>
+              </div>
+              <div
+                data-testid="prices-savings-total"
+                className={cn(
+                  "text-[28px] leading-[1.2] font-semibold tabular-nums whitespace-nowrap",
+                  zero && "text-muted-foreground",
+                )}
+              >
+                {formatMoney(summary.total)}
+              </div>
+              <p data-testid="prices-savings-sub" className="text-xs text-muted-foreground">
+                {summary.products === 0
+                  ? es.prices.savings.zero
+                  : savingsProductsLabel(summary.products)}
               </p>
-            ) : null}
-          </div>
+              <p className="text-xs text-muted-foreground">{es.prices.savings.note}</p>
+              {summary.perPieceProducts > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  {savingsPerPieceNote(summary.perPieceProducts)}
+                </p>
+              ) : null}
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="w-full sm:w-80">
               <Label htmlFor="prices-search" className="sr-only">
@@ -168,21 +200,55 @@ export function PreciosTab() {
                 }}
               />
             </div>
-            <p aria-live="polite" className="text-xs text-muted-foreground">
-              {pricesCountLine(shown.length)}
-            </p>
-          </div>
-          <div className="flex min-w-0 flex-col gap-4 rounded-lg border bg-background p-6">
-            {shown.length === 0 ? (
-              <p data-testid="prices-no-match" className="py-6 text-center text-sm text-muted-foreground">
-                {noSearchMatch(search.trim())}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 max-sm:min-h-11">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="prices-show-hidden"
+                  checked={showHidden}
+                  onCheckedChange={setShowHidden}
+                />
+                <Label htmlFor="prices-show-hidden" className="text-sm font-normal">
+                  {showHiddenLabel(hiddenCount)}
+                </Label>
+              </div>
+              <p aria-live="polite" className="text-xs text-muted-foreground">
+                {pricesCountLine(shown.length)}
               </p>
-            ) : (
-              <PricesTable rows={shown} historySlots={historySlots} />
-            )}
+            </div>
           </div>
+          {allHidden ? (
+            <Empty data-testid="prices-empty-hidden" className="border py-12">
+              <EmptyHeader>
+                <EmptyTitle className="text-base">{es.prices.empty.allHiddenHeading}</EmptyTitle>
+                <EmptyDescription>{es.prices.empty.allHiddenBody}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <div className="flex min-w-0 flex-col gap-4 rounded-lg border bg-background p-6">
+              {shown.length === 0 ? (
+                <p
+                  data-testid="prices-no-match"
+                  className="py-6 text-center text-sm text-muted-foreground"
+                >
+                  {noSearchMatch(search.trim())}
+                </p>
+              ) : (
+                <PricesTable
+                  rows={shown}
+                  historySlots={historySlots}
+                  comparability={comparability}
+                  showHidden={showHidden}
+                  comparableCount={comparableRows.length}
+                  onAnnounce={setAnnouncement}
+                />
+              )}
+            </div>
+          )}
         </>
       )}
+      <p data-testid="prices-announcement" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
     </section>
   );
 }
