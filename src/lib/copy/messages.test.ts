@@ -6,6 +6,10 @@ import type { NotNormalizedReason } from "@/domain/prices/content";
 import type { UnitFamily } from "@/domain/prices/units";
 import {
   captureContentAria,
+  contentLimitText,
+  contentPreview,
+  contentRemovedToast,
+  contentSavedAnnouncement,
   editContentAria,
   missingContentNotice,
   usesXmlQuantityText,
@@ -1630,5 +1634,51 @@ describe("content of each description copy (D-13, D-14)", () => {
     expect(usesXmlQuantityText("mass")).toBe("Usa la cantidad del XML (kilogramos)");
     expect(usesXmlQuantityText("volume")).toBe("Usa la cantidad del XML (litros)");
     expect(usesXmlQuantityText(null)).toBe("Usa la cantidad del XML");
+  });
+});
+
+describe("content editor copy (D-13, D-14, D-15)", () => {
+  it("words the live preview with the content per purchase and the total", () => {
+    expect(contentPreview("12 × 1 L", "6", "72 L")).toBe(
+      "Contenido por compra: 12 × 1 L. Con la cantidad de la factura (6), cada compra equivale a 72 L.",
+    );
+  });
+
+  it("announces the saved content with the recalculated saving, or alone when there is none", () => {
+    expect(contentSavedAnnouncement("Leche", "$132.00")).toBe(
+      "Contenido guardado. El ahorro estimado de «Leche» es $132.00.",
+    );
+    expect(contentSavedAnnouncement("Leche", null)).toBe("Contenido guardado.");
+    expect(contentSavedAnnouncement("A".repeat(70), "$1.00")).toBe(
+      `Contenido guardado. El ahorro estimado de «${"A".repeat(70)}» es $1.00.`,
+    );
+  });
+
+  it("words the toast of «Volver a lo detectado» with the description cut at 40 characters, «…» included", () => {
+    expect(contentRemovedToast("Leche")).toBe("Se quitó la corrección de «Leche»");
+    expect(contentRemovedToast("A".repeat(40))).toBe(`Se quitó la corrección de «${"A".repeat(40)}»`);
+    expect(contentRemovedToast("A".repeat(70))).toBe(`Se quitó la corrección de «${"A".repeat(39)}…»`);
+  });
+
+  it("words the limit with the number grouped as in the other limits", () => {
+    expect(contentLimitText(2000)).toBe(
+      "Alcanzaste el límite de 2,000 correcciones de contenido. Quita alguna para guardar más.",
+    );
+  });
+
+  it("pins the labels, helper, buttons and field messages of the editor", () => {
+    const editor = es.prices.detail.content.editor;
+    expect(editor.packs).toBe("Piezas por paquete");
+    expect(editor.amount).toBe("Contenido de cada pieza");
+    expect(editor.unit).toBe("Unidad");
+    expect(editor.helper).toBe(
+      "Para un paquete de 12 botellas de 1 L: piezas por paquete 12, contenido 1, unidad L.",
+    );
+    expect(editor.save).toBe("Guardar contenido");
+    expect(editor.discard).toBe("Descartar cambios");
+    expect(editor.restore).toBe("Volver a lo detectado");
+    expect(editor.amountError).toBe("Escribe un contenido mayor que 0.");
+    expect(editor.packsError).toBe("Escribe un número entero de piezas, 1 o más.");
+    expect(editor.undo).toBe("Deshacer");
   });
 });
