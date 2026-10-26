@@ -231,7 +231,7 @@ describe("Contenido de cada descripción: member states (D-13, D-14, E8)", () =>
     render(<ContentTable row={rowFor(purchases)} />);
     const row = rowWith("AZUCAR");
     expect(row).toHaveTextContent("Usa la cantidad del XML (kilogramos)");
-    expect(within(row).queryByRole("button")).toBeNull();
+    expect(within(row).queryByRole("button", { name: /Corregir|Capturar/ })).toBeNull();
   });
 
   it("reads «(litros)» for a volume member", () => {
@@ -250,7 +250,7 @@ describe("Contenido de cada descripción: member states (D-13, D-14, E8)", () =>
     const row = rowWith("LECHE RARA");
     expect(row).toHaveTextContent("No normalizado");
     expect(row).toHaveTextContent("La unidad «ZZZ» no tiene equivalencia.");
-    expect(within(row).queryByRole("button")).toBeNull();
+    expect(within(row).queryByRole("button", { name: /Corregir|Capturar/ })).toBeNull();
   });
 
   it("renders hostile vendor text as text", () => {

@@ -1549,3 +1549,35 @@ export function notNormalizedReasonText(
     }
   }
 }
+
+/** Longest description kept in the accessible name of a content button, «…» included (UI-SPEC E8). */
+const CONTENT_ARIA_MAX = 60;
+
+/**
+ * Notice at the top of a product panel when descriptions lack their content (D-13): «Falta el
+ * contenido de {n} descripciones, por eso {m} compras no entran en la comparación.» The
+ * descripción/descripciones and the entra/entran forms follow their own counts.
+ */
+export function missingContentNotice(descriptions: number, purchases: number): string {
+  const what = descriptions === 1 ? "1 descripción" : `${String(descriptions)} descripciones`;
+  const left =
+    purchases === 1 ? "1 compra no entra" : `${String(purchases)} compras no entran`;
+  return `Falta el contenido de ${what}, por eso ${left} en la comparación.`;
+}
+
+/** Accessible name of the pencil of a member: the description is cut at 60 characters (D-13). */
+export function editContentAria(description: string, store: string): string {
+  return `Corregir el contenido de «${capCodePoints(description, CONTENT_ARIA_MAX)}» (${store})`;
+}
+
+/** Accessible name of «Capturar contenido» of a not-normalized member: it names the item (D-13). */
+export function captureContentAria(description: string, store: string): string {
+  return `${es.prices.detail.content.capture} de «${capCodePoints(description, CONTENT_ARIA_MAX)}» (${store})`;
+}
+
+/** Text of a member whose purchases are all by weight or volume (D-14): «Usa la cantidad del XML (litros)». */
+export function usesXmlQuantityText(family: "mass" | "volume" | null): string {
+  const base = es.prices.detail.content.usesXml;
+  if (family === null) return base;
+  return `${base} (${es.prices.detail.familyPlural[family]})`;
+}

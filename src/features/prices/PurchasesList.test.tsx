@@ -327,6 +327,7 @@ describe("inside the product panel", () => {
     expect(regions.map((region) => region.querySelector("h3")?.textContent)).toEqual([
       "Precios por tienda",
       "Historial de precios",
+      "Contenido de cada descripción",
       "Compras",
     ]);
   });
