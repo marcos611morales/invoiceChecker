@@ -16,5 +16,6 @@ Out-of-scope discoveries logged by plan executors. Nothing here was fixed by the
    stay distinguishable by shape and legend; this needs a decision at the end-of-phase review (for
    example a slightly larger or offset marker for the earlier series, or accept it). Source:
    `src/features/prices/HistoryChart.tsx` (`ShapeMark`, `SeriesMarker`).
+   **Decision (2026-10-26, user):** accepted as is; the overlap stays, nothing to fix in Phase 5.
 2. **Unused eslint-disable directive** in `src/lib/client/navigation.ts` line 6 (a warning in
    `pnpm lint`, no error). Pre-existing, unrelated to Phase 5.
