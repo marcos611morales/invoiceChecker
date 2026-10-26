@@ -3,6 +3,13 @@ import type { DuplicateFile } from "@/domain/import/types";
 import { INCIDENT_ORDER } from "@/domain/accounting/quality";
 import { es } from "./es";
 import {
+  notNormalizedBadge,
+  onlyAtStore,
+  pricePerStoresCaption,
+  noSearchMatch,
+  pricesCountLine,
+  savingsPerPieceNote,
+  savingsProductsLabel,
   categoryAddedText,
   categoryCountLabel,
   categoryRenamedText,
@@ -1316,5 +1323,46 @@ describe("«Aceptar todas» of the category table (D-23, UI-SPEC OQ6)", () => {
 
   it("names the header button", () => {
     expect(es.products.categoryAcceptAll).toBe("Aceptar todas");
+  });
+});
+
+describe("Precios tab sentences (D-07, D-22, D-23)", () => {
+  it("counts the rows left by the search in singular and plural", () => {
+    expect(pricesCountLine(0)).toBe("0 productos");
+    expect(pricesCountLine(1)).toBe("1 producto");
+    expect(pricesCountLine(12)).toBe("12 productos");
+  });
+
+  it("counts the products behind the savings card in singular and plural", () => {
+    expect(savingsProductsLabel(0)).toBe("0 productos con 2 o más tiendas");
+    expect(savingsProductsLabel(1)).toBe("1 producto con 2 o más tiendas");
+    expect(savingsProductsLabel(3)).toBe("3 productos con 2 o más tiendas");
+  });
+
+  it("says how many counted products are compared per piece", () => {
+    expect(savingsPerPieceNote(1)).toBe(
+      "Incluye 1 producto comparado por pieza, sin tamaño verificado.",
+    );
+    expect(savingsPerPieceNote(2)).toBe(
+      "Incluye 2 productos comparados por pieza, sin tamaño verificado.",
+    );
+  });
+
+  it("captions the price with the number of purchases behind the median", () => {
+    expect(pricePerStoresCaption(1)).toBe("mediana · 1 compra");
+    expect(pricePerStoresCaption(4)).toBe("mediana · 4 compras");
+  });
+
+  it("counts the purchases that could not be normalized", () => {
+    expect(notNormalizedBadge(1)).toBe("1 compra no normalizada");
+    expect(notNormalizedBadge(3)).toBe("3 compras no normalizadas");
+  });
+
+  it("names the only store of a product", () => {
+    expect(onlyAtStore("Tienda Alfa")).toBe("Solo en Tienda Alfa");
+  });
+
+  it("echoes the search text inside quotation marks when nothing matches", () => {
+    expect(noSearchMatch("leche")).toBe("Ningún producto coincide con «leche». Revisa la búsqueda.");
   });
 });

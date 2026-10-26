@@ -13,6 +13,8 @@ import { ZERO, parseDecimal, toMoneyString } from "@/domain/accounting/decimal";
 import { PPD_SIN_COMPLEMENTO } from "@/domain/accounting/ledger";
 import type { MonthKey } from "@/domain/accounting/months";
 import { formaPagoName } from "@/domain/cfdi/catalogs";
+import type { UnitFamily } from "@/domain/prices/units";
+import { es } from "@/lib/copy/es";
 
 const MISSING_VALUE = "—";
 
@@ -81,6 +83,14 @@ export function formatMoney(value: Big): string {
     }
   }
   return text.startsWith("-") ? `${TRUE_MINUS}${text.slice(1)}` : text;
+}
+
+/**
+ * A unit price of the Precios tab as «$50.00 / kg», «$50.00 / L» or «$50.00 / pieza». The exact
+ * price is rounded half-up to 2 decimals here and nowhere else (REGLA-04).
+ */
+export function unitPriceText(price: Big, family: UnitFamily): string {
+  return `${formatMoney(price)} / ${es.prices.units[family]}`;
 }
 
 /**

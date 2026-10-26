@@ -624,7 +624,26 @@ export const es = {
       label: "Ahorro estimado",
       badge: "estimado",
       note: "Es lo que se habría ahorrado si cada compra se hubiera hecho al precio mediano de la tienda más barata de ese producto. Solo cuenta productos comparables con 2 o más tiendas, dentro de los filtros.",
+      /** Replaces the sub-label when no product was compared in 2 or more stores. */
+      zero: "Ningún producto comparable se compró en 2 o más tiendas con estos filtros.",
     },
+    /** Second caption line under the filter bar (D-04). */
+    modeNote: "El precio unitario es el monto de la línea (con descuento) entre el contenido comprado.",
+    search: {
+      label: "Buscar producto",
+      placeholder: "Nombre del producto",
+    },
+    /** Empty states (Empty component, as the Dashboard). */
+    empty: {
+      noProductsHeading: "Todavía no hay productos para comparar",
+      noProductsBody:
+        "Primero agrupa en la pestaña Productos las descripciones que son el mismo producto en distintas tiendas. Después aquí verás en qué tienda sale más barato cada uno.",
+      goToProducts: "Ir a Productos",
+      noPurchasesHeading: "Ningún producto tiene compras con estos filtros",
+      noPurchasesBody: "Cambia o quita los filtros para ver los precios.",
+    },
+    /** Outline badge under the name of a product compared per piece (D-10). */
+    perPieceBadge: "por pieza, sin tamaño verificado",
     columns: {
       product: "Producto",
       cheapest: "Tienda más barata",
