@@ -22,7 +22,13 @@ import {
 import { acceptMany, type BulkAcceptResult } from "@/domain/llm/queueView";
 import type { ProductSuggestion } from "@/domain/llm/suggestions";
 import { resolvePersisted } from "@/domain/settings/migrate";
-import { restorePriceOverride, setPriceOverride } from "@/domain/settings/prices";
+import {
+  removeContentCorrection,
+  restoreContentCorrection,
+  restorePriceOverride,
+  setContentCorrection,
+  setPriceOverride,
+} from "@/domain/settings/prices";
 import {
   acceptProduct,
   addMembersToProduct,
@@ -46,6 +52,7 @@ import {
   defaultSettings,
   type Category,
   type ConceptRule,
+  type ContentCorrection,
   type PriceOverride,
   type Product,
   type ProductMember,
@@ -202,6 +209,26 @@ interface SettingsState extends SettingsData {
    * none. A restore that changes nothing writes nothing.
    */
   restorePriceOverride: (productId: string, previous: PriceOverride | null) => void;
+  /**
+   * Saves (or replaces) the content a user typed for one member (D-13, D-14). Only an ok result
+   * that changes something is applied, in one `set` of `contentCorrections`; it reports the entry
+   * it replaced for «Deshacer». A refused value ("invalid") or a new member past the 2,000th
+   * ("limit") changes and writes nothing. Product actions never touch corrections: a correction
+   * follows its member.
+   */
+  setContentCorrection: (
+    correction: ContentCorrection,
+  ) => { ok: true; previous: ContentCorrection | null } | { ok: false; reason: "limit" | "invalid" };
+  /**
+   * Removes the correction of one member (rfc plus normalized key) and returns the removed entry
+   * for «Deshacer», or null when there was none (nothing is written then).
+   */
+  removeContentCorrection: (rfc: string, key: string) => ContentCorrection | null;
+  /**
+   * Undo of a correction change: writes `previous` back. A restore that changes nothing, or is
+   * refused, writes nothing.
+   */
+  restoreContentCorrection: (previous: ContentCorrection) => void;
   /**
    * Marks one description «No agrupar» so it is never sent again (D-22). Only a new mark is
    * written, in one `set` of `ungroupedConcepts`; marking what is already marked writes nothing,
@@ -419,6 +446,27 @@ export const useSettingsStore = create<SettingsState>()(
         // A refused or empty restore comes back as the same object: nothing to write.
         if (next === current) return;
         set({ priceOverrides: next.priceOverrides });
+      },
+      setContentCorrection: (correction) => {
+        const current = dataOf(get());
+        const result = setContentCorrection(current, correction);
+        if (!result.ok) return result;
+        // Saving what is already stored comes back as the same object: nothing to write.
+        if (result.next !== current) set({ contentCorrections: result.next.contentCorrections });
+        return { ok: true, previous: result.previous };
+      },
+      removeContentCorrection: (rfc, key) => {
+        const result = removeContentCorrection(dataOf(get()), rfc, key);
+        if (result === null) return null;
+        set({ contentCorrections: result.next.contentCorrections });
+        return result.removed;
+      },
+      restoreContentCorrection: (previous) => {
+        const current = dataOf(get());
+        const next = restoreContentCorrection(current, previous);
+        // A refused or empty restore comes back as the same object: nothing to write.
+        if (next === current) return;
+        set({ contentCorrections: next.contentCorrections });
       },
       markUngrouped: (member) => {
         const current = dataOf(get());
