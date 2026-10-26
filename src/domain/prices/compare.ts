@@ -315,8 +315,25 @@ export function compareProduct(
 }
 
 /**
- * Rows for the products with at least one purchase, in product order, and the savings summary:
- * the total of the savings of the rows with 2 or more stores (D-22, D-23).
+ * The savings summary of a list of rows: the total of the savings of the rows with 2 or more
+ * stores (D-22, D-23). The caller decides which rows count (comparable products only, D-18).
+ */
+export function summarizeSavings(rows: readonly ProductComparison[]): SavingsSummary {
+  let total = ZERO;
+  let compared = 0;
+  let perPieceProducts = 0;
+  for (const row of rows) {
+    if (row.cheapest === null) continue;
+    compared += 1;
+    if (row.perPiece) perPieceProducts += 1;
+    if (row.saving !== null) total = total.plus(row.saving);
+  }
+  return { total, products: compared, perPieceProducts };
+}
+
+/**
+ * Rows for the products with at least one purchase, in product order, and the savings summary of
+ * all of them (D-22, D-23).
  */
 export function comparePrices(
   products: readonly Product[],
@@ -329,19 +346,10 @@ export function comparePrices(
     byProduct.set(purchase.productId, group);
   }
   const rows: ProductComparison[] = [];
-  let total = ZERO;
-  let compared = 0;
-  let perPieceProducts = 0;
   for (const product of products) {
     const group = byProduct.get(product.id);
     if (group === undefined || group.length === 0) continue;
-    const row = compareProduct(product, group);
-    rows.push(row);
-    if (row.cheapest !== null) {
-      compared += 1;
-      if (row.perPiece) perPieceProducts += 1;
-      if (row.saving !== null) total = total.plus(row.saving);
-    }
+    rows.push(compareProduct(product, group));
   }
-  return { rows, summary: { total, products: compared, perPieceProducts } };
+  return { rows, summary: summarizeSavings(rows) };
 }

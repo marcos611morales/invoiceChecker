@@ -5,7 +5,17 @@ import type { IvaMode } from "@/domain/accounting/aggregate";
 import type { DateRange } from "@/domain/accounting/filters";
 import { scopeToCategories } from "@/domain/accounting/categories";
 import type { LedgerEntry } from "@/domain/accounting/ledger";
-import { comparePrices, type ProductComparison, type SavingsSummary } from "@/domain/prices/compare";
+import {
+  comparabilityOf,
+  defaultsByProduct,
+  type Comparability,
+} from "@/domain/prices/comparable";
+import {
+  comparePrices,
+  summarizeSavings,
+  type ProductComparison,
+  type SavingsSummary,
+} from "@/domain/prices/compare";
 import { assignSlots, type SeriesSlot } from "@/domain/prices/history";
 import { extractPurchases, productIndex, type Purchase } from "@/domain/prices/purchases";
 import { useDashboardView } from "@/features/dashboard/useDashboardView";
@@ -17,12 +27,18 @@ export interface PricesViewState {
   mode: IvaMode;
   /** True when at least one product has been accepted. */
   hasProducts: boolean;
+  /** Every product with purchases within the filters, comparable or not. */
   rows: ProductComparison[];
+  /** Savings of the comparable rows only (D-18, D-22). */
   summary: SavingsSummary;
+  /** Product id to its effective comparability; every row has an entry. */
+  comparability: ReadonlyMap<string, Comparability>;
+  /** Rows that are not comparable (by default or by the user), i.e. hidden from the savings (D-22). */
+  hiddenCount: number;
   /**
    * Every purchase of the accepted products with every filter ignored (date, supplier, payment
-   * method and category). Stable store slots come from it (PREC-06) and the default «no comparable»
-   * of a product will too (D-31).
+   * method and category). Stable store slots (PREC-06) and the default «no comparable» of each
+   * product (D-31) come from it, so a filter never changes either.
    */
   allPurchases: Purchase[];
   /** Product id to store RFC to series slot, from the unfiltered compared stores of the product. */
@@ -51,6 +67,26 @@ export function usePricesView(): PricesViewState {
     () => extractPurchases(scopeToCategories(ledger, NO_CATEGORIES, resolver), mode, index),
     [ledger, resolver, mode, index],
   );
+  const defaults = useMemo(() => defaultsByProduct(allPurchases), [allPurchases]);
+  const overrides = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const override of settings.priceOverrides) map.set(override.productId, override.comparable);
+    return map;
+  }, [settings.priceOverrides]);
+  const comparability = useMemo(() => {
+    const states = new Map<string, Comparability>();
+    for (const row of comparison.rows) {
+      states.set(row.productId, comparabilityOf(row.productId, defaults, overrides));
+    }
+    return states;
+  }, [comparison.rows, defaults, overrides]);
+  const { summary, hiddenCount } = useMemo(() => {
+    const kept = comparison.rows.filter((row) => comparability.get(row.productId)?.comparable ?? true);
+    return {
+      summary: summarizeSavings(kept),
+      hiddenCount: comparison.rows.length - kept.length,
+    };
+  }, [comparison.rows, comparability]);
   const unfiltered = useMemo(() => comparePrices(products, allPurchases), [products, allPurchases]);
   const historySlots = useMemo(() => {
     const slots = new Map<string, ReadonlyMap<string, SeriesSlot>>();
@@ -63,7 +99,9 @@ export function usePricesView(): PricesViewState {
     mode,
     hasProducts: products.length > 0,
     rows: comparison.rows,
-    summary: comparison.summary,
+    summary,
+    comparability,
+    hiddenCount,
     allPurchases,
     historySlots,
   };
