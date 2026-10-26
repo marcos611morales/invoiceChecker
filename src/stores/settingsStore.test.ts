@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ruleMapKey } from "@/domain/settings/normalize";
+import { settingsDataSchema } from "@/domain/settings/schema";
 import {
   SEED_CATEGORIES,
   SIN_CATEGORIA,
@@ -1328,6 +1329,150 @@ describe("settingsStore product actions (D-14, D-15)", () => {
     expect(useSettingsStore.getState().setProductCategory("prod_x", "seed:servicios")).toEqual({ ok: true });
     expect(useSettingsStore.getState().setProductCategory("prod_a", null)).toEqual({ ok: true });
     expect(setItem).not.toHaveBeenCalled();
+  });
+});
+
+describe("settingsStore «no comparable» overrides (D-18, D-19)", () => {
+  const uno = (key: string): ProductMember => ({
+    rfc: "AAA010101AAA",
+    key,
+    description: key.toUpperCase(),
+    supplierName: "Tienda Uno",
+  });
+  const keyOf = (member: ProductMember): string => ruleMapKey(member.rfc, member.key);
+
+  function seed(): void {
+    useSettingsStore.setState({
+      products: [
+        { id: "prod_a", name: "Leche", categoryId: null, members: [uno("a1"), uno("a2")] },
+        { id: "prod_b", name: "Café", categoryId: null, members: [uno("b1")] },
+      ],
+      priceOverrides: [
+        { productId: "prod_a", comparable: false },
+        { productId: "prod_b", comparable: true },
+      ],
+    });
+  }
+
+  /** The stored envelope still passes the version-4 schema, and holds exactly the live state. */
+  function expectStoredValid(): void {
+    const stored = storedEnvelope();
+    expect(stored).toEqual({ state: snapshot(), version: 4 });
+    const parsed = settingsDataSchema.safeParse(snapshot());
+    expect(parsed.success).toBe(true);
+  }
+
+  it("setPriceOverride writes priceOverrides once and reports the previous entry", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const first = useSettingsStore.getState().setPriceOverride("prod_a", true, true);
+    expect(first).toEqual({ ok: true, previous: { productId: "prod_a", comparable: false } });
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().priceOverrides).toEqual([{ productId: "prod_b", comparable: true }]);
+    expectStoredValid();
+
+    setItem.mockClear();
+    const second = useSettingsStore.getState().setPriceOverride("prod_a", false, true);
+    expect(second).toEqual({ ok: true, previous: null });
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().priceOverrides).toEqual([
+      { productId: "prod_b", comparable: true },
+      { productId: "prod_a", comparable: false },
+    ]);
+    expectStoredValid();
+  });
+
+  it("setPriceOverride writes nothing for an unknown product or for what is already stored", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(useSettingsStore.getState().setPriceOverride("prod_gone", false, true)).toEqual({
+      ok: false,
+    });
+    expect(useSettingsStore.getState().setPriceOverride("prod_a", false, true)).toEqual({
+      ok: true,
+      previous: { productId: "prod_a", comparable: false },
+    });
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("restorePriceOverride undoes a change in one write and writes nothing when nothing changes", () => {
+    seed();
+    const changed = useSettingsStore.getState().setPriceOverride("prod_a", true, true);
+    if (!changed.ok) throw new Error("expected ok");
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSettingsStore.getState().restorePriceOverride("prod_a", changed.previous);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().priceOverrides).toContainEqual({ productId: "prod_a", comparable: false });
+    expectStoredValid();
+
+    setItem.mockClear();
+    useSettingsStore.getState().restorePriceOverride("prod_a", { productId: "prod_a", comparable: false });
+    useSettingsStore.getState().restorePriceOverride("prod_gone", null);
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("deleteProduct drops the override in the same write and restoreProduct puts it back", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const snap = useSettingsStore.getState().deleteProduct("prod_a");
+    if (snap === null) throw new Error("expected a snapshot");
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().priceOverrides).toEqual([{ productId: "prod_b", comparable: true }]);
+    expectStoredValid();
+
+    setItem.mockClear();
+    useSettingsStore.getState().restoreProduct(snap);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().priceOverrides).toContainEqual({ productId: "prod_a", comparable: false });
+    expect(snapshot().priceOverrides).toHaveLength(2);
+    expectStoredValid();
+  });
+
+  it("taking out the last member drops the override and undoMemberChange brings it back", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const undo = useSettingsStore.getState().removeProductMember("prod_b", keyOf(uno("b1")));
+    if (undo === null) throw new Error("expected an undo");
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().priceOverrides).toEqual([{ productId: "prod_a", comparable: false }]);
+    expectStoredValid();
+
+    setItem.mockClear();
+    useSettingsStore.getState().undoMemberChange(undo);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().priceOverrides).toContainEqual({ productId: "prod_b", comparable: true });
+    expect(snapshot().priceOverrides).toHaveLength(2);
+    expectStoredValid();
+  });
+
+  it("moving the last member away drops the override of the source and undo brings it back", () => {
+    seed();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const undo = useSettingsStore.getState().moveProductMember("prod_b", keyOf(uno("b1")), "prod_a");
+    if (undo === null) throw new Error("expected an undo");
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().priceOverrides).toEqual([{ productId: "prod_a", comparable: false }]);
+    expectStoredValid();
+
+    setItem.mockClear();
+    useSettingsStore.getState().undoMemberChange(undo);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(snapshot().priceOverrides).toContainEqual({ productId: "prod_b", comparable: true });
+    expect(snapshot().priceOverrides).toHaveLength(2);
+    expectStoredValid();
+  });
+
+  it("a refused restore of a deleted product leaves the overrides as they were", () => {
+    seed();
+    const snap = useSettingsStore.getState().deleteProduct("prod_a");
+    if (snap === null) throw new Error("expected a snapshot");
+    // A new product takes a description of the deleted one's members.
+    useSettingsStore.getState().acceptProduct({ name: "Otro", members: [uno("a1")] });
+    const before = snapshot().priceOverrides;
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    useSettingsStore.getState().restoreProduct(snap);
+    expect(setItem).not.toHaveBeenCalled();
+    expect(snapshot().priceOverrides).toBe(before);
   });
 });
 

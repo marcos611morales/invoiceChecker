@@ -21,6 +21,7 @@ import {
   LIMITS,
   SIN_CATEGORIA,
   defaultSettings,
+  type PriceOverride,
   type Product,
   type ProductMember,
   type SettingsData,
@@ -360,7 +361,7 @@ describe("deleteProduct and restoreProduct (D-14)", () => {
     expect(result).not.toBeNull();
     if (result === null) return;
     expect(result.next.products.map((entry) => entry.id)).toEqual(["prod_leche", "prod_azucar"]);
-    expect(result.snapshot).toEqual({ product: cafe(), index: 1 });
+    expect(result.snapshot).toEqual({ product: cafe(), index: 1, override: null });
     expect(isValid(result.next)).toBe(true);
     // The freed member is no longer taken.
     expect(productMemberKeys(result.next).has(KEY_C)).toBe(false);
@@ -495,7 +496,7 @@ describe("removeProductMember and undoMemberChange (D-15)", () => {
     expect(result.undo.kind).toBe("product");
     if (result.undo.kind !== "product") return;
     expect(result.undo.movedTo).toBeNull();
-    expect(result.undo.snapshot).toEqual({ product: cafe(), index: 1 });
+    expect(result.undo.snapshot).toEqual({ product: cafe(), index: 1, override: null });
     expect(undoMemberChange(result.next, result.undo)).toEqual(before);
   });
 
@@ -605,6 +606,109 @@ describe("moveProductMember and undoMemberChange (D-15)", () => {
     const gone = deleteProduct(moved.next, "prod_azucar");
     if (gone === null) throw new Error("expected a deletion");
     expect(undoMemberChange(gone.next, moved.undo)).toBe(gone.next);
+  });
+});
+
+describe("the «no comparable» mark follows its product (Phase 5, D-19)", () => {
+  const MARK_CAFE: PriceOverride = { productId: "prod_cafe", comparable: false };
+  const MARK_LECHE: PriceOverride = { productId: "prod_leche", comparable: true };
+
+  function marked(): SettingsData {
+    return { ...threeProducts(), priceOverrides: [MARK_LECHE, MARK_CAFE] };
+  }
+
+  it("deleteProduct drops the mark in the same value and the snapshot holds it", () => {
+    const before = deepFreeze(marked());
+    const deleted = deleteProduct(before, "prod_cafe");
+    if (deleted === null) throw new Error("expected a deletion");
+    expect(deleted.next.priceOverrides).toEqual([MARK_LECHE]);
+    expect(deleted.snapshot.override).toEqual(MARK_CAFE);
+    expect(isValid(deleted.next)).toBe(true);
+    // Everything else is untouched.
+    expect(deleted.next.ungroupedConcepts).toBe(before.ungroupedConcepts);
+  });
+
+  it("a product without a mark keeps the very same mark list", () => {
+    const before = marked();
+    const deleted = deleteProduct(before, "prod_azucar");
+    if (deleted === null) throw new Error("expected a deletion");
+    expect(deleted.next.priceOverrides).toBe(before.priceOverrides);
+    expect(deleted.snapshot.override).toBeNull();
+  });
+
+  it("restoreProduct puts the product and its mark back, equal to the original", () => {
+    const before = marked();
+    const deleted = deleteProduct(before, "prod_cafe");
+    if (deleted === null) throw new Error("expected a deletion");
+    const restored = restoreProduct(deepFreeze(deleted.next), deleted.snapshot);
+    expect(restored.products).toEqual(before.products);
+    expect([...restored.priceOverrides].sort((a, b) => a.productId.localeCompare(b.productId))).toEqual(
+      [...before.priceOverrides].sort((a, b) => a.productId.localeCompare(b.productId)),
+    );
+    expect(isValid(restored)).toBe(true);
+  });
+
+  it("a refused restore restores neither the product nor the mark", () => {
+    const deleted = deleteProduct(marked(), "prod_cafe");
+    if (deleted === null) throw new Error("expected a deletion");
+    const taken = acceptProduct(
+      deleted.next,
+      { name: "Otro", members: [member(UNO, "cafe", "Café molido 1kg", "Tienda Uno")] },
+      "prod_otro",
+    );
+    if (!taken.ok) throw new Error("expected an accept");
+    const restored = restoreProduct(taken.next, deleted.snapshot);
+    expect(restored).toBe(taken.next);
+    expect(restored.priceOverrides.some((entry) => entry.productId === "prod_cafe")).toBe(false);
+  });
+
+  it("restores the product without the mark when the mark list is full", () => {
+    const deleted = deleteProduct(marked(), "prod_cafe");
+    if (deleted === null) throw new Error("expected a deletion");
+    const full: SettingsData = {
+      ...deleted.next,
+      priceOverrides: Array.from({ length: LIMITS.priceOverrides }, (_, index) => ({
+        productId: `x${String(index)}`,
+        comparable: false,
+      })),
+    };
+    const restored = restoreProduct(full, deleted.snapshot);
+    expect(restored.products.some((entry) => entry.id === "prod_cafe")).toBe(true);
+    expect(restored.priceOverrides).toBe(full.priceOverrides);
+  });
+
+  it("taking out the last member drops the mark and undo brings it back", () => {
+    const before = marked();
+    const removed = removeProductMember(before, "prod_cafe", KEY_C);
+    if (removed === null) throw new Error("expected a removal");
+    expect(removed.next.priceOverrides).toEqual([MARK_LECHE]);
+    expect(isValid(removed.next)).toBe(true);
+    const back = undoMemberChange(removed.next, removed.undo);
+    expect(back.products).toEqual(before.products);
+    expect(back.priceOverrides).toEqual(expect.arrayContaining([MARK_LECHE, MARK_CAFE]));
+    expect(back.priceOverrides).toHaveLength(2);
+  });
+
+  it("moving the last member away drops the mark of the source and undo brings it back", () => {
+    const before = marked();
+    const moved = moveProductMember(before, "prod_cafe", KEY_C, "prod_leche");
+    if (moved === null) throw new Error("expected a move");
+    expect(moved.next.priceOverrides).toEqual([MARK_LECHE]);
+    expect(isValid(moved.next)).toBe(true);
+    const back = undoMemberChange(moved.next, moved.undo);
+    expect(back.products).toEqual(before.products);
+    expect(back.priceOverrides).toEqual(expect.arrayContaining([MARK_LECHE, MARK_CAFE]));
+    expect(back.priceOverrides).toHaveLength(2);
+  });
+
+  it("taking out or moving a member that is not the last keeps the mark", () => {
+    const before = marked();
+    const removed = removeProductMember(before, "prod_leche", KEY_B);
+    if (removed === null) throw new Error("expected a removal");
+    expect(removed.next.priceOverrides).toBe(before.priceOverrides);
+    const moved = moveProductMember(before, "prod_leche", KEY_A, "prod_cafe");
+    if (moved === null) throw new Error("expected a move");
+    expect(moved.next.priceOverrides).toBe(before.priceOverrides);
   });
 });
 
