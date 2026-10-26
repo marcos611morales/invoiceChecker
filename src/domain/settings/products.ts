@@ -12,6 +12,7 @@ import { comparableName } from "./schema";
 import {
   LIMITS,
   SIN_CATEGORIA,
+  type PriceOverride,
   type Product,
   type ProductMember,
   type SettingsData,
@@ -134,6 +135,28 @@ function withProducts(settings: SettingsData, products: Product[]): SettingsData
   return { ...settings, products };
 }
 
+/** The «no comparable» mark of the product, copied, or null (Phase 5, D-19). */
+function overrideOfProduct(settings: SettingsData, id: string): PriceOverride | null {
+  const found = settings.priceOverrides.find((override) => override.productId === id);
+  return found === undefined ? null : { productId: found.productId, comparable: found.comparable };
+}
+
+/**
+ * `settings` with `products` and without the mark of the product `removedId`, in one value: a mark
+ * never outlives its product (Phase 5, CONTEXT discretion, Pitfall 11). The same list is kept when
+ * the product had no mark.
+ */
+function withProductRemoved(
+  settings: SettingsData,
+  products: Product[],
+  removedId: string,
+): SettingsData {
+  const priceOverrides = settings.priceOverrides.some((override) => override.productId === removedId)
+    ? settings.priceOverrides.filter((override) => override.productId !== removedId)
+    : settings.priceOverrides;
+  return { ...settings, products, priceOverrides };
+}
+
 /** Index of the member with this `ruleMapKey` in the product, or -1. */
 function memberIndexOf(product: Product, key: string): number {
   return product.members.findIndex((member) => ruleMapKey(member.rfc, member.key) === key);
@@ -185,15 +208,21 @@ export function renameProduct(
   };
 }
 
-/** A deleted product and the position it had, which is all `restoreProduct` needs (D-14). */
+/**
+ * A deleted product, the position it had and its «no comparable» mark, which is all
+ * `restoreProduct` needs (D-14, Phase 5 D-19).
+ */
 export interface ProductSnapshot {
   product: Product;
   index: number;
+  /** The product's mark when it had one; a deleted product's mark is dropped with it. */
+  override: PriceOverride | null;
 }
 
 /**
- * Deletes a product (D-14). Its members are no longer taken, so they are free again (D-15).
- * Returns the snapshot for «Deshacer», or null when the id is unknown.
+ * Deletes a product (D-14). Its members are no longer taken, so they are free again (D-15), and
+ * its «no comparable» mark is dropped in the same value. Returns the snapshot for «Deshacer», or
+ * null when the id is unknown.
  */
 export function deleteProduct(
   settings: SettingsData,
@@ -203,17 +232,19 @@ export function deleteProduct(
   const product = settings.products[index];
   if (product === undefined) return null;
   return {
-    next: withProducts(
+    next: withProductRemoved(
       settings,
       settings.products.filter((candidate) => candidate.id !== id),
+      id,
     ),
-    snapshot: { product: copyProduct(product), index },
+    snapshot: { product: copyProduct(product), index, override: overrideOfProduct(settings, id) },
   };
 }
 
 /**
  * Puts a deleted product back at min(index, length) with the same id, name and members. A
- * category that no longer exists comes back as null. When the result would not pass the stored
+ * category that no longer exists comes back as null. Its «no comparable» mark comes back with it,
+ * unless the mark list is full or already holds an entry for the id. When the result would not pass the stored
  * validation (the id or the name is taken again, a member now belongs to another product or is
  * marked «No agrupar», or a limit would break) the settings come back unchanged, the very
  * same object.
@@ -240,7 +271,20 @@ export function restoreProduct(settings: SettingsData, snapshot: ProductSnapshot
     ...copyProduct(product),
     categoryId: categoryExists ? product.categoryId : null,
   };
-  return withProducts(settings, insertAt(settings.products, snapshot.index, restored));
+  const products = insertAt(settings.products, snapshot.index, restored);
+  const { override } = snapshot;
+  const markTaken = settings.priceOverrides.some((entry) => entry.productId === product.id);
+  if (override === null || markTaken || settings.priceOverrides.length >= LIMITS.priceOverrides) {
+    return withProducts(settings, products);
+  }
+  return {
+    ...settings,
+    products,
+    priceOverrides: [
+      ...settings.priceOverrides,
+      { productId: product.id, comparable: override.comparable },
+    ],
+  };
 }
 
 /**
@@ -320,13 +364,18 @@ export function moveProductMember(
   if (source.members.length === 1) {
     const sourceIndex = settings.products.findIndex((product) => product.id === fromId);
     return {
-      next: withProducts(
+      next: withProductRemoved(
         settings,
         appended.filter((product) => product.id !== fromId),
+        fromId,
       ),
       undo: {
         kind: "product",
-        snapshot: { product: copyProduct(source), index: sourceIndex },
+        snapshot: {
+          product: copyProduct(source),
+          index: sourceIndex,
+          override: overrideOfProduct(settings, fromId),
+        },
         movedTo: toId,
         member: moving,
       },

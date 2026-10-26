@@ -22,6 +22,7 @@ import {
 import { acceptMany, type BulkAcceptResult } from "@/domain/llm/queueView";
 import type { ProductSuggestion } from "@/domain/llm/suggestions";
 import { resolvePersisted } from "@/domain/settings/migrate";
+import { restorePriceOverride, setPriceOverride } from "@/domain/settings/prices";
 import {
   acceptProduct,
   addMembersToProduct,
@@ -45,6 +46,7 @@ import {
   defaultSettings,
   type Category,
   type ConceptRule,
+  type PriceOverride,
   type Product,
   type ProductMember,
   type SettingsData,
@@ -160,11 +162,15 @@ interface SettingsState extends SettingsData {
     categoryId: string | null,
   ) => { ok: true } | { ok: false; reason: "unknown-category" };
   /**
-   * Deletes a product; its descriptions are free again (D-14, D-15). Returns the snapshot
-   * `restoreProduct` needs, or null when the id is unknown (nothing is written then).
+   * Deletes a product; its descriptions are free again (D-14, D-15) and its «no comparable» mark is
+   * dropped in the same `set`. Returns the snapshot `restoreProduct` needs, or null when the id is
+   * unknown (nothing is written then).
    */
   deleteProduct: (id: string) => ProductSnapshot | null;
-  /** Undo of `deleteProduct`. A refused restore (something it needs is taken again) writes nothing. */
+  /**
+   * Undo of `deleteProduct`, mark included, in one `set`. A refused restore (something it needs is
+   * taken again) writes nothing.
+   */
   restoreProduct: (snapshot: ProductSnapshot) => void;
   /**
    * Takes one member (`key` is `ruleMapKey(rfc, key)`) out of a product (D-15); the only member
@@ -180,6 +186,22 @@ interface SettingsState extends SettingsData {
   moveProductMember: (fromId: string, key: string, toId: string) => MemberUndo | null;
   /** Undo of `removeProductMember` and `moveProductMember`. A refused undo writes nothing. */
   undoMemberChange: (undo: MemberUndo) => void;
+  /**
+   * Sets whether a product is compared (D-18); `defaultComparable` is the product's default, and
+   * only a difference from it is stored. Only an ok result is applied, in one `set` of
+   * `priceOverrides`; it returns the entry it replaced for «Deshacer». An unknown product or the
+   * 2,001st entry is refused and writes nothing.
+   */
+  setPriceOverride: (
+    productId: string,
+    comparable: boolean,
+    defaultComparable: boolean,
+  ) => { ok: true; previous: PriceOverride | null } | { ok: false };
+  /**
+   * Undo of `setPriceOverride`: writes back exactly `previous`, or removes the entry when there was
+   * none. A restore that changes nothing writes nothing.
+   */
+  restorePriceOverride: (productId: string, previous: PriceOverride | null) => void;
   /**
    * Marks one description «No agrupar» so it is never sent again (D-22). Only a new mark is
    * written, in one `set` of `ungroupedConcepts`; marking what is already marked writes nothing,
@@ -354,7 +376,7 @@ export const useSettingsStore = create<SettingsState>()(
       deleteProduct: (id) => {
         const result = deleteProduct(dataOf(get()), id);
         if (result === null) return null;
-        set({ products: result.next.products });
+        set({ products: result.next.products, priceOverrides: result.next.priceOverrides });
         return result.snapshot;
       },
       restoreProduct: (snapshot) => {
@@ -362,18 +384,18 @@ export const useSettingsStore = create<SettingsState>()(
         const next = restoreProduct(current, snapshot);
         // A refused restore comes back as the same object: nothing to write.
         if (next === current) return;
-        set({ products: next.products });
+        set({ products: next.products, priceOverrides: next.priceOverrides });
       },
       removeProductMember: (productId, key) => {
         const result = removeProductMember(dataOf(get()), productId, key);
         if (result === null) return null;
-        set({ products: result.next.products });
+        set({ products: result.next.products, priceOverrides: result.next.priceOverrides });
         return result.undo;
       },
       moveProductMember: (fromId, key, toId) => {
         const result = moveProductMember(dataOf(get()), fromId, key, toId);
         if (result === null) return null;
-        set({ products: result.next.products });
+        set({ products: result.next.products, priceOverrides: result.next.priceOverrides });
         return result.undo;
       },
       undoMemberChange: (undo) => {
@@ -381,7 +403,22 @@ export const useSettingsStore = create<SettingsState>()(
         const next = undoMemberChange(current, undo);
         // A refused undo comes back as the same object: nothing to write.
         if (next === current) return;
-        set({ products: next.products });
+        set({ products: next.products, priceOverrides: next.priceOverrides });
+      },
+      setPriceOverride: (productId, comparable, defaultComparable) => {
+        const current = dataOf(get());
+        const result = setPriceOverride(current, productId, comparable, defaultComparable);
+        if (!result.ok) return { ok: false };
+        // Setting what is already stored comes back as the same object: nothing to write.
+        if (result.next !== current) set({ priceOverrides: result.next.priceOverrides });
+        return { ok: true, previous: result.previous };
+      },
+      restorePriceOverride: (productId, previous) => {
+        const current = dataOf(get());
+        const next = restorePriceOverride(current, productId, previous);
+        // A refused or empty restore comes back as the same object: nothing to write.
+        if (next === current) return;
+        set({ priceOverrides: next.priceOverrides });
       },
       markUngrouped: (member) => {
         const current = dataOf(get());
