@@ -4,15 +4,15 @@ current_phase: 05
 current_phase_name: Comparación de precios entre tiendas
 status: executing
 stopped_at: Phase 05 UI-SPEC approved
-last_updated: "2026-10-26T12:23:50.474Z"
+last_updated: "2026-10-26T17:27:54.642Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 05 execution started
-state_head: f11249fd9b76c9b02957446dc009b44af08a502f
+state_head: 91d2da5988bb43da8bc9f7fab431d47cd31f98fd
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 86
-  completed_plans: 74
+  completed_plans: 79
   percent: 80
 ---
 
@@ -75,6 +75,7 @@ Recent decisions affecting current work:
 - [Phase 4]: DeepSeek por fetch + zod (sin SDK) en dos rutas protegidas (`/api/llm/group`, `/api/llm/categorize`) con pipeline compartido `llmRoute.ts` (sesión primero).
 - [Phase 4]: Cola de revisión persistida aparte de los ajustes; los ajustes solo cambian al «Aceptar»; ajustes v3 con productos y marcas «No agrupar».
 - [Phase 4]: Guardia de textos sensibles en el navegador y en el servidor (`sensitive.ts`); categorías sensibles bloquean el envío.
+- [Phase 05]: [Phase 5]: Usuario confirmó: «12/50PZ» y «2X50PZ» (multiplicador antes del conteo) se leen sin tamaño (captura manual); la tabla de Precios siempre queda ordenada (sin estado sin orden).
 
 ### Pending Todos
 
