@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { Comparability } from "@/domain/prices/comparable";
 import type { ProductComparison } from "@/domain/prices/compare";
 import type { SeriesSlot } from "@/domain/prices/history";
 import { es } from "@/lib/copy/es";
@@ -43,6 +44,9 @@ import { ProductDetail } from "./ProductDetail";
 
 /** Slots when the caller has none: every store of a product falls into «Otras tiendas». */
 const NO_HISTORY_SLOTS: ReadonlyMap<string, ReadonlyMap<string, SeriesSlot>> = new Map();
+
+/** Comparability when the caller has none: every row is compared. */
+const NO_COMPARABILITY: ReadonlyMap<string, Comparability> = new Map();
 
 /** A table row: the comparison plus what the sorts and the cells read. */
 interface PriceRow {
@@ -66,9 +70,37 @@ interface PriceRow {
   priceCount: number;
   /** The comparison the expanded panel explains (D-07). */
   comparison: ProductComparison;
+  /** True when the product is not compared: de-emphasised, no expander, dashes (D-18). */
+  hidden: boolean;
+  /** True when the user, and not the default, decided that it is not compared (D-18). */
+  hiddenByUser: boolean;
+  /** Whether the product is compared by default; the override is stored against it (D-19). */
+  defaultComparable: boolean;
 }
 
-function toRow(comparison: ProductComparison): PriceRow {
+/** A product with no entry is compared, by default (the view gives every row an entry). */
+const COMPARED_BY_DEFAULT: Comparability = { comparable: true, byUser: false, defaultComparable: true };
+
+function toRow(comparison: ProductComparison, state: Comparability): PriceRow {
+  if (!state.comparable) {
+    // Nothing of a not-compared product is shown as a result: its cells read «—» (D-18, UI-SPEC).
+    return {
+      id: comparison.productId,
+      name: comparison.name,
+      perPiece: false,
+      notNormalizedCount: 0,
+      cheapestName: undefined,
+      onlyStoreName: undefined,
+      stores: comparison.stores.length,
+      saving: undefined,
+      priceText: null,
+      priceCount: 0,
+      comparison,
+      hidden: true,
+      hiddenByUser: state.byUser,
+      defaultComparable: state.defaultComparable,
+    };
+  }
   // The price of a product with one store is that store's median, rounded only here.
   const store = comparison.cheapest ?? comparison.stores[0];
   const onlyStore = comparison.stores.length === 1 ? comparison.stores[0] : undefined;
@@ -87,6 +119,9 @@ function toRow(comparison: ProductComparison): PriceRow {
         : unitPriceText(store.median, comparison.family),
     priceCount: store?.count ?? 0,
     comparison,
+    hidden: false,
+    hiddenByUser: false,
+    defaultComparable: state.defaultComparable,
   };
 }
 
@@ -173,6 +208,21 @@ function Dash() {
 
 /** Product name (14/600, two lines then truncated) with its badges on their own line. */
 function ProductCell({ row }: { row: PriceRow }) {
+  if (row.hidden) {
+    // Muted text and not opacity, so the contrast stays at the approved muted ratio (UI-SPEC Color).
+    return (
+      <div className="flex min-w-0 flex-col items-start gap-1">
+        <TruncatedText
+          text={row.name}
+          className="line-clamp-2 text-sm font-semibold whitespace-normal break-words text-muted-foreground"
+        />
+        <Badge variant="outline">{es.prices.noComparable.badge}</Badge>
+        <p className="text-xs text-muted-foreground">
+          {row.hiddenByUser ? es.prices.noComparable.byUser : es.prices.noComparable.byDefault}
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="flex min-w-0 flex-col items-start gap-1">
       <TruncatedText
@@ -198,6 +248,7 @@ function CheapestCell({ row }: { row: PriceRow }) {
 
 /** Price per unit of the cheapest (or only) store with the purchases behind its median. */
 function PriceCell({ row }: { row: PriceRow }) {
+  if (row.hidden) return <Dash />;
   if (row.priceText === null) {
     return <span className="text-muted-foreground">{es.prices.notNormalized}</span>;
   }
@@ -218,10 +269,13 @@ function PriceCell({ row }: { row: PriceRow }) {
 export function PricesTable({
   rows,
   historySlots = NO_HISTORY_SLOTS,
+  comparability = NO_COMPARABILITY,
 }: {
   rows: readonly ProductComparison[];
   /** Product id to store RFC to series slot: the stable colors of the price history (PREC-06). */
   historySlots?: ReadonlyMap<string, ReadonlyMap<string, SeriesSlot>>;
+  /** Product id to its effective comparability; a row with no entry is compared (D-18). */
+  comparability?: ReadonlyMap<string, Comparability>;
 }) {
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
   const [pagination, setPagination] = useState<PaginationState>(INITIAL_PAGINATION);
@@ -229,8 +283,11 @@ export function PricesTable({
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const panelBaseId = useId();
   const data = useMemo(
-    () => rows.map(toRow).sort((a, b) => COLLATOR.compare(a.name, b.name)),
-    [rows],
+    () =>
+      rows
+        .map((comparison) => toRow(comparison, comparability.get(comparison.productId) ?? COMPARED_BY_DEFAULT))
+        .sort((a, b) => COLLATOR.compare(a.name, b.name)),
+    [rows, comparability],
   );
 
   // autoResetPageIndex is off so sorting keeps the page. When the page no longer exists (the
@@ -310,26 +367,28 @@ export function PricesTable({
         <TableBody>
           {table.getRowModel().rows.map((tableRow) => {
             const row = tableRow.original;
-            const open = expanded.has(row.id);
+            const open = expanded.has(row.id) && !row.hidden;
             const panelId = `${panelBaseId}-${row.id}`;
             return (
               <Fragment key={tableRow.id}>
                 <TableRow className="h-14 hover:bg-secondary">
                   <TableCell className="w-12">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-expanded={open}
-                      aria-controls={open ? panelId : undefined}
-                      aria-label={expandPricesAria(row.name, open)}
-                      className="size-9 max-sm:size-11"
-                      onClick={() => {
-                        toggle(row.id);
-                      }}
-                    >
-                      {open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-                    </Button>
+                    {row.hidden ? null : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-expanded={open}
+                        aria-controls={open ? panelId : undefined}
+                        aria-label={expandPricesAria(row.name, open)}
+                        className="size-9 max-sm:size-11"
+                        onClick={() => {
+                          toggle(row.id);
+                        }}
+                      >
+                        {open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
+                      </Button>
+                    )}
                   </TableCell>
                   {tableRow.getAllCells().map((cell) => {
                     const id = cell.column.id;
@@ -341,6 +400,7 @@ export function PricesTable({
                           id === "barata" && "max-w-[280px]",
                           id === "precio" && "tabular-nums",
                           id === "tiendas" && "text-right tabular-nums",
+                          id === "tiendas" && row.hidden && "text-muted-foreground",
                           id === "ahorro" && "text-right text-sm font-semibold tabular-nums",
                         )}
                       >

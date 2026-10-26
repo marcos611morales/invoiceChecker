@@ -1311,6 +1311,11 @@ export function pricesCountLine(n: number): string {
   return n === 1 ? "1 producto" : `${String(n)} productos`;
 }
 
+/** Label of the checkbox that reveals the hidden products; «(0)» stays visible (D-07, D-18). */
+export function showHiddenLabel(n: number): string {
+  return `Mostrar los no comparables (${String(n)})`;
+}
+
 /** Sub-label of the «Ahorro estimado» card: «{n} productos con 2 o más tiendas». */
 export function savingsProductsLabel(n: number): string {
   return n === 1 ? "1 producto con 2 o más tiendas" : `${String(n)} productos con 2 o más tiendas`;

@@ -641,6 +641,22 @@ export const es = {
       goToProducts: "Ir a Productos",
       noPurchasesHeading: "Ningún producto tiene compras con estos filtros",
       noPurchasesBody: "Cambia o quita los filtros para ver los precios.",
+      /** Third empty state: every product with purchases is hidden as no comparable (no button). */
+      allHiddenHeading: "Todos los productos con compras están marcados como no comparables",
+      allHiddenBody: "Activa «Mostrar los no comparables» para verlos y volver a compararlos.",
+    },
+    /** Row of a product that is not compared (D-18): its badge and the reason caption. */
+    noComparable: {
+      badge: "No comparable",
+      byDefault: "Se excluye por defecto: sus compras son de servicios o combustible.",
+      byUser: "Lo marcaste tú como no comparable.",
+    },
+    /** Screen-reader header of the actions column and the items of the row menu (D-18). */
+    actionsHeader: "Acciones",
+    menu: {
+      mark: "Marcar como no comparable",
+      restore: "Volver a comparar",
+      undo: "Deshacer",
     },
     /** Outline badge under the name of a product compared per piece (D-10). */
     perPieceBadge: "por pieza, sin tamaño verificado",
