@@ -311,12 +311,12 @@ Plans:
   3. Servicios, gasolina, comisiones y similares no aparecen por defecto en la comparación, y el usuario puede cambiar la marca "no comparable" de un producto.
   4. El usuario ve un ahorro estimado, etiquetado como estimado, de haber comprado en la tienda más barata, y el historial del precio de un producto en el tiempo.
 
-**Plans:** 12 plans
+**Plans:** 2/12 plans executed
 
 Plans:
 **Wave 1** *(the two plans run in parallel)*
-- [ ] 05-01-PLAN.md — Tracer: pestaña Precios, compras de productos agrupados, contenido por unidad SAT, mediana por tienda, tienda más barata y ahorro estimado; lista de pestañas con desplazamiento bajo 768 px
-- [ ] 05-02-PLAN.md — Ajustes versión 4 y archivo de ajustes versión 3 con correcciones de contenido y marcas «no comparable» (decisión de forma antes de escribir; D-15, D-19)
+- [x] 05-01-PLAN.md — Tracer: pestaña Precios, compras de productos agrupados, contenido por unidad SAT, mediana por tienda, tienda más barata y ahorro estimado; lista de pestañas con desplazamiento bajo 768 px
+- [x] 05-02-PLAN.md — Ajustes versión 4 y archivo de ajustes versión 3 con correcciones de contenido y marcas «no comparable» (decisión de forma antes de escribir; D-15, D-19)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 05-03-PLAN.md — Reglas completas de comparación con su tabla de pruebas: compras por modo IVA, unidades SAT, motivos, familias, empates, ahorro y resumen; constructores de prueba compartidos
@@ -343,6 +343,7 @@ Plans:
 
 **Wave 9** *(blocked on Wave 8 completion)*
 - [ ] 05-12-PLAN.md — Verificación en el build de producción: flujo completo, privacidad, persistencia, anchos y capturas para la revisión final
+
 **UI hint**: yes
 **Research flag**: sí — normalización de unidades (ClaveUnidad SAT, presentaciones dentro de la descripción como "1 kg" o "pza") y qué familias de ClaveProdServ son "no comparables" por defecto.
 
@@ -357,4 +358,4 @@ Las fases se ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5
 | 2. Dashboard de gasto confiable | 17/17 | Complete    | 2026-10-16 |
 | 3. Categorías propias y exportación a Excel | 20/20 | Complete    | 2026-10-19 |
 | 4. Agrupación de productos con DeepSeek | 21/21 | Complete    | 2026-10-25 |
-| 5. Comparación de precios entre tiendas | 0/12 | Not started | - |
+| 5. Comparación de precios entre tiendas | 2/12 | In Progress | - |
