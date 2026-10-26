@@ -4,7 +4,7 @@
  * quantity (D-09 step 2) and never calls this module.
  *
  * It reads a weight or volume with an explicit unit («12/1L», «2KG», «375G», «1.730K»,
- * «12/355CCSAB») and a single piece count with an explicit token («50PZ», «BONAFO18PK»,
+ * «12/355CCSAB», or a fraction of a kilo or litre such as «1/2 KG» = 0.5 kg) and a single piece count with an explicit token («50PZ», «BONAFO18PK»,
  * «300 Piezas»). Bare numbers without a unit are never read. Anything with two different
  * readings, a weight or volume next to a piece count, or a single reading next to a pack word
  * (PACK, PAQ, PQ, CJ, CAJA, FAJILLA, DOCENA, or a bare «N P») gives no size: a guessed
@@ -36,12 +36,14 @@ interface UnitRule {
   factor: string;
   /** «1.700 GR»: a dot followed by exactly three digits is a thousands dot for g and mL. */
   thousandsDot: boolean;
+  /** «1/2 KG», «1/4 L»: only a whole kilo or litre is split into fractions, never a g, mL or cc. */
+  fractionOfUnit: boolean;
 }
 
-const KG: UnitRule = { family: "mass", factor: "1", thousandsDot: false };
-const G: UnitRule = { family: "mass", factor: "0.001", thousandsDot: true };
-const L: UnitRule = { family: "volume", factor: "1", thousandsDot: false };
-const ML: UnitRule = { family: "volume", factor: "0.001", thousandsDot: true };
+const KG: UnitRule = { family: "mass", factor: "1", thousandsDot: false, fractionOfUnit: true };
+const G: UnitRule = { family: "mass", factor: "0.001", thousandsDot: true, fractionOfUnit: false };
+const L: UnitRule = { family: "volume", factor: "1", thousandsDot: false, fractionOfUnit: true };
+const ML: UnitRule = { family: "volume", factor: "0.001", thousandsDot: true, fractionOfUnit: false };
 
 const UNIT_RULES = new Map<string, UnitRule>([
   ["KILOGRAMOS", KG],
@@ -72,13 +74,17 @@ const UNIT_RULES = new Map<string, UnitRule>([
 const UNIT_ALT =
   "KILOGRAMOS?|KILOS?|KGS?|KGR|GRAMOS?|GRS?|MILILITROS?|MLS?|CC|LITROS?|LTS?|LT|K|G|L";
 const NUM = "(\\d+(?:[.,]\\d+)?)";
-// [1] pack count (1-2 digits), [2] number, [3] unit. The number must not continue a longer number.
+// [1] pack count (1-2 digits), [2] its separator («/» or «X»), [3] number, [4] unit. The number must
+// not continue a longer number. «1/2 KG» is a fraction, not a pack: see readWeightVolume.
 const PLAIN = new RegExp(
-  `(?<![\\d.,])(?:(\\d{1,2})\\s*[/X]\\s*)?${NUM}\\s?(${UNIT_ALT})(?![A-Z0-9])`,
+  `(?<![\\d.,])(?:(\\d{1,2})\\s*([/X])\\s*)?${NUM}\\s?(${UNIT_ALT})(?![A-Z0-9])`,
   "g",
 );
 // «12/355CCSAB»: only CC and ML may carry glued letters, and only right after the number.
-const GLUED = new RegExp(`(?<![\\d.,])(?:(\\d{1,2})\\s*[/X]\\s*)?${NUM}(CC|ML)(?=[A-Z])`, "g");
+const GLUED = new RegExp(
+  `(?<![\\d.,])(?:(\\d{1,2})\\s*([/X])\\s*)?${NUM}(CC|ML)(?=[A-Z])`,
+  "g",
+);
 // [1] pack count (1-2 digits), [2] piece count (1-4 digits), [3] token (D-35).
 const PIECE = /(?<![\d.,])(?:(\d{1,2})\s*[/X]\s*)?(\d{1,4})\s?(PZAS|PZA|PZS|PZ|PIEZAS|PIEZA|PKS|PK)(?![A-Z0-9])/g;
 // Pack words of a weight or volume reading (RESEARCH). It also matches PZ/PK counts, which is
@@ -118,13 +124,23 @@ function readWeightVolume(text: string): Found[] {
   const found: Found[] = [];
   for (const re of [PLAIN, GLUED]) {
     for (const match of text.matchAll(re)) {
-      const [whole, packText, numText, unitText] = match;
+      const [whole, packText, separator, numText, unitText] = match;
       if (numText === undefined || unitText === undefined) continue;
       const rule = UNIT_RULES.get(unitText);
       if (rule === undefined) continue;
-      const size = new Big(numberText(numText, rule)).times(rule.factor);
+      const number = new Big(numberText(numText, rule));
       const pack = packText === undefined ? null : new Big(packText);
-      const total = pack === null ? size : size.times(pack);
+      // «1/2 KG», «1/4 KG», «3/4 L»: a/b with a < b before a kilo or litre is a fraction of one unit
+      // (exact, from strings). When a >= b («12/1L», «1/1 KG») or the unit is a g, mL or cc
+      // («12/500ML», «15/900 ML»: a < b but a pack of small bottles) the prefix stays a pack count.
+      const isFraction =
+        pack !== null &&
+        separator === "/" &&
+        rule.fractionOfUnit &&
+        number.gt("0") &&
+        pack.lt(number);
+      const size = (isFraction ? pack.div(number) : number).times(rule.factor);
+      const total = pack === null || isFraction ? size : size.times(pack);
       if (size.lte("0") || (pack !== null && pack.lte("0")) || total.gt(MAX_WEIGHT_VOLUME)) {
         continue;
       }
@@ -132,7 +148,7 @@ function readWeightVolume(text: string): Found[] {
         family: rule.family,
         total,
         text: whole.trim(),
-        explicitPack: pack !== null,
+        explicitPack: pack !== null && !isFraction,
       });
     }
   }

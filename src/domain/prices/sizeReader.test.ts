@@ -21,6 +21,19 @@ describe("readSize: weight and volume (D-09 step 3, RESEARCH contract table)", (
     ["ACIDO MURIATICO SULTAN LIMON 15/900 ML", "volume:13.5"],
     ["SALSA CHAMOY CHILERITO 12/1LT (5) SALS0002", "volume:12"],
     ["JAMON ZWAN VIRGINIA1X1KG & 10360 1/1 KG", "mass:1"],
+    ["QUESO PANELA 1/2 KG", "mass:0.5"],
+    ["MANTEQUILLA 1/4 KG", "mass:0.25"],
+    ["JAMON 3/4 KG", "mass:0.75"],
+    ["ACEITE 1/4 L", "volume:0.25"],
+    ["ACEITE 1/2 LT", "volume:0.5"],
+    ["QUESO 1/2KG", "mass:0.5"],
+    ["QUESO 1 / 2 KG", "mass:0.5"],
+    ["SALSA 12/500ML", "volume:6"],
+    ["SALSA 12/500 ML", "volume:6"],
+    ["REFRESCO 6/2L", "volume:12"],
+    ["GALLETA 6/500 GR", "mass:3"],
+    ["MIEL 1/1 KG", "mass:1"],
+    ["JAMON 1X2KG", "mass:2"],
     ["Aceite 1,5 L", "volume:1.5"],
     ["Aceite 1,25 L", "volume:1.25"],
     ["JUGO 1,500 ML", "volume:1.5"],
@@ -140,7 +153,8 @@ describe("readSize: bounds and hostile input (T-05-12, T-05-13)", () => {
     expect(shape(readSize("COSTAL 1001 KG"))).toBe("none");
     expect(shape(readSize("COSTAL 1000 KG"))).toBe("mass:1000");
     expect(shape(readSize("TANQUE 0 L"))).toBe("none");
-    expect(shape(readSize("12/100 L"))).toBe("none");
+    expect(shape(readSize("99/50 L"))).toBe("none");
+    expect(shape(readSize("0/5 KG"))).toBe("none");
     // A thousands comma is read first and the bound still applies after it.
     expect(shape(readSize("COSTAL 1,001 KG"))).toBe("none");
     expect(shape(readSize("TANQUE 2,500 L"))).toBe("none");
