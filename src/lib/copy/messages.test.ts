@@ -29,6 +29,7 @@ import {
   priceMarkedAnnouncement,
   priceMarkedToast,
   priceMenuAria,
+  priceOverrideRefusedText,
   priceRestoredAnnouncement,
   priceRestoredToast,
   savingsPerPieceNote,
@@ -1397,6 +1398,15 @@ describe("Precios tab sentences (D-07, D-22, D-23)", () => {
     expect(priceRestoredToast("Leche")).toBe("«Leche» vuelve a compararse");
     expect(priceMarkedToast("A".repeat(70))).toBe(`«${"A".repeat(39)}…» marcado como no comparable`);
     expect(priceRestoredToast("A".repeat(70))).toBe(`«${"A".repeat(39)}…» vuelve a compararse`);
+  });
+
+  it("says why a mark was refused", () => {
+    expect(priceOverrideRefusedText("limit")).toBe(
+      "No se pudo cambiar la marca: se alcanzó el límite de 2,000 marcas.",
+    );
+    expect(priceOverrideRefusedText("unknown-product")).toBe(
+      "No se pudo cambiar la marca: el producto ya no existe.",
+    );
   });
 
   it("announces the mark with the products left, and the return to the comparison (D-18)", () => {

@@ -46,6 +46,7 @@ import {
   paginationRangeText,
   priceMarkedAnnouncement,
   priceMarkedToast,
+  priceOverrideRefusedText,
   priceMenuAria,
   pricePerStoresCaption,
   priceRestoredAnnouncement,
@@ -404,8 +405,13 @@ export function PricesTable({
   const changeComparable = (row: PriceRow) => {
     const comparable = row.hidden;
     const result = setOverride(row.id, comparable, row.defaultComparable);
-    // Refused (unknown product or the list is full): nothing changed, so there is nothing to say.
-    if (!result.ok) return;
+    // Refused (unknown product or the list is full): nothing changed; say why, also to screen readers.
+    if (!result.ok) {
+      const refused = priceOverrideRefusedText(result.reason);
+      toast.error(refused);
+      onAnnounce?.(refused);
+      return;
+    }
     leavingRef.current = !comparable && !showHidden;
     const { previous } = result;
     toast(comparable ? priceRestoredToast(row.name) : priceMarkedToast(row.name), {

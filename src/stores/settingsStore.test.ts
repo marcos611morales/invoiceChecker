@@ -1389,6 +1389,7 @@ describe("settingsStore «no comparable» overrides (D-18, D-19)", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem");
     expect(useSettingsStore.getState().setPriceOverride("prod_gone", false, true)).toEqual({
       ok: false,
+      reason: "unknown-product",
     });
     expect(useSettingsStore.getState().setPriceOverride("prod_a", false, true)).toEqual({
       ok: true,

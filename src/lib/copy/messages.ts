@@ -1337,6 +1337,16 @@ export function priceMarkedToast(name: string): string {
   return `«${capCodePoints(name, PRICE_TOAST_MAX)}» marcado como no comparable`;
 }
 
+/**
+ * Error toast when marking or unmarking is refused: the list of marks is full, or the product is
+ * gone. Not in the UI-SPEC; the wording is the user's decision during execution.
+ */
+export function priceOverrideRefusedText(reason: "unknown-product" | "limit"): string {
+  return reason === "limit"
+    ? `No se pudo cambiar la marca: se alcanzó el límite de ${LIMITS.priceOverrides.toLocaleString("en-US")} marcas.`
+    : "No se pudo cambiar la marca: el producto ya no existe.";
+}
+
 /** Toast after «Volver a comparar»: the name is cut at 40 characters in total (D-18). */
 export function priceRestoredToast(name: string): string {
   return `«${capCodePoints(name, PRICE_TOAST_MAX)}» vuelve a compararse`;

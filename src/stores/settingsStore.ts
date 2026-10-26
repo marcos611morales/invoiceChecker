@@ -197,13 +197,13 @@ interface SettingsState extends SettingsData {
    * Sets whether a product is compared (D-18); `defaultComparable` is the product's default, and
    * only a difference from it is stored. Only an ok result is applied, in one `set` of
    * `priceOverrides`; it returns the entry it replaced for «Deshacer». An unknown product or the
-   * 2,001st entry is refused and writes nothing.
+   * 2,001st entry is refused with its reason and writes nothing.
    */
   setPriceOverride: (
     productId: string,
     comparable: boolean,
     defaultComparable: boolean,
-  ) => { ok: true; previous: PriceOverride | null } | { ok: false };
+  ) => { ok: true; previous: PriceOverride | null } | { ok: false; reason: "unknown-product" | "limit" };
   /**
    * Undo of `setPriceOverride`: writes back exactly `previous`, or removes the entry when there was
    * none. A restore that changes nothing writes nothing.
@@ -435,7 +435,7 @@ export const useSettingsStore = create<SettingsState>()(
       setPriceOverride: (productId, comparable, defaultComparable) => {
         const current = dataOf(get());
         const result = setPriceOverride(current, productId, comparable, defaultComparable);
-        if (!result.ok) return { ok: false };
+        if (!result.ok) return { ok: false, reason: result.reason };
         // Setting what is already stored comes back as the same object: nothing to write.
         if (result.next !== current) set({ priceOverrides: result.next.priceOverrides });
         return { ok: true, previous: result.previous };

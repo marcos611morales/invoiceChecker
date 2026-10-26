@@ -18,7 +18,8 @@ interface ToastOptions {
 }
 
 const toastMock = vi.hoisted(() => vi.fn<(message: string, options?: ToastOptions) => void>());
-vi.mock("sonner", () => ({ toast: toastMock }));
+const toastErrorMock = vi.hoisted(() => vi.fn<(message: string) => void>());
+vi.mock("sonner", () => ({ toast: Object.assign(toastMock, { error: toastErrorMock }) }));
 
 const RFC_A = "AAA010101AAA";
 const RFC_B = "BBB010101BBB";
@@ -335,6 +336,7 @@ function lastToast(): { text: string; duration: number | undefined; action: { la
 describe("PricesTable row menu (D-18, D-19, E5)", () => {
   beforeEach(() => {
     toastMock.mockClear();
+    toastErrorMock.mockClear();
     resetSettingsStore();
     act(() => {
       useSettingsStore.setState({
@@ -395,6 +397,26 @@ describe("PricesTable row menu (D-18, D-19, E5)", () => {
     expect(shown.duration).toBe(6000);
     expect(shown.action.label).toBe("Deshacer");
     expect(announcements).toEqual([`Producto «${long}» marcado como no comparable. Queda 1 producto.`]);
+  });
+
+  it("shows an error toast and announces it when the mark is refused, changing nothing", async () => {
+    const announcements: string[] = [];
+    render(
+      <PricesTable
+        rows={[twoStores("p_gone", "Aceite", "10")]}
+        onAnnounce={(message) => {
+          announcements.push(message);
+        }}
+      />,
+    );
+    openMenu("Más acciones de «Aceite»");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Marcar como no comparable" }));
+
+    const refused = "No se pudo cambiar la marca: el producto ya no existe.";
+    expect(useSettingsStore.getState().priceOverrides).toEqual([]);
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(toastErrorMock).toHaveBeenCalledWith(refused);
+    expect(announcements).toEqual([refused]);
   });
 
   it("undoes the mark exactly with «Deshacer»", async () => {
