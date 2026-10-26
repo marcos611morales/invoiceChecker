@@ -187,6 +187,9 @@ describe("readSize: bounds and hostile input (T-05-12, T-05-13)", () => {
     expect(shape(readSize("COSTAL 1000 KG"))).toBe("mass:1000");
     expect(shape(readSize("TANQUE 0 L"))).toBe("none");
     expect(shape(readSize("99/50 L"))).toBe("none");
+    // A two-digit top is a pack, not a fraction (user decision): 12 × 100 L is past the bound.
+    expect(shape(readSize("12/100 L"))).toBe("none");
+    expect(shape(readSize("12/50 L"))).toBe("volume:600");
     expect(shape(readSize("0/5 KG"))).toBe("none");
     // A thousands comma is read first and the bound still applies after it.
     expect(shape(readSize("COSTAL 1,001 KG"))).toBe("none");

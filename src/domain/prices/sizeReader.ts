@@ -141,13 +141,16 @@ function readWeightVolume(text: string): Found[] {
       if (rule === undefined) continue;
       const number = new Big(numberText(numText, rule));
       const pack = packText === undefined ? null : new Big(packText);
-      // «1/2 KG», «1/4 KG», «3/4 L»: a/b with a < b before a kilo or litre is a fraction of one unit
-      // (exact, from strings). When a >= b («12/1L», «1/1 KG») or the unit is a g, mL or cc
-      // («12/500ML», «15/900 ML»: a < b but a pack of small bottles) the prefix stays a pack count.
+      // «1/2 KG», «1/4 KG», «3/4 L»: a/b with a one-digit a < b before a kilo or litre is a fraction
+      // of one unit (exact, from strings). When a >= b («12/1L», «1/1 KG»), a has two or more digits
+      // («12/100 L», user decision) or the unit is a g, mL or cc («12/500ML», «15/900 ML»: a < b but
+      // a pack of small bottles) the prefix stays a pack count.
       const isFraction =
         pack !== null &&
         separator === "/" &&
         rule.fractionOfUnit &&
+        packText !== undefined &&
+        /^\d$/.test(packText) &&
         number.gt("0") &&
         pack.lt(number);
       const size = (isFraction ? pack.div(number) : number).times(rule.factor);
