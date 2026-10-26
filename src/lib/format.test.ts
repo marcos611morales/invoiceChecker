@@ -18,6 +18,7 @@ import {
   monthYearLabel,
   normalizeSearch,
   periodLabel,
+  unitPriceText,
   rangeText,
   shortUuid,
 } from "./format";
@@ -235,6 +236,15 @@ describe("formatUnitPrice", () => {
 
   it("shows a dash when there is no price", () => {
     expect(formatUnitPrice(null)).toBe("—");
+  });
+});
+
+describe("unitPriceText", () => {
+  it("rounds half-up to 2 decimals and names the unit of the family", () => {
+    expect(unitPriceText(new Big("35.2047"), "mass")).toBe("$35.20 / kg");
+    expect(unitPriceText(new Big("12.5"), "volume")).toBe("$12.50 / L");
+    expect(unitPriceText(new Big("50"), "piece")).toBe("$50.00 / pieza");
+    expect(unitPriceText(new Big("0.125"), "mass")).toBe("$0.13 / kg");
   });
 });
 

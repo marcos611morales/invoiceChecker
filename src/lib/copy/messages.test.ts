@@ -3,6 +3,9 @@ import type { DuplicateFile } from "@/domain/import/types";
 import { INCIDENT_ORDER } from "@/domain/accounting/quality";
 import { es } from "./es";
 import {
+  notNormalizedBadge,
+  onlyAtStore,
+  pricePerStoresCaption,
   noSearchMatch,
   pricesCountLine,
   savingsPerPieceNote,
@@ -1343,6 +1346,20 @@ describe("Precios tab sentences (D-07, D-22, D-23)", () => {
     expect(savingsPerPieceNote(2)).toBe(
       "Incluye 2 productos comparados por pieza, sin tamaño verificado.",
     );
+  });
+
+  it("captions the price with the number of purchases behind the median", () => {
+    expect(pricePerStoresCaption(1)).toBe("mediana · 1 compra");
+    expect(pricePerStoresCaption(4)).toBe("mediana · 4 compras");
+  });
+
+  it("counts the purchases that could not be normalized", () => {
+    expect(notNormalizedBadge(1)).toBe("1 compra no normalizada");
+    expect(notNormalizedBadge(3)).toBe("3 compras no normalizadas");
+  });
+
+  it("names the only store of a product", () => {
+    expect(onlyAtStore("Tienda Alfa")).toBe("Solo en Tienda Alfa");
   });
 
   it("echoes the search text inside quotation marks when nothing matches", () => {

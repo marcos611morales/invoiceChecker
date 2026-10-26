@@ -1321,6 +1321,21 @@ export function savingsPerPieceNote(n: number): string {
     : `Incluye ${String(n)} productos comparados por pieza, sin tamaño verificado.`;
 }
 
+/** Caption under a price of the Precios table: «mediana · {n} compras» («mediana · 1 compra»). */
+export function pricePerStoresCaption(n: number): string {
+  return n === 1 ? "mediana · 1 compra" : `mediana · ${String(n)} compras`;
+}
+
+/** Badge of a product with purchases that could not be normalized: «{n} compras no normalizadas». */
+export function notNormalizedBadge(n: number): string {
+  return n === 1 ? "1 compra no normalizada" : `${String(n)} compras no normalizadas`;
+}
+
+/** Cheapest-store cell of a product compared in one store only (D-02): «Solo en {tienda}». */
+export function onlyAtStore(name: string): string {
+  return `Solo en ${name}`;
+}
+
 /** Table area of the Precios tab when the search matches no product (D-07). */
 export function noSearchMatch(text: string): string {
   return `Ningún producto coincide con «${text}». Revisa la búsqueda.`;
