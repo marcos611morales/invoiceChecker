@@ -133,6 +133,7 @@ describe("Precios tab (D-01, D-02, D-05, D-07, D-11, D-20, D-21, D-22)", () => {
     const table = productRow("Azúcar estándar").closest("table");
     if (table === null) throw new Error("no products table");
     expect(within(table).getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+      "Detalle",
       "Producto",
       "Tienda más barata",
       "Precio",

@@ -661,6 +661,46 @@ export const es = {
     none: "—",
     /** Price cell of a product whose purchases cannot be normalized. */
     notNormalized: "No normalizado",
+    /** Expanded product panel (Plan 05-06, D-07, D-08, D-12, D-20, D-21). */
+    detail: {
+      /** Screen-reader header of the expander column. */
+      expanderHeader: "Detalle",
+      storesHeading: "Precios por tienda",
+      purchasesHeading: "Compras",
+      /** Unit names in singular for the family line and in plural for the notes. */
+      familySingular: { mass: "kilogramo", volume: "litro", piece: "pieza" },
+      familyPlural: { mass: "kilogramos", volume: "litros", piece: "piezas" },
+      /** Plural of the piece unit after a content: «6 piezas». */
+      piecesPlural: "piezas",
+      /** Alert of a product with no purchase that could be compared (E6 + E7). */
+      noneComparable:
+        "Ninguna compra de este producto tiene un contenido que se pueda comparar. Captura el contenido abajo para compararlo.",
+      stores: {
+        columns: {
+          store: "Tienda",
+          min: "Mínimo",
+          median: "Mediana",
+          last: "Último",
+          purchases: "Compras",
+        },
+        cheapestBadge: "Más barata",
+        tieNote: "Empate en la mediana: gana la tienda con más compras.",
+        singlePurchaseCaution: "La tienda más barata tiene una sola compra; el precio puede cambiar.",
+        perPieceCaption:
+          "Comparado por pieza, sin tamaño verificado: las presentaciones pueden ser distintas.",
+      },
+      purchases: {
+        columns: {
+          date: "Fecha",
+          store: "Tienda",
+          folio: "Folio",
+          description: "Descripción",
+          quantity: "Cantidad (XML)",
+          content: "Contenido",
+          unitPrice: "Precio unitario",
+        },
+      },
+    },
   },
 
   errors: {

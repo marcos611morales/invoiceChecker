@@ -14,6 +14,7 @@ import type {
 import type { BackupFailure, BackupSummary } from "@/domain/settings/backup";
 import type { NameError } from "@/domain/settings/categories";
 import type { QueueFilter } from "@/domain/llm/queueView";
+import type { UnitFamily } from "@/domain/prices/units";
 import type { AcceptProductError, AddMembersError } from "@/domain/settings/products";
 import { LIMITS } from "@/domain/settings/types";
 import type { LlmFailure } from "@/lib/client/llmClient";
@@ -1339,4 +1340,88 @@ export function onlyAtStore(name: string): string {
 /** Table area of the Precios tab when the search matches no product (D-07). */
 export function noSearchMatch(text: string): string {
   return `Ningún producto coincide con «${text}». Revisa la búsqueda.`;
+}
+
+/** `aria-label` of the expander button of a Precios row (D-07). */
+export function expandPricesAria(name: string, open: boolean): string {
+  return open ? `Ocultar precios de ${name}` : `Ver precios de ${name}`;
+}
+
+/** A piece of a sentence and whether it is shown in 600 weight. */
+export interface SummaryPart {
+  text: string;
+  strong: boolean;
+}
+
+/**
+ * Summary of a product with 2 or more stores (D-21), in parts so the store and the price can be
+ * shown in 600 weight: «Más barata: {tienda} a {precio} / {unidad} (mediana). Ahorro estimado:
+ * {monto}.» The price and the saving arrive already formatted.
+ */
+export function cheapestSummaryParts(store: string, price: string, saving: string): SummaryPart[] {
+  return [
+    { text: "Más barata: ", strong: false },
+    { text: store, strong: true },
+    { text: " a ", strong: false },
+    { text: price, strong: true },
+    { text: ` (mediana). Ahorro estimado: ${saving}.`, strong: false },
+  ];
+}
+
+/** The plain sentence of `cheapestSummaryParts`. */
+export function cheapestSummary(store: string, price: string, saving: string): string {
+  return cheapestSummaryParts(store, price, saving)
+    .map((part) => part.text)
+    .join("");
+}
+
+/** 12px continuation of the summary: how the saving is calculated (D-21). */
+export function savingCalculationNote(store: string): string {
+  return `Se calcula con las compras en otras tiendas: (precio pagado − precio mediano de ${store}) × contenido comprado, sumando solo las diferencias positivas.`;
+}
+
+/** Summary of a product compared in one store only (D-02). */
+export function singleStoreSummary(store: string): string {
+  return `Solo se compró en ${store}. Para comparar hace falta que otra tienda lo venda.`;
+}
+
+/** Family line under the summary (D-12): «Comparado por kilogramo ($/kg)». */
+export function familyLine(family: UnitFamily): string {
+  return `Comparado por ${es.prices.detail.familySingular[family]} ($/${es.prices.units[family]})`;
+}
+
+/** «a», «a y b», «a, b y c». */
+function joinList(items: readonly string[]): string {
+  const last = items[items.length - 1];
+  if (last === undefined) return "";
+  if (items.length === 1) return last;
+  return `${items.slice(0, -1).join(", ")} y ${last}`;
+}
+
+/** Purchases of a store or of a product: «1 compra», «{n} compras». */
+export function purchasesCount(n: number): string {
+  return n === 1 ? "1 compra" : `${String(n)} compras`;
+}
+
+/**
+ * Note of a product bought in more than one unit family (D-12). The compared unit is named first;
+ * each left-out family says how many purchases became «no normalizadas». Two left-out families
+ * (not drawn in the UI-SPEC) are listed one after the other.
+ */
+export function mixedFamiliesNote(
+  compared: UnitFamily,
+  others: readonly { family: UnitFamily; count: number }[],
+): string {
+  const names = es.prices.detail.familyPlural;
+  const bought = joinList([compared, ...others.map((other) => other.family)].map((f) => `en ${names[f]}`));
+  const total = others.reduce((sum, other) => sum + other.count, 0);
+  const left = joinList(others.map((other) => `${purchasesCount(other.count)} en ${names[other.family]}`));
+  const article = total === 1 ? "la" : "las";
+  const verb = total === 1 ? "queda como no normalizada" : "quedan como no normalizadas";
+  return `Este producto se compró ${bought}. Se compara la unidad con más compras (${names[compared]}); ${article} ${left} ${verb}.`;
+}
+
+/** Ghost button that reveals the rest of a list: «Mostrar {n} más». */
+export function showMore(n: number): string {
+  return `Mostrar ${String(n)} más`;
 }
