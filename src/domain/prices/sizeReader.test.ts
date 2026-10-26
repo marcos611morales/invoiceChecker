@@ -22,6 +22,12 @@ describe("readSize: weight and volume (D-09 step 3, RESEARCH contract table)", (
     ["SALSA CHAMOY CHILERITO 12/1LT (5) SALS0002", "volume:12"],
     ["JAMON ZWAN VIRGINIA1X1KG & 10360 1/1 KG", "mass:1"],
     ["Aceite 1,5 L", "volume:1.5"],
+    ["Aceite 1,25 L", "volume:1.25"],
+    ["JUGO 1,500 ML", "volume:1.5"],
+    ["HARINA 1,000 G", "mass:1"],
+    ["AGUA 1,000 L", "volume:1000"],
+    ["ARROZ 1,500 G", "mass:1.5"],
+    ["Aceite 1,5 KG", "mass:1.5"],
     ["Crema ácida 900 mililitros", "volume:0.9"],
   ])("reads %j as %s", (description, expected) => {
     expect(shape(readSize(description))).toBe(expected);
@@ -135,6 +141,9 @@ describe("readSize: bounds and hostile input (T-05-12, T-05-13)", () => {
     expect(shape(readSize("COSTAL 1000 KG"))).toBe("mass:1000");
     expect(shape(readSize("TANQUE 0 L"))).toBe("none");
     expect(shape(readSize("12/100 L"))).toBe("none");
+    // A thousands comma is read first and the bound still applies after it.
+    expect(shape(readSize("COSTAL 1,001 KG"))).toBe("none");
+    expect(shape(readSize("TANQUE 2,500 L"))).toBe("none");
   });
 
   it("cuts the description at MAX_DESCRIPTION_LENGTH before reading", () => {

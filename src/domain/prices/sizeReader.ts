@@ -103,9 +103,14 @@ function stripText(description: string): string {
     .slice(0, MAX_DESCRIPTION_LENGTH);
 }
 
-/** "1.700" with a gram/millilitre unit is a thousands dot (1,700 g); "1.730" with K or L is a decimal. */
+/**
+ * "1.700" with a gram/millilitre unit is a thousands dot (1,700 g); "1.730" with K or L is a decimal.
+ * A comma followed by exactly three digits is a thousands separator for every unit (es-MX writing:
+ * "1,500 ML" is 1500 mL, "1,000 G" is 1000 g); a comma followed by one or two digits is a decimal.
+ */
 function numberText(raw: string, rule: UnitRule): string {
   if (rule.thousandsDot && /^\d{1,3}\.\d{3}$/.test(raw)) return raw.replace(".", "");
+  if (/^\d{1,3},\d{3}$/.test(raw)) return raw.replace(",", "");
   return raw.replace(",", ".");
 }
 
