@@ -1,7 +1,8 @@
 /**
  * Settings data model (Phase 3, D-06). This is the stored shape under the key
- * `invoicechecker:settings` (version 3, Phase 4: products and «No agrupar» marks) and,
- * later, inside the backup file.
+ * `invoicechecker:settings` (version 4, Phase 5: content corrections and «no comparable»
+ * overrides on top of the Phase 4 products and «No agrupar» marks) and, in part, inside the
+ * backup file.
  * Lists of entries, never records keyed by RFC or description: those texts come
  * from XML and a key such as "__proto__" must stay plain data (Pitfall 8).
  * Lookups are built as Maps in memory by the resolver.
@@ -85,19 +86,61 @@ export interface SettingsDataV2 {
   conceptRules: ConceptRule[];
 }
 
-/** The current settings (stored version 3, Phase 4, D-13). */
-export interface SettingsData extends SettingsDataV2 {
+/**
+ * The frozen Phase 4 shape (stored version 3 and settings file version 2). Never add a field
+ * here: it is what those two published contracts mean.
+ */
+export interface SettingsDataV3 extends SettingsDataV2 {
   products: Product[];
   ungroupedConcepts: UngroupedConcept[];
 }
 
-/** Version of the stored contract (the Phase 2 contract was version 1, Phase 3 was 2). */
-export const SETTINGS_VERSION = 3;
+/** Unit of the content number a user types for a concept (Phase 5, D-15). */
+export type ContentUnit = "g" | "kg" | "ml" | "l" | "piezas";
 
 /**
- * Limits applied when reading stored settings and backup files (D-30, Phase 4 D-13).
- * `productMembers` counts the members of all products together; `productName` is the same
- * 60 characters as a category name. `backupBytes` is the largest settings file the app reads,
+ * A content the user typed for one concept of one supplier (Phase 5, D-15): `packs` pieces per
+ * pack, each holding `amount` of `unit`. `rfc` plus `key` identify the member, as in
+ * `ProductMember`; the readable description and supplier name are kept for display. `amount` is
+ * decimal text (greater than 0, at most 6 decimals, at most 1,000,000), never a float. A
+ * correction follows the member and survives the deletion of its product. It never holds an
+ * invoice amount, price, date, folio or UUID.
+ */
+export interface ContentCorrection {
+  rfc: string;
+  key: string;
+  description: string;
+  supplierName: string;
+  packs: number;
+  amount: string;
+  unit: ContentUnit;
+}
+
+/**
+ * The «no comparable» mark of one product (Phase 5, D-19): only what differs from the default is
+ * stored. `comparable: false` removes the product from the price comparison and `true` keeps it
+ * when the default would exclude it.
+ */
+export interface PriceOverride {
+  productId: string;
+  comparable: boolean;
+}
+
+/** The current settings (stored version 4, Phase 5, D-15 and D-19). */
+export interface SettingsData extends SettingsDataV3 {
+  contentCorrections: ContentCorrection[];
+  priceOverrides: PriceOverride[];
+}
+
+/** Version of the stored contract (the Phase 2 contract was version 1, Phase 3 was 2, Phase 4 was 3). */
+export const SETTINGS_VERSION = 4;
+
+/**
+ * Limits applied when reading stored settings and backup files (D-30, Phase 4 D-13, Phase 5
+ * D-15 and D-19). `productMembers` counts the members of all products together; `productName`
+ * is the same 60 characters as a category name; `contentCorrections` and `priceOverrides` keep a
+ * worst-case file under the 4 MB gate (about 3.7 MB); `contentPacks` is the largest number of
+ * pieces per pack. `backupBytes` is the largest settings file the app reads,
  * in bytes (4 MB, D-31: raised from 1 MB so every file the app writes at the product limits
  * can be uploaded again).
  */
@@ -110,6 +153,9 @@ export const LIMITS = {
   productMembers: 5000,
   ungroupedConcepts: 5000,
   productName: 60,
+  contentCorrections: 2000,
+  priceOverrides: 2000,
+  contentPacks: 999,
   backupBytes: 4194304,
 } as const;
 
@@ -129,7 +175,7 @@ export const SEED_CATEGORIES: readonly Category[] = [
 /** Id of «Otros», which the UI sorts last (UI-SPEC). */
 export const OTROS_ID = "seed:otros";
 
-/** Fresh settings: Con IVA, the nine suggestions, no assignments, no products. New arrays on every call. */
+/** Fresh settings: Con IVA, the nine suggestions, no assignments, no products, no corrections. New arrays on every call. */
 export function defaultSettings(): SettingsData {
   return {
     ivaMode: "con",
@@ -138,5 +184,7 @@ export function defaultSettings(): SettingsData {
     conceptRules: [],
     products: [],
     ungroupedConcepts: [],
+    contentCorrections: [],
+    priceOverrides: [],
   };
 }

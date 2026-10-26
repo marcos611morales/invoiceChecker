@@ -9,7 +9,15 @@ import {
   checkBackupSize,
   parseBackupText,
 } from "./backup";
-import { LIMITS, SIN_CATEGORIA, type Product, type SettingsData, type UngroupedConcept } from "./types";
+import {
+  LIMITS,
+  SIN_CATEGORIA,
+  type ContentCorrection,
+  type PriceOverride,
+  type Product,
+  type SettingsData,
+  type UngroupedConcept,
+} from "./types";
 
 const CAFE = "seed:insumos-cafeteria";
 const CUSTOM = "cat_0b6a8f10-4c1d-4e0a-9b52-7a3f6d2e1c44";
@@ -31,6 +39,8 @@ function sample(): SettingsData {
     ],
     products: [],
     ungroupedConcepts: [],
+    contentCorrections: [],
+    priceOverrides: [],
   };
 }
 
@@ -75,15 +85,72 @@ function fileText2(settings: unknown, header: Record<string, unknown> = {}): str
   return JSON.stringify({ app: BACKUP_APP, version: 2, settings, ...header });
 }
 
+/** A version-3 file text built by hand, so these tests do not depend on buildBackupText. */
+function fileText3(settings: unknown, header: Record<string, unknown> = {}): string {
+  return JSON.stringify({ app: BACKUP_APP, version: 3, settings, ...header });
+}
+
+const LECHE_ID = "prod_leche";
+const VASOS_ID = "prod_vasos";
+
+function correction(overrides: Partial<ContentCorrection> = {}): ContentCorrection {
+  return {
+    rfc: "EKU9003173C9",
+    key: LECHE_KEY,
+    description: "Leche entera 1 L",
+    supplierName: "Proveedor uno",
+    packs: 1,
+    amount: "1",
+    unit: "l",
+    ...overrides,
+  };
+}
+
+function priceOverride(overrides: Partial<PriceOverride> = {}): PriceOverride {
+  return { productId: LECHE_ID, comparable: false, ...overrides };
+}
+
+/** The version-2 sample plus two corrections and one «no comparable» override. */
+function sampleWithPrice(): SettingsData {
+  return {
+    ...sampleWithProducts(),
+    contentCorrections: [
+      correction(),
+      correction({
+        rfc: "XAXX010101000",
+        key: "leche ent 12 pz",
+        description: "Leche ENT 12 pz",
+        supplierName: "Público en general",
+        packs: 12,
+        amount: "0.946",
+      }),
+    ],
+    priceOverrides: [priceOverride({ productId: VASOS_ID })],
+  };
+}
+
+function valueAt(source: unknown, key: string): unknown {
+  return typeof source === "object" && source !== null ? Reflect.get(source, key) : undefined;
+}
+
+function listAt(source: unknown, key: string): unknown[] {
+  const value = valueAt(source, key);
+  return Array.isArray(value) ? value : [];
+}
+
+function keysOf(item: unknown): string[] {
+  return typeof item === "object" && item !== null ? Object.keys(item).sort() : [];
+}
+
 function failure(text: string): string | null {
   const result = parseBackupText(text);
   return result.ok ? null : result.reason;
 }
 
 describe("backup file contract constants", () => {
-  it("publishes the app marker and file version 2", () => {
+  it("publishes the app marker and file version 3", () => {
     expect(BACKUP_APP).toBe("invoicechecker-settings");
-    expect(BACKUP_FILE_VERSION).toBe(2);
+    expect(BACKUP_FILE_VERSION).toBe(3);
   });
 });
 
@@ -100,6 +167,8 @@ describe("buildBackupText and parseBackupText round trip", () => {
       concepts: 2,
       products: 0,
       members: 0,
+      corrections: 0,
+      overrides: 0,
     });
   });
 
@@ -115,15 +184,17 @@ describe("buildBackupText and parseBackupText round trip", () => {
       concepts: 2,
       products: 2,
       members: 3,
+      corrections: 0,
+      overrides: 0,
     });
   });
 
-  it("writes file version 2", () => {
+  it("writes file version 3", () => {
     const parsed: unknown = JSON.parse(buildBackupText(sample()));
-    expect(parsed).toMatchObject({ app: BACKUP_APP, version: 2 });
+    expect(parsed).toMatchObject({ app: BACKUP_APP, version: 3 });
   });
 
-  it("writes only app, version and settings, and only the six settings fields (T-04-24)", () => {
+  it("writes only app, version and settings, and only the eight settings fields (T-04-24)", () => {
     const parsed: unknown = JSON.parse(buildBackupText(sample()));
     expect(typeof parsed === "object" && parsed !== null).toBe(true);
     if (typeof parsed !== "object" || parsed === null) return;
@@ -134,11 +205,72 @@ describe("buildBackupText and parseBackupText round trip", () => {
     expect(Object.keys(settings).sort()).toEqual([
       "categories",
       "conceptRules",
+      "contentCorrections",
       "ivaMode",
+      "priceOverrides",
       "products",
       "supplierCategories",
       "ungroupedConcepts",
     ]);
+  });
+
+  it("gives back equal settings with corrections and overrides, and counts them in the summary", () => {
+    const settings = sampleWithPrice();
+    const result = parseBackupText(buildBackupText(settings));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings).toEqual(settings);
+    expect(result.summary).toEqual({
+      categories: 2,
+      suppliers: 2,
+      concepts: 2,
+      products: 2,
+      members: 3,
+      corrections: 2,
+      overrides: 1,
+    });
+  });
+
+  it("writes only the contract keys of each correction and override, even if the objects carry more (T-05-08)", () => {
+    const settings = sampleWithPrice();
+    const noisy: SettingsData = {
+      ...settings,
+      contentCorrections: settings.contentCorrections.map((item) => ({
+        ...item,
+        folio: "A-1",
+        fecha: "2025-05-28T17:38:18",
+        total: "123.45",
+        uuid: "no-debe-salir",
+      })),
+      priceOverrides: settings.priceOverrides.map((item) => ({ ...item, monto: 999 })),
+    };
+    const text = buildBackupText(noisy);
+    for (const forbidden of ["folio", "fecha", "total", "uuid", "no-debe-salir", "monto"]) {
+      expect(text).not.toContain(forbidden);
+    }
+    const inner = valueAt(JSON.parse(text), "settings");
+    const written = listAt(inner, "contentCorrections");
+    expect(written).toHaveLength(2);
+    for (const item of written) {
+      expect(keysOf(item)).toEqual([
+        "amount",
+        "description",
+        "key",
+        "packs",
+        "rfc",
+        "supplierName",
+        "unit",
+      ]);
+    }
+    const writtenOverrides = listAt(inner, "priceOverrides");
+    expect(writtenOverrides).toHaveLength(1);
+    for (const item of writtenOverrides) {
+      expect(keysOf(item)).toEqual(["comparable", "productId"]);
+    }
+    const reread = parseBackupText(text);
+    expect(reread.ok).toBe(true);
+    if (!reread.ok) return;
+    expect(reread.settings).toEqual(settings);
   });
 
   it("writes only the stored fields of each product, member and mark, even if the objects carry more", () => {
@@ -184,6 +316,8 @@ describe("buildBackupText and parseBackupText round trip", () => {
       conceptRules: [],
       products: [],
       ungroupedConcepts: [],
+      contentCorrections: [],
+      priceOverrides: [],
     };
     const result = parseBackupText(buildBackupText(empty));
     expect(result.ok).toBe(true);
@@ -195,6 +329,8 @@ describe("buildBackupText and parseBackupText round trip", () => {
       concepts: 0,
       products: 0,
       members: 0,
+      corrections: 0,
+      overrides: 0,
     });
   });
 });
@@ -266,8 +402,9 @@ describe("parseBackupText: not an InvoiceChecker settings file", () => {
 
 describe("parseBackupText: newer version", () => {
   it("reports a newer version whatever the rest contains", () => {
-    expect(failure(fileText(sample(), { version: 3 }))).toBe("newer");
-    expect(failure(fileText("cualquier cosa", { version: 3 }))).toBe("newer");
+    expect(failure(fileText(sample(), { version: 4 }))).toBe("newer");
+    expect(failure(fileText("cualquier cosa", { version: 4 }))).toBe("newer");
+    expect(failure(fileText3(sampleWithPrice(), { version: 4 }))).toBe("newer");
     expect(failure(JSON.stringify({ app: BACKUP_APP, version: 99 }))).toBe("newer");
   });
 });
@@ -460,6 +597,8 @@ describe("golden settings file of version 1 (published contract, D-07)", () => {
       concepts: 2,
       products: 0,
       members: 0,
+      corrections: 0,
+      overrides: 0,
     });
     expect(result.settings.ivaMode).toBe("sin");
     expect(result.settings.categories.map((category) => category.id)).toEqual([
@@ -486,7 +625,19 @@ describe("golden settings file of version 1 (published contract, D-07)", () => {
     expect(result.settings.ungroupedConcepts).toEqual([]);
   });
 
-  it("loads a version-1 file written by the previous build even when this build writes version 2", () => {
+  it("loads with no corrections and no «no comparable» marks (D-15, D-19)", () => {
+    const text = readFileSync(
+      resolve(process.cwd(), "tests/fixtures/settings/ajustes-archivo-1.json"),
+      "utf8",
+    );
+    const result = parseBackupText(text);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings.contentCorrections).toEqual([]);
+    expect(result.settings.priceOverrides).toEqual([]);
+  });
+
+  it("loads a version-1 file written by an earlier build even when this build writes version 3", () => {
     const result = parseBackupText(fileText(sample()));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -510,6 +661,8 @@ describe("golden settings file of version 2 (published contract, D-13)", () => {
       concepts: 1,
       products: 2,
       members: 3,
+      corrections: 0,
+      overrides: 0,
     });
     expect(result.settings.ivaMode).toBe("con");
     expect(result.settings.products.map((product) => product.name)).toEqual([
@@ -536,6 +689,227 @@ describe("golden settings file of version 2 (published contract, D-13)", () => {
     expect(second.ok).toBe(true);
     if (!second.ok) return;
     expect(second.settings).toEqual(first.settings);
+  });
+
+  it("loads with no corrections and no «no comparable» marks (D-15, D-19)", () => {
+    const result = parseBackupText(goldenText());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings.contentCorrections).toEqual([]);
+    expect(result.settings.priceOverrides).toEqual([]);
+  });
+});
+
+describe("golden settings file of version 3 (published contract, D-15, D-19)", () => {
+  const goldenText = () =>
+    readFileSync(resolve(process.cwd(), "tests/fixtures/settings/ajustes-archivo-3.json"), "utf8");
+
+  it("keeps loading with its products, corrections and overrides", () => {
+    const result = parseBackupText(goldenText());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.summary).toEqual({
+      categories: 3,
+      suppliers: 2,
+      concepts: 1,
+      products: 2,
+      members: 3,
+      corrections: 2,
+      overrides: 1,
+    });
+    expect(result.settings.contentCorrections.map((item) => [item.packs, item.amount, item.unit])).toEqual([
+      [1, "1", "l"],
+      [12, "0.946", "l"],
+    ]);
+    expect(result.settings.priceOverrides).toEqual([
+      { productId: "prod_b7d20e94-1a6c-45f3-8c70-9e3a4d51f286", comparable: false },
+    ]);
+  });
+
+  it("is declared as file version 3 and survives writing and reading again", () => {
+    expect(JSON.parse(goldenText())).toMatchObject({ app: BACKUP_APP, version: 3 });
+    const first = parseBackupText(goldenText());
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const second = parseBackupText(buildBackupText(first.settings));
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.settings).toEqual(first.settings);
+  });
+});
+
+describe("parseBackupText: version-3 files that break a rule are damaged", () => {
+  const withSettings = (change: (settings: SettingsData) => Record<string, unknown>): string =>
+    fileText3({ ...sampleWithPrice(), ...change(sampleWithPrice()) });
+
+  it("accepts the unchanged version-3 sample", () => {
+    expect(failure(withSettings(() => ({})))).toBeNull();
+  });
+
+  it("rejects a version-3 file without the corrections or the overrides field", () => {
+    const withoutCorrections: Record<string, unknown> = { ...sampleWithPrice() };
+    delete withoutCorrections.contentCorrections;
+    const withoutOverrides: Record<string, unknown> = { ...sampleWithPrice() };
+    delete withoutOverrides.priceOverrides;
+    expect(failure(fileText3(withoutCorrections))).toBe("damaged");
+    expect(failure(fileText3(withoutOverrides))).toBe("damaged");
+  });
+
+  const correctionBreaches: ReadonlyArray<[string, Record<string, unknown>]> = [
+    ["packs 0", { packs: 0 }],
+    ["packs 1000", { packs: 1000 }],
+    ["fractional packs", { packs: 2.5 }],
+    ["packs as text", { packs: "12" }],
+    ["an amount of zero", { amount: "0" }],
+    ["a negative amount", { amount: "-1" }],
+    ["an exponent amount", { amount: "1e3" }],
+    ["a comma amount", { amount: "1,5" }],
+    ["an amount over 1,000,000", { amount: "1000000.000001" }],
+    ["an amount with seven decimals", { amount: "0.0000001" }],
+    ["an amount as a number", { amount: 1 }],
+    ["a unit outside the five", { unit: "oz" }],
+    ["a missing unit", { unit: undefined }],
+  ];
+
+  it.each(correctionBreaches)("rejects a correction with %s", (_label, change) => {
+    expect(
+      failure(
+        withSettings((settings) => ({
+          contentCorrections: settings.contentCorrections.map((item, index) =>
+            index === 0 ? { ...item, ...change } : item,
+          ),
+        })),
+      ),
+    ).toBe("damaged");
+  });
+
+  it("rejects a correction repeated by rfc plus key", () => {
+    expect(
+      failure(
+        withSettings((settings) => ({
+          contentCorrections: [...settings.contentCorrections, ...settings.contentCorrections],
+        })),
+      ),
+    ).toBe("damaged");
+  });
+
+  it("rejects an override product id repeated and an empty one", () => {
+    expect(
+      failure(
+        withSettings(() => ({
+          priceOverrides: [priceOverride(), priceOverride({ comparable: true })],
+        })),
+      ),
+    ).toBe("damaged");
+    expect(
+      failure(withSettings(() => ({ priceOverrides: [priceOverride({ productId: "" })] }))),
+    ).toBe("damaged");
+  });
+
+  it("rejects an override whose comparable is not a boolean", () => {
+    expect(
+      failure(withSettings(() => ({ priceOverrides: [{ productId: LECHE_ID, comparable: "no" }] }))),
+    ).toBe("damaged");
+  });
+
+  it("refuses the whole file when any rule breaks, applying nothing", () => {
+    const result = parseBackupText(
+      withSettings((settings) => ({
+        contentCorrections: settings.contentCorrections.map((item) => ({ ...item, packs: 0 })),
+      })),
+    );
+    expect(result).toEqual({ ok: false, reason: "damaged" });
+  });
+
+  it("drops an override of a product the file does not hold and keeps everything else (D-19)", () => {
+    const result = parseBackupText(
+      withSettings(() => ({
+        priceOverrides: [priceOverride({ productId: VASOS_ID }), priceOverride({ productId: "prod_gone" })],
+      })),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings).toEqual({
+      ...sampleWithPrice(),
+      priceOverrides: [priceOverride({ productId: VASOS_ID })],
+    });
+    expect(result.summary.overrides).toBe(1);
+  });
+
+  it('loads a correction rfc and an override product id "__proto__" as plain data', () => {
+    const settings: SettingsData = {
+      ...sampleWithProducts(),
+      products: sampleWithProducts().products.map((product, index) =>
+        index === 0 ? { ...product, id: "__proto__" } : product,
+      ),
+      contentCorrections: [correction({ rfc: "__proto__", key: "__proto__" })],
+      priceOverrides: [priceOverride({ productId: "__proto__", comparable: true })],
+    };
+    const result = parseBackupText(buildBackupText(settings));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings.contentCorrections[0]?.rfc).toBe("__proto__");
+    expect(result.settings.priceOverrides[0]?.productId).toBe("__proto__");
+    expect(Reflect.get(Object.prototype, "polluted")).toBeUndefined();
+  });
+
+  it("ignores unknown extra keys inside a version-3 file and still loads", () => {
+    const settings = sampleWithPrice();
+    const text = JSON.stringify({
+      app: BACKUP_APP,
+      version: 3,
+      extraTopLevel: true,
+      settings: {
+        ...settings,
+        nuevoCampo: [1],
+        contentCorrections: settings.contentCorrections.map((item) => ({ ...item, nota: "x" })),
+      },
+    });
+    const result = parseBackupText(text);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings).toEqual(settings);
+  });
+});
+
+describe("parseBackupText: version-3 limits (D-15, D-19, T-05-07)", () => {
+  const productsFor = (count: number): Product[] =>
+    Array.from({ length: count }, (_, index) => ({
+      id: `prod_${String(index)}`,
+      name: `Producto ${String(index)}`,
+      categoryId: null,
+      members: [
+        {
+          rfc: "EKU9003173C9",
+          key: `concepto ${String(index)}`,
+          description: `Concepto ${String(index)}`,
+          supplierName: "Proveedor",
+        },
+      ],
+    }));
+
+  const correctionsFor = (count: number): ContentCorrection[] =>
+    Array.from({ length: count }, (_, index) => correction({ key: `concepto ${String(index)}` }));
+
+  const overridesFor = (count: number): PriceOverride[] =>
+    Array.from({ length: count }, (_, index) => priceOverride({ productId: `prod_${String(index)}` }));
+
+  it("accepts exactly 2,000 corrections and rejects 2,001", () => {
+    const build = (count: number) =>
+      fileText3({ ...sample(), contentCorrections: correctionsFor(count) });
+    expect(failure(build(LIMITS.contentCorrections))).toBeNull();
+    expect(failure(build(LIMITS.contentCorrections + 1))).toBe("damaged");
+  });
+
+  it("accepts exactly 2,000 overrides and rejects 2,001", () => {
+    const build = (count: number) =>
+      fileText3({
+        ...sample(),
+        products: productsFor(LIMITS.products),
+        priceOverrides: overridesFor(count),
+      });
+    expect(failure(build(LIMITS.priceOverrides))).toBeNull();
+    expect(failure(build(LIMITS.priceOverrides + 1))).toBe("damaged");
   });
 });
 
@@ -708,7 +1082,7 @@ describe("parseBackupText: version-2 limits (D-13, T-04-22)", () => {
     expect(failure(build(LIMITS.ungroupedConcepts + 1))).toBe("damaged");
   });
 
-  it("a settings value at the product limits with sample-sized texts fits under the 4 MB gate (D-31)", () => {
+  it("a settings value at every limit (products, members, marks, 2,000 corrections, 2,000 overrides) with sample-sized texts fits under the 4 MB gate (D-31)", () => {
     const categories = Array.from({ length: 9 }, (_, index) => ({
       id: `cat_${String(index).padStart(36, "0")}`,
       name: `Categoría ${String(index)}`,
@@ -742,6 +1116,22 @@ describe("parseBackupText: version-2 limits (D-13, T-04-22)", () => {
         supplierName: "S".repeat(25),
       }),
     );
+    const contentCorrections: ContentCorrection[] = Array.from(
+      { length: LIMITS.contentCorrections },
+      (_, index) => ({
+        rfc: "R".repeat(13),
+        key: text40("c", index),
+        description: text40("e", index),
+        supplierName: "S".repeat(25),
+        packs: 999,
+        amount: "999999.999999",
+        unit: "piezas",
+      }),
+    );
+    const priceOverrides: PriceOverride[] = Array.from(
+      { length: LIMITS.priceOverrides },
+      (_, index) => ({ productId: `prod_${String(index).padStart(36, "0")}`, comparable: false }),
+    );
     const settings: SettingsData = {
       ivaMode: "con",
       categories,
@@ -749,6 +1139,8 @@ describe("parseBackupText: version-2 limits (D-13, T-04-22)", () => {
       conceptRules: [],
       products,
       ungroupedConcepts,
+      contentCorrections,
+      priceOverrides,
     };
     const text = buildBackupText(settings);
     const bytes = Buffer.byteLength(text, "utf8");
@@ -760,6 +1152,8 @@ describe("parseBackupText: version-2 limits (D-13, T-04-22)", () => {
     if (!result.ok) return;
     expect(result.summary.products).toBe(LIMITS.products);
     expect(result.summary.members).toBe(LIMITS.productMembers);
+    expect(result.summary.corrections).toBe(LIMITS.contentCorrections);
+    expect(result.summary.overrides).toBe(LIMITS.priceOverrides);
   });
 });
 

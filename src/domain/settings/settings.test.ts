@@ -5,9 +5,13 @@ import { resolvePersisted } from "./migrate";
 import { makeResolver } from "./resolver";
 import {
   comparableName,
+  contentAmountIssue,
+  priceIntegrityIssues,
   productIntegrityIssues,
+  pruneDanglingOverrides,
   settingsDataSchema,
   settingsDataSchemaV2,
+  settingsDataSchemaV3,
 } from "./schema";
 import {
   LIMITS,
@@ -15,10 +19,13 @@ import {
   SETTINGS_VERSION,
   SIN_CATEGORIA,
   defaultSettings,
+  type ContentCorrection,
+  type PriceOverride,
   type Product,
   type ProductMember,
   type SettingsData,
   type SettingsDataV2,
+  type SettingsDataV3,
 } from "./types";
 
 const LIMPIEZA = "seed:limpieza-higiene";
@@ -284,12 +291,22 @@ function v2Value(): SettingsDataV2 {
   };
 }
 
-describe("settings version 3 defaults and constants", () => {
-  it("is version 3 and starts with no products and no marks", () => {
-    expect(SETTINGS_VERSION).toBe(3);
+describe("settings version 4 defaults and constants", () => {
+  it("is version 4 and starts with no products, no marks, no corrections and no overrides", () => {
+    expect(SETTINGS_VERSION).toBe(4);
     expect(defaultSettings().products).toEqual([]);
     expect(defaultSettings().ungroupedConcepts).toEqual([]);
+    expect(defaultSettings().contentCorrections).toEqual([]);
+    expect(defaultSettings().priceOverrides).toEqual([]);
     expect(defaultSettings().products).not.toBe(defaultSettings().products);
+    expect(defaultSettings().contentCorrections).not.toBe(defaultSettings().contentCorrections);
+    expect(defaultSettings().priceOverrides).not.toBe(defaultSettings().priceOverrides);
+  });
+
+  it("sets the planner limits for corrections, overrides and pieces per pack (D-15, D-19)", () => {
+    expect(LIMITS.contentCorrections).toBe(2000);
+    expect(LIMITS.priceOverrides).toBe(2000);
+    expect(LIMITS.contentPacks).toBe(999);
   });
 
   it("sets the planner limits for products, members, marks and product names", () => {
@@ -309,7 +326,13 @@ describe("resolvePersisted from version 2 (D-13)", () => {
   it("keeps every category, assignment, rule and the IVA mode, adds empty lists and reports migrated", () => {
     const stored = v2Value();
     expect(resolvePersisted(stored, 2)).toEqual({
-      data: { ...stored, products: [], ungroupedConcepts: [] },
+      data: {
+        ...stored,
+        products: [],
+        ungroupedConcepts: [],
+        contentCorrections: [],
+        priceOverrides: [],
+      },
       status: "migrated",
     });
   });
@@ -322,7 +345,13 @@ describe("resolvePersisted from version 2 (D-13)", () => {
       conceptRules: [],
     };
     expect(resolvePersisted(stored, 2)).toEqual({
-      data: { ...stored, products: [], ungroupedConcepts: [] },
+      data: {
+        ...stored,
+        products: [],
+        ungroupedConcepts: [],
+        contentCorrections: [],
+        priceOverrides: [],
+      },
       status: "migrated",
     });
   });
@@ -382,7 +411,295 @@ describe("resolvePersisted from version 2 (D-13)", () => {
   });
 });
 
-describe("resolvePersisted version 3", () => {
+/** The frozen Phase 4 shape: what a browser that used version 3 holds. */
+function v3Value(): SettingsDataV3 {
+  return {
+    ...v2Value(),
+    products: [
+      product({
+        id: "prod_1",
+        name: "Leche entera",
+        categoryId: "cat_1",
+        members: [LECHE_A, LECHE_B],
+      }),
+      product({
+        id: "prod_2",
+        name: "Cloro",
+        categoryId: null,
+        members: [{ ...LECHE_A, key: "cloro", description: "CLORO" }],
+      }),
+    ],
+    ungroupedConcepts: [
+      { rfc: "AAA010101AAA", key: "flete", description: "FLETE", supplierName: "Proveedor A" },
+    ],
+  };
+}
+
+function correction(overrides: Partial<ContentCorrection> = {}): ContentCorrection {
+  return {
+    rfc: "AAA010101AAA",
+    key: "mm leche ent",
+    description: "MM LECHE ENT",
+    supplierName: "Proveedor A",
+    packs: 12,
+    amount: "1",
+    unit: "l",
+    ...overrides,
+  };
+}
+
+function priceOverride(overrides: Partial<PriceOverride> = {}): PriceOverride {
+  return { productId: "prod_1", comparable: false, ...overrides };
+}
+
+/** A valid version-4 value: one product, one correction and one override. */
+function v4Value(extra: Partial<SettingsData> = {}): SettingsData {
+  return withProducts([product()], {
+    contentCorrections: [correction()],
+    priceOverrides: [priceOverride()],
+    ...extra,
+  });
+}
+
+describe("resolvePersisted from version 3 (D-15, D-19)", () => {
+  it("keeps every category, assignment, rule, product, member and mark, adds the two empty lists and reports migrated", () => {
+    const stored = v3Value();
+    expect(resolvePersisted(stored, 3)).toEqual({
+      data: { ...stored, contentCorrections: [], priceOverrides: [] },
+      status: "migrated",
+    });
+  });
+
+  it("keeps a valid version-3 value with no products and no marks", () => {
+    const stored: SettingsDataV3 = { ...v2Value(), products: [], ungroupedConcepts: [] };
+    expect(resolvePersisted(stored, 3)).toEqual({
+      data: { ...stored, contentCorrections: [], priceOverrides: [] },
+      status: "migrated",
+    });
+  });
+
+  it("gives the defaults and unreadable for a malformed version-3 value, without throwing", () => {
+    const malformed: unknown[] = [
+      null,
+      "sin",
+      42,
+      [],
+      { ...v2Value() },
+      { ...v3Value(), ivaMode: "x" },
+      { ...v3Value(), products: [product({ categoryId: "missing" })] },
+      { ...v3Value(), products: [product({ members: [] })] },
+      { ...v3Value(), ungroupedConcepts: [{ ...LECHE_A }] },
+    ];
+    for (const raw of malformed) {
+      expect(resolvePersisted(raw, 3)).toEqual({ data: defaultSettings(), status: "unreadable" });
+    }
+  });
+
+  it("freezes the version-3 schema: it reads the six fields and strips the corrections and overrides", () => {
+    expect(settingsDataSchemaV3.safeParse(v3Value()).success).toBe(true);
+    const parsed = settingsDataSchemaV3.safeParse({
+      ...v3Value(),
+      contentCorrections: [correction()],
+      priceOverrides: [priceOverride()],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(Object.keys(parsed.data).sort()).toEqual([
+        "categories",
+        "conceptRules",
+        "ivaMode",
+        "products",
+        "supplierCategories",
+        "ungroupedConcepts",
+      ]);
+    }
+  });
+});
+
+describe("resolvePersisted version 4 corrections and overrides (D-15, D-19)", () => {
+  it("round-trips one correction and one override unchanged and reports ok", () => {
+    const stored = v4Value();
+    expect(resolvePersisted(stored, 4)).toEqual({ data: stored, status: "ok" });
+  });
+
+  it('round-trips an rfc and a product id "__proto__" as plain data', () => {
+    const odd = correction({ rfc: "__proto__", key: "__proto__", description: "constructor" });
+    const stored = v4Value({
+      products: [product({ id: "__proto__" })],
+      contentCorrections: [odd],
+      priceOverrides: [priceOverride({ productId: "__proto__", comparable: true })],
+    });
+    const result = resolvePersisted(stored, 4);
+    expect(result.status).toBe("ok");
+    expect(result.data.contentCorrections[0]?.rfc).toBe("__proto__");
+    expect(result.data.priceOverrides[0]?.productId).toBe("__proto__");
+    expect(result.data.priceOverrides[0]?.comparable).toBe(true);
+    expect(Reflect.get(Object.prototype, "polluted")).toBeUndefined();
+  });
+
+  it("accepts the five units and the edges of the packs and the amount", () => {
+    const units: ContentCorrection["unit"][] = ["g", "kg", "ml", "l", "piezas"];
+    const stored = v4Value({
+      priceOverrides: [],
+      contentCorrections: units.map((unit, index) =>
+        correction({ key: `k${String(index)}`, unit, packs: index === 0 ? 1 : 999, amount: "999999.999999" }),
+      ),
+    });
+    expect(resolvePersisted(stored, 4).status).toBe("ok");
+    expect(
+      resolvePersisted(v4Value({ contentCorrections: [correction({ amount: "1000000" })] }), 4).status,
+    ).toBe("ok");
+  });
+
+  const breaches: ReadonlyArray<[string, () => unknown]> = [
+    [
+      "a correction repeated by rfc plus key",
+      () => v4Value({ contentCorrections: [correction(), correction({ packs: 6 })] }),
+    ],
+    ["packs 0", () => v4Value({ contentCorrections: [correction({ packs: 0 })] })],
+    ["packs 1000", () => v4Value({ contentCorrections: [correction({ packs: 1000 })] })],
+    ["fractional packs", () => v4Value({ contentCorrections: [correction({ packs: 1.5 })] })],
+    ["negative packs", () => v4Value({ contentCorrections: [correction({ packs: -2 })] })],
+    ["an amount of zero", () => v4Value({ contentCorrections: [correction({ amount: "0" })] })],
+    ["a negative amount", () => v4Value({ contentCorrections: [correction({ amount: "-1" })] })],
+    ["an exponent amount", () => v4Value({ contentCorrections: [correction({ amount: "1e3" })] })],
+    ["a comma amount", () => v4Value({ contentCorrections: [correction({ amount: "1,5" })] })],
+    [
+      "an amount over 1,000,000",
+      () => v4Value({ contentCorrections: [correction({ amount: "1000000.000001" })] }),
+    ],
+    [
+      "an amount with seven decimals",
+      () => v4Value({ contentCorrections: [correction({ amount: "0.0000001" })] }),
+    ],
+    ["an empty amount", () => v4Value({ contentCorrections: [correction({ amount: "" })] })],
+    [
+      "an amount stored as a number",
+      () => ({ ...v4Value(), contentCorrections: [{ ...correction(), amount: 1 }] }),
+    ],
+    [
+      "a unit outside the five",
+      () => ({ ...v4Value(), contentCorrections: [{ ...correction(), unit: "oz" }] }),
+    ],
+    [
+      "an override product id repeated",
+      () =>
+        v4Value({
+          priceOverrides: [priceOverride(), priceOverride({ comparable: true })],
+        }),
+    ],
+    [
+      "an empty override product id",
+      () => v4Value({ priceOverrides: [priceOverride({ productId: "" })] }),
+    ],
+    [
+      "an override comparable that is not a boolean",
+      () => ({ ...v4Value(), priceOverrides: [{ productId: "prod_1", comparable: "no" }] }),
+    ],
+    ["a missing corrections list", () => ({ ...v4Value(), contentCorrections: undefined })],
+    ["a missing overrides list", () => ({ ...v4Value(), priceOverrides: undefined })],
+  ];
+
+  it.each(breaches)("falls back to the defaults, without throwing, for %s", (_label, build) => {
+    expect(resolvePersisted(build(), 4)).toEqual({ data: defaultSettings(), status: "unreadable" });
+  });
+
+  it("accepts exactly 2,000 corrections and 2,000 overrides and refuses 2,001 of each", () => {
+    const products = singleMemberProducts(LIMITS.priceOverrides);
+    const corrections = (count: number) =>
+      Array.from({ length: count }, (_, index) => correction({ key: `k${String(index)}` }));
+    const overrides = (count: number) =>
+      Array.from({ length: count }, (_, index) => priceOverride({ productId: `prod_${String(index)}` }));
+    const build = (corrections_: number, overrides_: number) =>
+      withProducts(products, {
+        contentCorrections: corrections(corrections_),
+        priceOverrides: overrides(overrides_),
+      });
+    expect(resolvePersisted(build(LIMITS.contentCorrections, LIMITS.priceOverrides), 4).status).toBe(
+      "ok",
+    );
+    expect(resolvePersisted(build(LIMITS.contentCorrections + 1, 0), 4).status).toBe("unreadable");
+    expect(resolvePersisted(build(0, LIMITS.priceOverrides + 1), 4).status).toBe("unreadable");
+  });
+
+  it("drops an override of a product that is not stored and keeps the rest, without making the value unreadable", () => {
+    const stored = v4Value({
+      priceOverrides: [
+        priceOverride({ productId: "prod_1" }),
+        priceOverride({ productId: "prod_gone", comparable: true }),
+      ],
+    });
+    const result = resolvePersisted(stored, 4);
+    expect(result.status).toBe("ok");
+    expect(result.data).toEqual(v4Value({ priceOverrides: [priceOverride({ productId: "prod_1" })] }));
+  });
+
+  it("keeps a correction of a member that is in no product (it follows the member)", () => {
+    const stored = v4Value({ products: [], priceOverrides: [] });
+    expect(resolvePersisted(stored, 4)).toEqual({ data: stored, status: "ok" });
+  });
+});
+
+describe("contentAmountIssue (D-15)", () => {
+  it.each(["1", "0.375", "1000000", "999999.999999", "0.000001", "007"])(
+    "accepts %s",
+    (amount) => {
+      expect(contentAmountIssue(amount)).toBeNull();
+    },
+  );
+
+  it.each([
+    "0",
+    "0.0",
+    "-1",
+    "1e3",
+    "1,5",
+    "1000000.000001",
+    "0.0000001",
+    "",
+    " 1",
+    "1 ",
+    ".5",
+    "1.",
+    "12345678",
+    "abc",
+  ])("refuses %j", (amount) => {
+    expect(contentAmountIssue(amount)).not.toBeNull();
+  });
+});
+
+describe("priceIntegrityIssues and pruneDanglingOverrides", () => {
+  it("returns no issue for a valid value and for empty lists", () => {
+    expect(priceIntegrityIssues(v4Value())).toEqual([]);
+    expect(priceIntegrityIssues(defaultSettings())).toEqual([]);
+  });
+
+  it("reports a repeated correction and a repeated override with their paths", () => {
+    const issues = priceIntegrityIssues(
+      v4Value({
+        contentCorrections: [correction(), correction()],
+        priceOverrides: [priceOverride(), priceOverride()],
+      }),
+    );
+    expect(issues.map((issue) => issue.path)).toEqual([
+      ["contentCorrections", 1],
+      ["priceOverrides", 1],
+    ]);
+  });
+
+  it("returns the same object when no override is dangling and a new one otherwise, never mutating", () => {
+    const clean = v4Value();
+    expect(pruneDanglingOverrides(clean)).toBe(clean);
+    const dirty = v4Value({ priceOverrides: [priceOverride({ productId: "gone" })] });
+    const before = JSON.stringify(dirty);
+    const pruned = pruneDanglingOverrides(dirty);
+    expect(pruned.priceOverrides).toEqual([]);
+    expect(pruned).not.toBe(dirty);
+    expect(JSON.stringify(dirty)).toBe(before);
+  });
+});
+
+describe("resolvePersisted version 4 products and marks", () => {
   it("round-trips products and marks unchanged and reports ok", () => {
     const stored = withProducts(
       [
@@ -400,7 +717,7 @@ describe("resolvePersisted version 3", () => {
         ],
       },
     );
-    expect(resolvePersisted(stored, 3)).toEqual({ data: stored, status: "ok" });
+    expect(resolvePersisted(stored, 4)).toEqual({ data: stored, status: "ok" });
   });
 
   it('round-trips an rfc, key and description "__proto__" as plain data', () => {
@@ -413,7 +730,7 @@ describe("resolvePersisted version 3", () => {
     const stored = withProducts([product({ members: [odd] })], {
       ungroupedConcepts: [{ rfc: "__proto__", key: "otra", description: "otra", supplierName: "x" }],
     });
-    const result = resolvePersisted(stored, 3);
+    const result = resolvePersisted(stored, 4);
     expect(result.status).toBe("ok");
     expect(result.data.products[0]?.members[0]?.rfc).toBe("__proto__");
     expect(result.data.ungroupedConcepts[0]?.rfc).toBe("__proto__");
@@ -421,8 +738,8 @@ describe("resolvePersisted version 3", () => {
   });
 
   it("accepts a product with no category and an empty product list", () => {
-    expect(resolvePersisted(withProducts([product({ categoryId: null })]), 3).status).toBe("ok");
-    expect(resolvePersisted(defaultSettings(), 3).status).toBe("ok");
+    expect(resolvePersisted(withProducts([product({ categoryId: null })]), 4).status).toBe("ok");
+    expect(resolvePersisted(defaultSettings(), 4).status).toBe("ok");
   });
 
   const breaches: ReadonlyArray<[string, () => unknown]> = [
@@ -468,23 +785,23 @@ describe("resolvePersisted version 3", () => {
   ];
 
   it.each(breaches)("falls back to the defaults, without throwing, for %s", (_label, build) => {
-    expect(resolvePersisted(build(), 3)).toEqual({ data: defaultSettings(), status: "unreadable" });
+    expect(resolvePersisted(build(), 4)).toEqual({ data: defaultSettings(), status: "unreadable" });
   });
 
   it("accepts the limits themselves: 2,000 products, 5,000 members in total and 5,000 marks", () => {
-    expect(resolvePersisted(withProducts(singleMemberProducts(LIMITS.products)), 3).status).toBe("ok");
-    expect(resolvePersisted(withProducts(wideProducts(1000, false)), 3).status).toBe("ok");
+    expect(resolvePersisted(withProducts(singleMemberProducts(LIMITS.products)), 4).status).toBe("ok");
+    expect(resolvePersisted(withProducts(wideProducts(1000, false)), 4).status).toBe("ok");
     const marks = Array.from({ length: LIMITS.ungroupedConcepts }, (_, index) => mark(index));
-    expect(resolvePersisted(withProducts([], { ungroupedConcepts: marks }), 3).status).toBe("ok");
+    expect(resolvePersisted(withProducts([], { ungroupedConcepts: marks }), 4).status).toBe("ok");
   });
 
   it("refuses 2,001 products, 5,001 members in total and 5,001 marks", () => {
     expect(
-      resolvePersisted(withProducts(singleMemberProducts(LIMITS.products + 1)), 3).status,
+      resolvePersisted(withProducts(singleMemberProducts(LIMITS.products + 1)), 4).status,
     ).toBe("unreadable");
-    expect(resolvePersisted(withProducts(wideProducts(1001, true)), 3).status).toBe("unreadable");
+    expect(resolvePersisted(withProducts(wideProducts(1001, true)), 4).status).toBe("unreadable");
     const marks = Array.from({ length: LIMITS.ungroupedConcepts + 1 }, (_, index) => mark(index));
-    expect(resolvePersisted(withProducts([], { ungroupedConcepts: marks }), 3).status).toBe(
+    expect(resolvePersisted(withProducts([], { ungroupedConcepts: marks }), 4).status).toBe(
       "unreadable",
     );
   });

@@ -65,8 +65,16 @@ export function BackupControls({ onError }: { onError: (error: BackupError | nul
   const [open, setOpen] = useState(false);
 
   function download(): void {
-    const { ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts } =
-      useSettingsStore.getState();
+    const {
+      ivaMode,
+      categories,
+      supplierCategories,
+      conceptRules,
+      products,
+      ungroupedConcepts,
+      contentCorrections,
+      priceOverrides,
+    } = useSettingsStore.getState();
     // The only use of the browser's local date (UI-SPEC): the file name carries today's date.
     const today = new Date();
     const name = backupFileName({
@@ -74,7 +82,8 @@ export function BackupControls({ onError }: { onError: (error: BackupError | nul
       month: today.getMonth() + 1,
       day: today.getDate(),
     });
-    // File version 2: buildBackupText writes the six settings fields, products and marks included (D-13).
+    // File version 3: buildBackupText writes the eight settings fields, products, marks, content
+    // corrections and «no comparable» overrides included (D-13, D-15, D-19).
     const text = buildBackupText({
       ivaMode,
       categories,
@@ -82,6 +91,8 @@ export function BackupControls({ onError }: { onError: (error: BackupError | nul
       conceptRules,
       products,
       ungroupedConcepts,
+      contentCorrections,
+      priceOverrides,
     });
     downloadBlob(new Blob([text], { type: "application/json" }), name);
     toast(settingsDownloadedToast(name));

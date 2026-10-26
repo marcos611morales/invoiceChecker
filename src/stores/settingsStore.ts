@@ -59,7 +59,10 @@ import { useStorageStatusStore } from "./storageStatusStore";
  * the active tab live in sessionStore and are never written anywhere (D-30,
  * CARGA-06). Contract (Phase 4): key `invoicechecker:settings`,
  * `{ state: { ivaMode, categories, supplierCategories, conceptRules, products,
- * ungroupedConcepts }, version: 3 }`.
+ * ungroupedConcepts, contentCorrections, priceOverrides }, version: 4 }`.
+ * The Phase 4 contract (version 3, the first six fields) is migrated on load keeping all of it,
+ * with no content corrections and no «no comparable» marks (D-15, D-19). A «no comparable» mark of
+ * a product that is not stored is dropped on read, never a reason to refuse the value.
  * The Phase 3 contract (version 2, the first four fields) is migrated on load keeping all of
  * it, with no products and no «No agrupar» marks (D-13).
  * The Phase 2 contract `{ state: { ivaMode }, version: 1 }` is migrated on load:
@@ -191,13 +194,13 @@ interface SettingsState extends SettingsData {
    */
   unmarkUngrouped: (key: string) => UngroupedConcept | null;
   /**
-   * Replaces all six stored fields with an already validated settings value, in one `set`
+   * Replaces all eight stored fields with an already validated settings value, in one `set`
    * (AJUS-02, D-08), so persist writes once and a reader never sees a half-replaced state.
    */
   replaceAll: (data: SettingsData) => void;
 }
 
-/** The six stored fields of the current state, as the domain reducers take them. */
+/** The eight stored fields of the current state, as the domain reducers take them. */
 function dataOf(state: SettingsData): SettingsData {
   const {
     ivaMode,
@@ -206,8 +209,19 @@ function dataOf(state: SettingsData): SettingsData {
     conceptRules,
     products,
     ungroupedConcepts,
+    contentCorrections,
+    priceOverrides,
   } = state;
-  return { ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts };
+  return {
+    ivaMode,
+    categories,
+    supplierCategories,
+    conceptRules,
+    products,
+    ungroupedConcepts,
+    contentCorrections,
+    priceOverrides,
+  };
 }
 
 /**
@@ -391,6 +405,8 @@ export const useSettingsStore = create<SettingsState>()(
           conceptRules: data.conceptRules,
           products: data.products,
           ungroupedConcepts: data.ungroupedConcepts,
+          contentCorrections: data.contentCorrections,
+          priceOverrides: data.priceOverrides,
         });
       },
     }),
@@ -407,6 +423,8 @@ export const useSettingsStore = create<SettingsState>()(
         conceptRules: state.conceptRules,
         products: state.products,
         ungroupedConcepts: state.ungroupedConcepts,
+        contentCorrections: state.contentCorrections,
+        priceOverrides: state.priceOverrides,
       }),
       // Both delegate to the total resolvePersisted: an exception here would be
       // swallowed by zustand and silently reset the store (Pitfall 5).

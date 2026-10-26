@@ -806,19 +806,19 @@ describe("settings file messages (D-07, D-08)", () => {
 
   it("lists the five parts of the summary, plurals included (UI-SPEC 346)", () => {
     expect(
-      replaceSummaryText({ categories: 9, suppliers: 24, concepts: 7, products: 5, members: 14 }),
+      replaceSummaryText({ categories: 9, suppliers: 24, concepts: 7, products: 5, members: 14, corrections: 0, overrides: 0 }),
     ).toBe("9 categorías, 24 proveedores, 7 conceptos ajustados, 5 productos (14 descripciones)");
   });
 
   it("reads the singular forms for one and «0 …» for zero, never omitting a part", () => {
     expect(
-      replaceSummaryText({ categories: 1, suppliers: 0, concepts: 1, products: 1, members: 1 }),
+      replaceSummaryText({ categories: 1, suppliers: 0, concepts: 1, products: 1, members: 1, corrections: 0, overrides: 0 }),
     ).toBe("1 categoría, 0 proveedores, 1 concepto ajustado, 1 producto (1 descripción)");
     expect(
-      replaceSummaryText({ categories: 0, suppliers: 1, concepts: 0, products: 0, members: 0 }),
+      replaceSummaryText({ categories: 0, suppliers: 1, concepts: 0, products: 0, members: 0, corrections: 0, overrides: 0 }),
     ).toBe("0 categorías, 1 proveedor, 0 conceptos ajustados, 0 productos (0 descripciones)");
     expect(
-      replaceSummaryText({ categories: 2, suppliers: 2, concepts: 2, products: 2, members: 3 }),
+      replaceSummaryText({ categories: 2, suppliers: 2, concepts: 2, products: 2, members: 3, corrections: 0, overrides: 0 }),
     ).toBe("2 categorías, 2 proveedores, 2 conceptos ajustados, 2 productos (3 descripciones)");
   });
 
