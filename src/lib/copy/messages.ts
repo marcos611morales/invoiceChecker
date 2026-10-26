@@ -572,9 +572,11 @@ export function invalidFileText(name: string, motivo: string): string {
 }
 
 /**
- * {resumen} of the replace dialog: always the five parts, a zero reads «0 …» (D-08, UI-SPEC
- * 346): «9 categorías, 24 proveedores, 7 conceptos ajustados, 5 productos (14 descripciones)».
- * A version-1 file reads «0 productos (0 descripciones)».
+ * {resumen} of the replace dialog: always all seven parts, a zero reads «0 …» (D-08, UI-SPEC
+ * 346): «9 categorías, 24 proveedores, 7 conceptos ajustados, 5 productos (14 descripciones),
+ * 2 correcciones de contenido, 1 marca de no comparable» (Phase 5 adds the last two parts, zero
+ * shown as «0 …»). A version-1 file reads «0 productos (0 descripciones), 0 correcciones de
+ * contenido, 0 marcas de no comparable».
  */
 export function replaceSummaryText(summary: BackupSummary): string {
   const suppliers =
@@ -586,7 +588,15 @@ export function replaceSummaryText(summary: BackupSummary): string {
   const products = summary.products === 1 ? "1 producto" : `${String(summary.products)} productos`;
   const members =
     summary.members === 1 ? "1 descripción" : `${String(summary.members)} descripciones`;
-  return `${categoryCountLabel(summary.categories)}, ${suppliers}, ${concepts}, ${products} (${members})`;
+  const corrections =
+    summary.corrections === 1
+      ? "1 corrección de contenido"
+      : `${String(summary.corrections)} correcciones de contenido`;
+  const overrides =
+    summary.overrides === 1
+      ? "1 marca de no comparable"
+      : `${String(summary.overrides)} marcas de no comparable`;
+  return `${categoryCountLabel(summary.categories)}, ${suppliers}, ${concepts}, ${products} (${members}), ${corrections}, ${overrides}`;
 }
 
 /** Body of the replace dialog: replacing also replaces the products agrupados (UI-SPEC 347). */
@@ -1309,6 +1319,41 @@ export function bulkRejectedToast(n: number): string {
 /** Count line of the Precios tools row: «{n} productos» («1 producto»). */
 export function pricesCountLine(n: number): string {
   return n === 1 ? "1 producto" : `${String(n)} productos`;
+}
+
+/** Longest product name kept in the accessible name of a Precios row menu, «…» included (E5). */
+const PRICE_MENU_ARIA_MAX = 60;
+
+/** Longest product name kept in the «no comparable» toasts, «…» included (D-18). */
+const PRICE_TOAST_MAX = 40;
+
+/** `aria-label` of the «⋯» button of a Precios row: «Más acciones de «{producto}»», name cut at 60. */
+export function priceMenuAria(name: string): string {
+  return `Más acciones de «${capCodePoints(name, PRICE_MENU_ARIA_MAX)}»`;
+}
+
+/** Toast after «Marcar como no comparable»: the name is cut at 40 characters in total (D-18). */
+export function priceMarkedToast(name: string): string {
+  return `«${capCodePoints(name, PRICE_TOAST_MAX)}» marcado como no comparable`;
+}
+
+/** Toast after «Volver a comparar»: the name is cut at 40 characters in total (D-18). */
+export function priceRestoredToast(name: string): string {
+  return `«${capCodePoints(name, PRICE_TOAST_MAX)}» vuelve a compararse`;
+}
+
+/**
+ * Polite announcement after a mark (D-18): the products left in the comparison, in the singular
+ * grammatical form of the same sentence when one is left. The name is read in full.
+ */
+export function priceMarkedAnnouncement(name: string, remaining: number): string {
+  const left = remaining === 1 ? "Queda 1 producto." : `Quedan ${String(remaining)} productos.`;
+  return `Producto «${name}» marcado como no comparable. ${left}`;
+}
+
+/** Polite announcement after «Volver a comparar» (D-18). */
+export function priceRestoredAnnouncement(name: string): string {
+  return `Producto «${name}» vuelve a compararse.`;
 }
 
 /** Label of the checkbox that reveals the hidden products; «(0)» stays visible (D-07, D-18). */

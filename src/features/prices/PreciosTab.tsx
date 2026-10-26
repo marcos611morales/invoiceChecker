@@ -65,6 +65,8 @@ export function PreciosTab() {
   const [search, setSearch] = useState("");
   // Session only: the checkbox is not persisted (UI-SPEC Persistence contract).
   const [showHidden, setShowHidden] = useState(false);
+  // Polite announcement of a mark made in the table (D-18); the region below is always mounted.
+  const [announcement, setAnnouncement] = useState("");
 
   // Rows that are compared, and what the table gets: those plus the hidden ones when asked for (D-18).
   const comparableRows = useMemo(
@@ -235,12 +237,18 @@ export function PreciosTab() {
                   rows={shown}
                   historySlots={historySlots}
                   comparability={comparability}
+                  showHidden={showHidden}
+                  comparableCount={comparableRows.length}
+                  onAnnounce={setAnnouncement}
                 />
               )}
             </div>
           )}
         </>
       )}
+      <p data-testid="prices-announcement" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
     </section>
   );
 }

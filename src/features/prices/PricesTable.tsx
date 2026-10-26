@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useId, useMemo, useState } from "react";
+import { Fragment, useId, useMemo, useRef, useState } from "react";
 import Big from "big.js";
 import {
   constructSortFn,
@@ -13,11 +13,18 @@ import {
   useTable,
 } from "@tanstack/react-table";
 import type { Header, PaginationState, SortingState } from "@tanstack/react-table";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Ellipsis } from "lucide-react";
+import { toast } from "sonner";
 import { SortHeaderButton, ariaSort } from "@/components/SortHeaderButton";
 import { TruncatedText } from "@/components/TruncatedText";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -26,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Comparability } from "@/domain/prices/comparable";
 import type { ProductComparison } from "@/domain/prices/compare";
 import type { SeriesSlot } from "@/domain/prices/history";
@@ -36,11 +44,21 @@ import {
   onlyAtStore,
   paginationPageText,
   paginationRangeText,
+  priceMarkedAnnouncement,
+  priceMarkedToast,
+  priceMenuAria,
   pricePerStoresCaption,
+  priceRestoredAnnouncement,
+  priceRestoredToast,
 } from "@/lib/copy/messages";
 import { formatMoney, unitPriceText } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { PRICES_TITLE_ID } from "./focusTargets";
 import { ProductDetail } from "./ProductDetail";
+
+/** The undo toast stays six seconds (UI-SPEC defaults). */
+const TOAST_DURATION_MS = 6000;
 
 /** Slots when the caller has none: every store of a product falls into «Otras tiendas». */
 const NO_HISTORY_SLOTS: ReadonlyMap<string, ReadonlyMap<string, SeriesSlot>> = new Map();
@@ -261,6 +279,57 @@ function PriceCell({ row }: { row: PriceRow }) {
 }
 
 /**
+ * The «⋯» menu of a row (D-18, E5): one item, the one of the row's state. The button has a Tooltip
+ * with the same text as its accessible name. After the menu closes, focus goes to the tab heading
+ * when the row is about to leave the list, else back to the button.
+ */
+function RowMenu({
+  row,
+  leavingRef,
+  onChange,
+}: {
+  row: PriceRow;
+  leavingRef: { current: boolean };
+  onChange: (row: PriceRow) => void;
+}) {
+  const label = priceMenuAria(row.name);
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              aria-label={label}
+              render={<Button type="button" variant="ghost" size="icon" className="size-9 max-sm:size-11" />}
+            />
+          }
+        >
+          <Ellipsis aria-hidden="true" />
+        </TooltipTrigger>
+        <TooltipContent className="break-words">{label}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent
+        align="end"
+        className="w-auto min-w-44"
+        finalFocus={() => {
+          if (!leavingRef.current) return true;
+          leavingRef.current = false;
+          return document.getElementById(PRICES_TITLE_ID);
+        }}
+      >
+        <DropdownMenuItem
+          onClick={() => {
+            onChange(row);
+          }}
+        >
+          {row.hidden ? es.prices.menu.restore : es.prices.menu.mark}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
  * Products of the Precios tab: one row per product with purchases (D-07). All vendor and user
  * text is rendered as React text, and only supplier names are shown, never RFCs. Rows arrive in
  * product order; they are ordered by name first so that rows tied on the active sort keep the
@@ -270,12 +339,21 @@ export function PricesTable({
   rows,
   historySlots = NO_HISTORY_SLOTS,
   comparability = NO_COMPARABILITY,
+  showHidden = false,
+  comparableCount,
+  onAnnounce,
 }: {
   rows: readonly ProductComparison[];
   /** Product id to store RFC to series slot: the stable colors of the price history (PREC-06). */
   historySlots?: ReadonlyMap<string, ReadonlyMap<string, SeriesSlot>>;
   /** Product id to its effective comparability; a row with no entry is compared (D-18). */
   comparability?: ReadonlyMap<string, Comparability>;
+  /** True when the not-compared rows are listed too: a marked row then stays where it is (D-18). */
+  showHidden?: boolean;
+  /** Products compared within the filters, search ignored; the rows given when absent. */
+  comparableCount?: number;
+  /** Receives the polite announcement of a mark; the tab renders it in a live region. */
+  onAnnounce?: (message: string) => void;
 }) {
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
   const [pagination, setPagination] = useState<PaginationState>(INITIAL_PAGINATION);
@@ -315,6 +393,37 @@ export function PricesTable({
     enableSortingRemoval: false,
     enableMultiSort: false,
   });
+
+  const setOverride = useSettingsStore((state) => state.setPriceOverride);
+  const restoreOverride = useSettingsStore((state) => state.restorePriceOverride);
+  // Set when the row being changed is about to leave the list, read when its menu closes.
+  const leavingRef = useRef(false);
+  const comparedNow = comparableCount ?? data.filter((row) => !row.hidden).length;
+
+  // Marks or unmarks one product at once: persists, toasts with «Deshacer» and announces (D-18, D-19).
+  const changeComparable = (row: PriceRow) => {
+    const comparable = row.hidden;
+    const result = setOverride(row.id, comparable, row.defaultComparable);
+    // Refused (unknown product or the list is full): nothing changed, so there is nothing to say.
+    if (!result.ok) return;
+    leavingRef.current = !comparable && !showHidden;
+    const { previous } = result;
+    toast(comparable ? priceRestoredToast(row.name) : priceMarkedToast(row.name), {
+      duration: TOAST_DURATION_MS,
+      action: {
+        label: es.prices.menu.undo,
+        onClick: () => {
+          restoreOverride(row.id, previous);
+          onAnnounce?.("");
+        },
+      },
+    });
+    onAnnounce?.(
+      comparable
+        ? priceRestoredAnnouncement(row.name)
+        : priceMarkedAnnouncement(row.name, Math.max(0, comparedNow - 1)),
+    );
+  };
 
   const toggle = (id: string) => {
     setExpanded((current) => {
@@ -361,6 +470,9 @@ export function PricesTable({
                 <span className="sr-only">{es.prices.detail.expanderHeader}</span>
               </TableHead>
               {group.headers.map(renderHeader)}
+              <TableHead className="w-12">
+                <span className="sr-only">{es.prices.actionsHeader}</span>
+              </TableHead>
             </TableRow>
           ))}
         </TableHeader>
@@ -414,12 +526,15 @@ export function PricesTable({
                       </TableCell>
                     );
                   })}
+                  <TableCell className="w-12">
+                    <RowMenu row={row} leavingRef={leavingRef} onChange={changeComparable} />
+                  </TableCell>
                 </TableRow>
                 {open ? (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
                       id={panelId}
-                      colSpan={columns.length + 1}
+                      colSpan={columns.length + 2}
                       className="bg-secondary p-4 whitespace-normal sm:p-6"
                     >
                       <ProductDetail row={row.comparison} slots={historySlots.get(row.id)} />

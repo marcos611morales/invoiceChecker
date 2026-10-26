@@ -649,19 +649,22 @@ describe("Row menu: marking a product as no comparable (PREC-03, D-18, D-19, E5)
     seedTwoProducts();
     render(<AppShell />);
     openPrecios();
-    act(() => {
-      useStorageStatusStore.setState({ writeFailed: true });
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota");
     });
+    try {
+      await choose("Azúcar estándar", "Marcar como no comparable");
 
-    await choose("Azúcar estándar", "Marcar como no comparable");
-
-    expect(useSettingsStore.getState().priceOverrides).toHaveLength(1);
-    expect(panel().queryByRole("cell", { name: "Azúcar estándar" })).toBeNull();
-    expect(
-      panel().getByText(
-        "Este navegador no permite guardar tus ajustes. Los cambios se perderán al cerrar la página; descarga tus ajustes para no perderlos.",
-      ),
-    ).toBeInTheDocument();
+      expect(useSettingsStore.getState().priceOverrides).toHaveLength(1);
+      expect(panel().queryByRole("cell", { name: "Azúcar estándar" })).toBeNull();
+      expect(
+        panel().getByText(
+          "Este navegador no permite guardar tus ajustes. Los cambios se perderán al cerrar la página; descarga tus ajustes para no perderlos.",
+        ),
+      ).toBeInTheDocument();
+    } finally {
+      blocked.mockRestore();
+    }
   });
 
   it("explains the empty state after the last compared product is marked", async () => {
