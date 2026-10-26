@@ -25,6 +25,7 @@ import {
   pricePerStoresCaption,
   noSearchMatch,
   pricesCountLine,
+  showHiddenLabel,
   savingsPerPieceNote,
   savingsProductsLabel,
   categoryAddedText,
@@ -1348,6 +1349,26 @@ describe("Precios tab sentences (D-07, D-22, D-23)", () => {
     expect(pricesCountLine(0)).toBe("0 productos");
     expect(pricesCountLine(1)).toBe("1 producto");
     expect(pricesCountLine(12)).toBe("12 productos");
+  });
+
+  it("labels the checkbox of the hidden products with their count, zero included (D-07, D-18)", () => {
+    expect(showHiddenLabel(0)).toBe("Mostrar los no comparables (0)");
+    expect(showHiddenLabel(1)).toBe("Mostrar los no comparables (1)");
+    expect(showHiddenLabel(3)).toBe("Mostrar los no comparables (3)");
+  });
+
+  it("pins the static copy of the non-comparable rows and the all-hidden empty state", () => {
+    expect(es.prices.noComparable.badge).toBe("No comparable");
+    expect(es.prices.noComparable.byDefault).toBe(
+      "Se excluye por defecto: sus compras son de servicios o combustible.",
+    );
+    expect(es.prices.noComparable.byUser).toBe("Lo marcaste tú como no comparable.");
+    expect(es.prices.empty.allHiddenHeading).toBe(
+      "Todos los productos con compras están marcados como no comparables",
+    );
+    expect(es.prices.empty.allHiddenBody).toBe(
+      "Activa «Mostrar los no comparables» para verlos y volver a compararlos.",
+    );
   });
 
   it("counts the products behind the savings card in singular and plural", () => {
