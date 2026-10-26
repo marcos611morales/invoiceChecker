@@ -8,11 +8,16 @@ import {
   type ProductMember,
   type SettingsData,
   type SettingsDataV2,
+  type SettingsDataV3,
 } from "@/domain/settings/types";
 import { useSessionStore } from "./sessionStore";
 import { useSettingsStore } from "./settingsStore";
 import { useStorageStatusStore } from "./storageStatusStore";
-import { resetSettingsStore, storeSettingsV2 } from "../../tests/support/settingsStorage";
+import {
+  resetSettingsStore,
+  storeSettingsV2,
+  storeSettingsV3,
+} from "../../tests/support/settingsStorage";
 
 const KEY = "invoicechecker:settings";
 
@@ -21,12 +26,29 @@ async function rehydrate(): Promise<void> {
 }
 
 function snapshot(): SettingsData {
-  const { ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts } =
-    useSettingsStore.getState();
-  return { ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts };
+  const {
+    ivaMode,
+    categories,
+    supplierCategories,
+    conceptRules,
+    products,
+    ungroupedConcepts,
+    contentCorrections,
+    priceOverrides,
+  } = useSettingsStore.getState();
+  return {
+    ivaMode,
+    categories,
+    supplierCategories,
+    conceptRules,
+    products,
+    ungroupedConcepts,
+    contentCorrections,
+    priceOverrides,
+  };
 }
 
-function storeRaw(state: unknown, version: number | undefined = 3): void {
+function storeRaw(state: unknown, version: number | undefined = 4): void {
   window.localStorage.setItem(KEY, JSON.stringify({ state, version }));
 }
 
@@ -89,13 +111,13 @@ describe("settingsStore defaults", () => {
 });
 
 describe("settingsStore migration from the Phase 2 contract (D-06, D-25)", () => {
-  it("rehydrates a stored version 1 Sin IVA with the nine suggestions and rewrites storage as version 3", async () => {
+  it("rehydrates a stored version 1 Sin IVA with the nine suggestions and rewrites storage as version 4", async () => {
     storeRaw({ ivaMode: "sin" }, 1);
     await rehydrate();
     expect(snapshot()).toEqual({ ...defaultSettings(), ivaMode: "sin" });
     expect(storedEnvelope()).toEqual({
       state: { ...defaultSettings(), ivaMode: "sin" },
-      version: 3,
+      version: 4,
     });
   });
 
@@ -131,14 +153,26 @@ function phase3Value(): SettingsDataV2 {
 }
 
 describe("settingsStore stored version 2 (the Phase 3 value, D-13)", () => {
-  it("rehydrates with every field kept, no products and no marks, and rewrites storage as version 3", async () => {
+  it("rehydrates with every field kept, no products and no marks, and rewrites storage as version 4", async () => {
     const stored = phase3Value();
     storeRaw(stored, 2);
     await rehydrate();
-    expect(snapshot()).toEqual({ ...stored, products: [], ungroupedConcepts: [] });
+    expect(snapshot()).toEqual({
+      ...stored,
+      products: [],
+      ungroupedConcepts: [],
+      contentCorrections: [],
+      priceOverrides: [],
+    });
     expect(storedEnvelope()).toEqual({
-      state: { ...stored, products: [], ungroupedConcepts: [] },
-      version: 3,
+      state: {
+      ...stored,
+      products: [],
+      ungroupedConcepts: [],
+      contentCorrections: [],
+      priceOverrides: [],
+    },
+      version: 4,
     });
   });
 
@@ -146,7 +180,13 @@ describe("settingsStore stored version 2 (the Phase 3 value, D-13)", () => {
     const stored = phase3Value();
     storeSettingsV2(stored);
     await rehydrate();
-    expect(snapshot()).toEqual({ ...stored, products: [], ungroupedConcepts: [] });
+    expect(snapshot()).toEqual({
+      ...stored,
+      products: [],
+      ungroupedConcepts: [],
+      contentCorrections: [],
+      priceOverrides: [],
+    });
     expect(useStorageStatusStore.getState().readFailed).toBe(false);
   });
 
@@ -160,6 +200,8 @@ describe("settingsStore stored version 2 (the Phase 3 value, D-13)", () => {
       conceptRules: [],
       products: [],
       ungroupedConcepts: [],
+      contentCorrections: [],
+      priceOverrides: [],
     });
   });
 
@@ -172,9 +214,167 @@ describe("settingsStore stored version 2 (the Phase 3 value, D-13)", () => {
   });
 });
 
-describe("settingsStore stored version 3", () => {
+/** A Phase 4 value (six fields), as a browser that only used version 3 stored it. */
+function phase4Value(): SettingsDataV3 {
+  return {
+    ...phase3Value(),
+    products: [
+      {
+        id: "prod_1",
+        name: "Leche entera",
+        categoryId: "cat_1",
+        members: [
+          { rfc: "AAA010101AAA", key: "mm leche ent", description: "MM LECHE ENT", supplierName: "Proveedor A" },
+        ],
+      },
+    ],
+    ungroupedConcepts: [
+      { rfc: "AAA010101AAA", key: "flete", description: "FLETE", supplierName: "Proveedor A" },
+    ],
+  };
+}
+
+describe("settingsStore stored version 3 (the Phase 4 value, D-15, D-19)", () => {
+  it("rehydrates with every category, assignment, rule, product, member and mark kept, no corrections and no overrides, and rewrites storage as version 4", async () => {
+    const stored = phase4Value();
+    storeRaw(stored, 3);
+    await rehydrate();
+    const expected: SettingsData = { ...stored, contentCorrections: [], priceOverrides: [] };
+    expect(snapshot()).toEqual(expected);
+    expect(storedEnvelope()).toEqual({ state: expected, version: 4 });
+    expect(useStorageStatusStore.getState().readFailed).toBe(false);
+  });
+
+  it("is what storeSettingsV3 writes, and does not mark a read failure", async () => {
+    const stored = phase4Value();
+    storeSettingsV3(stored);
+    await rehydrate();
+    expect(snapshot()).toEqual({ ...stored, contentCorrections: [], priceOverrides: [] });
+    expect(useStorageStatusStore.getState().readFailed).toBe(false);
+  });
+
+  it("gives the defaults for a malformed stored version 3, without throwing", async () => {
+    primeWithSin();
+    storeRaw({ ...phase4Value(), products: [{ id: "prod_1", name: "Leche", categoryId: "missing", members: [] }] }, 3);
+    await expect(rehydrate()).resolves.toBeUndefined();
+    expect(snapshot()).toEqual(defaultSettings());
+    expect(useStorageStatusStore.getState().readFailed).toBe(true);
+  });
+});
+
+describe("settingsStore stored version 4: corrections and «no comparable» overrides (D-15, D-19)", () => {
+  function withPrice(): SettingsData {
+    return {
+      ...phase4Value(),
+      contentCorrections: [
+        {
+          rfc: "AAA010101AAA",
+          key: "mm leche ent",
+          description: "MM LECHE ENT",
+          supplierName: "Proveedor A",
+          packs: 12,
+          amount: "1",
+          unit: "l",
+        },
+        {
+          rfc: "__proto__",
+          key: "__proto__",
+          description: "constructor",
+          supplierName: "toString",
+          packs: 1,
+          amount: "0.375",
+          unit: "kg",
+        },
+      ],
+      priceOverrides: [{ productId: "prod_1", comparable: false }],
+    };
+  }
+
+  it("rehydrates the corrections and the overrides unchanged, including an rfc __proto__", async () => {
+    const stored = withPrice();
+    storeRaw(stored);
+    await rehydrate();
+    expect(snapshot()).toEqual(stored);
+    expect(useStorageStatusStore.getState().readFailed).toBe(false);
+    expect(Reflect.get(Object.prototype, "polluted")).toBeUndefined();
+  });
+
+  it("keeps the corrections and the overrides written by the store itself after a reload", async () => {
+    const next = withPrice();
+    useSettingsStore.getState().replaceAll(next);
+    const stored = storedEnvelope();
+    expect(stored).toEqual({ state: next, version: 4 });
+    // Forget the in-memory values without touching the stored ones, as a reload does.
+    useSettingsStore.setState(defaultSettings());
+    window.localStorage.setItem(KEY, JSON.stringify(stored));
+    await rehydrate();
+    expect(snapshot()).toEqual(next);
+  });
+
+  it("drops an override of a product that is not stored and keeps everything else, without a read failure", async () => {
+    const stored = withPrice();
+    storeRaw({
+      ...stored,
+      priceOverrides: [...stored.priceOverrides, { productId: "prod_gone", comparable: true }],
+    });
+    await rehydrate();
+    expect(snapshot()).toEqual(stored);
+    expect(useStorageStatusStore.getState().readFailed).toBe(false);
+  });
+
+  it("falls back to the defaults for a repeated correction", async () => {
+    primeWithSin();
+    const stored = withPrice();
+    const first = stored.contentCorrections[0];
+    if (first === undefined) throw new Error("the sample has corrections");
+    storeRaw({ ...stored, contentCorrections: [first, first] });
+    await expect(rehydrate()).resolves.toBeUndefined();
+    expect(snapshot()).toEqual(defaultSettings());
+    expect(useStorageStatusStore.getState().readFailed).toBe(true);
+  });
+
+  it("falls back to the defaults for an amount that is not a decimal greater than 0", async () => {
+    primeWithSin();
+    const stored = withPrice();
+    const first = stored.contentCorrections[0];
+    if (first === undefined) throw new Error("the sample has corrections");
+    storeRaw({ ...stored, contentCorrections: [{ ...first, amount: "0" }] });
+    await expect(rehydrate()).resolves.toBeUndefined();
+    expect(snapshot()).toEqual(defaultSettings());
+    expect(useStorageStatusStore.getState().readFailed).toBe(true);
+  });
+
+  it("stores no invoice data: the stored text of the corrections holds only the seven contract keys", () => {
+    useSettingsStore.getState().replaceAll(withPrice());
+    const envelope = storedEnvelope();
+    const state = typeof envelope === "object" && envelope !== null ? Reflect.get(envelope, "state") : null;
+    const corrections: unknown =
+      typeof state === "object" && state !== null ? Reflect.get(state, "contentCorrections") : null;
+    expect(Array.isArray(corrections)).toBe(true);
+    if (!Array.isArray(corrections)) return;
+    for (const item of corrections) {
+      expect(typeof item === "object" && item !== null ? Object.keys(item).sort() : []).toEqual([
+        "amount",
+        "description",
+        "key",
+        "packs",
+        "rfc",
+        "supplierName",
+        "unit",
+      ]);
+    }
+  });
+});
+
+describe("settingsStore stored version 4", () => {
   it("rehydrates a valid value unchanged", async () => {
-    const stored: SettingsData = { ...phase3Value(), products: [], ungroupedConcepts: [] };
+    const stored: SettingsData = {
+      ...phase3Value(),
+      products: [],
+      ungroupedConcepts: [],
+      contentCorrections: [],
+      priceOverrides: [],
+    };
     storeRaw(stored);
     await rehydrate();
     expect(snapshot()).toEqual(stored);
@@ -197,11 +397,13 @@ describe("settingsStore stored version 3", () => {
       ungroupedConcepts: [
         { rfc: "AAA010101AAA", key: "flete", description: "FLETE", supplierName: "Proveedor A" },
       ],
+      contentCorrections: [],
+      priceOverrides: [],
     };
     storeRaw(stored);
     await rehydrate();
     expect(snapshot()).toEqual(stored);
-    expect(storedEnvelope()).toEqual({ state: stored, version: 3 });
+    expect(storedEnvelope()).toEqual({ state: stored, version: 4 });
     expect(Reflect.get(Object.prototype, "polluted")).toBeUndefined();
   });
 
@@ -246,6 +448,8 @@ describe("settingsStore stored version 3", () => {
       conceptRules: [],
       products: [],
       ungroupedConcepts: [],
+      contentCorrections: [],
+      priceOverrides: [],
     });
     await rehydrate();
     expect(snapshot()).toEqual({
@@ -255,6 +459,8 @@ describe("settingsStore stored version 3", () => {
       conceptRules: [],
       products: [],
       ungroupedConcepts: [],
+      contentCorrections: [],
+      priceOverrides: [],
     });
   });
 
@@ -442,7 +648,7 @@ describe("settingsStore storage failures", () => {
 });
 
 describe("settingsStore writes", () => {
-  it("writes { state: { ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts }, version: 3 } under the contract key", () => {
+  it("writes { state: { the eight settings fields }, version: 4 } under the contract key", () => {
     useSettingsStore.getState().setIvaMode("sin");
     expect(storedEnvelope()).toEqual({
       state: {
@@ -452,12 +658,14 @@ describe("settingsStore writes", () => {
         conceptRules: [],
         products: [],
         ungroupedConcepts: [],
+        contentCorrections: [],
+        priceOverrides: [],
       },
-      version: 3,
+      version: 4,
     });
   });
 
-  it("writes nothing but the settings key, holding only the six settings fields (D-30, CARGA-06)", () => {
+  it("writes nothing but the settings key, holding only the eight settings fields (D-30, CARGA-06)", () => {
     const session = useSessionStore.getState();
     session.excludeInvoice("A");
     session.setRange({ from: "2025-01", to: "2025-03" });
@@ -470,13 +678,15 @@ describe("settingsStore writes", () => {
     expect(window.localStorage.key(0)).toBe(KEY);
     expect(window.sessionStorage.length).toBe(0);
     const stored = storedEnvelope();
-    expect(stored).toEqual({ state: defaultSettings(), version: 3 });
+    expect(stored).toEqual({ state: defaultSettings(), version: 4 });
     const state: unknown =
       typeof stored === "object" && stored !== null && "state" in stored ? stored.state : null;
     expect(Object.keys(typeof state === "object" && state !== null ? state : {}).sort()).toEqual([
       "categories",
       "conceptRules",
+      "contentCorrections",
       "ivaMode",
+      "priceOverrides",
       "products",
       "supplierCategories",
       "ungroupedConcepts",
@@ -511,7 +721,7 @@ describe("settingsStore setSupplierCategory (CAT-02)", () => {
     expect(snapshot().supplierCategories).toEqual([
       { rfc: "AAA010101AAA", name: "Nuevo", categoryId: "seed:otros" },
     ]);
-    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 3 });
+    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 4 });
   });
 
   it("removes the assignment with null", () => {
@@ -552,7 +762,7 @@ describe("settingsStore category actions (CAT-01, CAT-05)", () => {
     expect(result.category.name).toBe("Café");
     expect(result.category.id).toMatch(/^cat_.+/);
     expect(snapshot().categories.at(-1)).toEqual(result.category);
-    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 3 });
+    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 4 });
   });
 
   it("generates a different id on every add", () => {
@@ -691,7 +901,7 @@ describe("settingsStore setConceptRule (CAT-03)", () => {
         categoryId: "seed:servicios",
       },
     ]);
-    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 3 });
+    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 4 });
   });
 
   it("replaces the rule of the same rfc and description and stores null as an explicit adjustment", () => {
@@ -762,7 +972,7 @@ describe("settingsStore removeConceptRule and restoreConceptRule (CAT-03, Q5)", 
     useSettingsStore.getState().restoreConceptRule(RFC, "cloro", changed.previous);
     expect(setItem).toHaveBeenCalledTimes(1);
     expect(snapshot()).toEqual(before);
-    expect(storedEnvelope()).toEqual({ state: before, version: 3 });
+    expect(storedEnvelope()).toEqual({ state: before, version: 4 });
   });
 
   it("removes the rule when the change had no previous one", () => {
@@ -897,17 +1107,29 @@ describe("settingsStore replaceAll (AJUS-02, D-08)", () => {
       ungroupedConcepts: [
         { rfc: "EKU9003173C9", key: "flete", description: "Flete", supplierName: "Proveedor uno" },
       ],
+      contentCorrections: [
+        {
+          rfc: "EKU9003173C9",
+          key: "renta mes",
+          description: "Renta mes",
+          supplierName: "Proveedor uno",
+          packs: 12,
+          amount: "0.946",
+          unit: "l",
+        },
+      ],
+      priceOverrides: [{ productId: "prod_1", comparable: false }],
     };
   }
 
-  it("sets all six fields in one write and stores exactly the envelope of version 3", () => {
+  it("sets all eight fields in one write and stores exactly the envelope of version 4", () => {
     useSettingsStore.getState().setSupplierCategory("AAA010101AAA", "Proveedor A", "seed:servicios");
     const setItem = vi.spyOn(Storage.prototype, "setItem");
     const data = incoming();
     useSettingsStore.getState().replaceAll(data);
     expect(setItem).toHaveBeenCalledTimes(1);
     expect(snapshot()).toEqual(data);
-    expect(storedEnvelope()).toEqual({ state: data, version: 3 });
+    expect(storedEnvelope()).toEqual({ state: data, version: 4 });
   });
 
   it("keeps the actions of the store usable after a replace", () => {
@@ -929,6 +1151,8 @@ describe("settingsStore replaceAll (AJUS-02, D-08)", () => {
       conceptRules: [],
       products: [],
       ungroupedConcepts: [],
+      contentCorrections: [],
+      priceOverrides: [],
     });
     expect(snapshot().categories).toEqual([]);
   });
@@ -1086,7 +1310,7 @@ describe("settingsStore product actions (D-14, D-15)", () => {
     expect(setItem).toHaveBeenCalledTimes(1);
     expect(snapshot().products.map((product) => product.categoryId)).toEqual(["seed:servicios", null]);
     expect(snapshot().categories).toBe(before.categories);
-    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 3 });
+    expect(storedEnvelope()).toEqual({ state: snapshot(), version: 4 });
 
     setItem.mockClear();
     expect(useSettingsStore.getState().setProductCategory("prod_a", null)).toEqual({ ok: true });

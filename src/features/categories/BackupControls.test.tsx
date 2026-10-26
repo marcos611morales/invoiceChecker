@@ -55,14 +55,33 @@ function incoming(overrides: Partial<SettingsData> = {}): SettingsData {
     conceptRules: [{ rfc: "EKU9003173C9", key: "renta", description: "Renta", categoryId: null }],
     products: [],
     ungroupedConcepts: [],
+    contentCorrections: [],
+    priceOverrides: [],
     ...overrides,
   };
 }
 
 function snapshot(): SettingsData {
-  const { ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts } =
-    useSettingsStore.getState();
-  return { ivaMode, categories, supplierCategories, conceptRules, products, ungroupedConcepts };
+  const {
+    ivaMode,
+    categories,
+    supplierCategories,
+    conceptRules,
+    products,
+    ungroupedConcepts,
+    contentCorrections,
+    priceOverrides,
+  } = useSettingsStore.getState();
+  return {
+    ivaMode,
+    categories,
+    supplierCategories,
+    conceptRules,
+    products,
+    ungroupedConcepts,
+    contentCorrections,
+    priceOverrides,
+  };
 }
 
 function fileInput(): HTMLInputElement {
@@ -113,7 +132,7 @@ describe("BackupControls: download (D-07)", () => {
     expect(toastMock).toHaveBeenCalledWith(`Ajustes descargados: ${String(name)}`);
   });
 
-  it("writes file version 2 with the six fields, products and marks included, when the store holds products (D-13)", async () => {
+  it("writes file version 3 with the eight fields, products, marks, corrections and overrides included (D-13, D-15, D-19)", async () => {
     useSettingsStore.getState().replaceAll(
       incoming({
         categories: [{ id: "cat_a", name: "Eventos" }],
@@ -130,6 +149,18 @@ describe("BackupControls: download (D-07)", () => {
         ungroupedConcepts: [
           { rfc: "EKU9003173C9", key: "flete", description: "Flete", supplierName: "Uno" },
         ],
+        contentCorrections: [
+          {
+            rfc: "EKU9003173C9",
+            key: "leche",
+            description: "Leche",
+            supplierName: "Uno",
+            packs: 12,
+            amount: "0.946",
+            unit: "l",
+          },
+        ],
+        priceOverrides: [{ productId: "prod_1", comparable: false }],
       }),
     );
     render(<Harness />);
@@ -139,8 +170,11 @@ describe("BackupControls: download (D-07)", () => {
     const text = await blob.text();
     expect(text).toContain("prod_1");
     expect(text).toContain("flete");
+    expect(text).toContain('"contentCorrections"');
+    expect(text).toContain('"priceOverrides"');
+    expect(text).toContain('"amount": "0.946"');
     const parsed: unknown = JSON.parse(text);
-    expect(parsed).toMatchObject({ app: BACKUP_APP, version: 2 });
+    expect(parsed).toMatchObject({ app: BACKUP_APP, version: 3 });
     expect(Object.keys(typeof parsed === "object" && parsed !== null ? parsed : {}).sort()).toEqual([
       "app",
       "settings",
@@ -282,6 +316,43 @@ describe("BackupControls: upload of a valid file (D-08)", () => {
     expect(useSettingsStore.getState().ungroupedConcepts).toHaveLength(1);
   });
 
+  it("loads a version-3 file with its corrections and «no comparable» marks (D-15, D-19)", async () => {
+    const withPrice = incoming({
+      products: [
+        {
+          id: "prod_1",
+          name: "Leche entera",
+          categoryId: "cat_a",
+          members: [
+            { rfc: "EKU9003173C9", key: "leche entera 1 l", description: "Leche entera 1 L", supplierName: "Proveedor uno" },
+          ],
+        },
+      ],
+      contentCorrections: [
+        {
+          rfc: "EKU9003173C9",
+          key: "leche entera 1 l",
+          description: "Leche entera 1 L",
+          supplierName: "Proveedor uno",
+          packs: 1,
+          amount: "1",
+          unit: "l",
+        },
+      ],
+      priceOverrides: [{ productId: "prod_1", comparable: false }],
+    });
+    render(<Harness />);
+    await choose(jsonFile(buildBackupText(withPrice), "precios.json"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(snapshot().contentCorrections).toEqual([]);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reemplazar mis ajustes" }));
+    expect(snapshot()).toEqual(withPrice);
+    expect(useSettingsStore.getState().contentCorrections).toHaveLength(1);
+    expect(useSettingsStore.getState().priceOverrides).toEqual([
+      { productId: "prod_1", comparable: false },
+    ]);
+  });
+
   it("changes nothing on «Conservar los míos» and Esc", async () => {
     const before = snapshot();
     render(<Harness />);
@@ -378,9 +449,9 @@ describe("BackupControls: invalid files (D-08, D-30)", () => {
     await expectRefused(jsonFile("hola", "nota.json"), "no es un archivo de ajustes de InvoiceChecker");
   });
 
-  it("refuses a version-3 file as coming from a newer app", async () => {
+  it("refuses a version-4 file as coming from a newer app", async () => {
     await expectRefused(
-      jsonFile(JSON.stringify({ app: BACKUP_APP, version: 3, settings: {} }), "futuro.json"),
+      jsonFile(JSON.stringify({ app: BACKUP_APP, version: 4, settings: {} }), "futuro.json"),
       "es de una versión más nueva de la app",
     );
   });
