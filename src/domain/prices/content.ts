@@ -1,12 +1,14 @@
 /**
  * Content of one purchase line: how many kg, L or pieces the line bought (Phase 5, D-09).
  * Weight and volume units use the XML quantity times the unit factor and ignore the
- * description (D-09 step 2). A piece unit has no verified size here: the content is the
- * number of pieces and the line is `sized: false` (the size reader of Plan 05-05 and the
- * user's correction of Plan 05-10 plug into this function).
+ * description (D-09 step 2). A piece unit takes its size from the description when the reader
+ * finds one (D-09 step 3, D-25: kg, L or counted pieces, `sized: true`, source "description");
+ * otherwise the content is the number of pieces and the line is `sized: false` (the user's
+ * correction of Plan 05-10 plugs into this function).
  */
 import type Big from "big.js";
 import { ZERO, parseDecimal } from "../accounting/decimal";
+import { readSize } from "./sizeReader";
 import { unitRuleOf, type UnitFamily } from "./units";
 
 /** Why a purchase does not enter the comparison. */
@@ -36,6 +38,16 @@ export function resolveContent(line: {
   const rule = unitRuleOf(line.claveUnidad);
   if (rule === null) return { ok: false, reason: "unit-unknown" };
   if (rule.family === "piece") {
+    const reading = readSize(line.descripcion);
+    if (reading.kind === "size") {
+      return {
+        ok: true,
+        family: reading.family,
+        amount: cantidad.times(reading.total),
+        sized: true,
+        source: "description",
+      };
+    }
     return {
       ok: true,
       family: "piece",
